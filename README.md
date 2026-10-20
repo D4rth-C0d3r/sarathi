@@ -74,7 +74,9 @@ cd sarathi
 tools/setup.sh .
 ```
 
-Full build instructions will live in `docs/building.md`.
+Full setup, build, flash and troubleshooting instructions are in
+[docs/building.md](docs/building.md). Hardware notes are in [docs/hardware.md](docs/hardware.md),
+and the core architecture decision is [ADR-0001](docs/adr/0001-ble-only-phone-as-brain.md).
 
 ## Contributing
 

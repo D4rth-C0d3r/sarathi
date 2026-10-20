@@ -1,0 +1,155 @@
+# Building sārathi
+
+This is the single source of truth for setting up a machine, building, flashing and testing.
+Hardware details live in [`hardware.md`](hardware.md).
+
+Supported hosts: **macOS, Linux and WSL**. (WSL can build but can't see USB devices by
+default; flash from the host OS or use `usbipd-win`.)
+
+## Prerequisites
+
+| Tool | Needed for | Notes |
+|---|---|---|
+| git | everything | |
+| Python 3.10–3.13 with `venv` | PlatformIO, repo tools | pioarduino doesn't support other versions. Debian/Ubuntu: `sudo apt install python3-venv` |
+| Host C++ compiler (g++ or clang++) | `pio test -e native` | macOS: `xcode-select --install`; Debian/Ubuntu: `sudo apt install build-essential` |
+| VS Code + PlatformIO extension | optional | The CLI is enough |
+| JDK 17+ and Android Studio | Android app (Phase 4) | Not needed yet |
+
+## First-time setup
+
+```bash
+git clone --recurse-submodules --shallow-submodules https://github.com/D4rth-C0d3r/sarathi.git
+cd sarathi
+tools/setup.sh .
+```
+
+`tools/setup.sh` is safe to re-run; every step checks before acting. From a clone it:
+
+1. Checks the prerequisites above.
+2. Installs **PlatformIO Core** in its own venv at `~/.platformio/penv` (via PlatformIO's
+   official installer), unless `pio` is already installed. System Python is untouched.
+3. Pre-downloads the pinned pioarduino platform into `~/.platformio` (large).
+4. Creates the project venv **`.venv`** and installs `pre-commit` into it.
+5. Fetches `vendor/crowpanel-2.1` if the submodule is missing.
+6. Asks before each machine-level change: VS Code extensions, symlinking `pio` into
+   `~/.local/bin`, and on Linux installing PlatformIO's udev rules and adding you to
+   `dialout` (both need `sudo`; log out and in afterwards).
+7. Asks you to plug in the board and looks for the ESP32-S3's native USB port.
+
+It never touches system Python, `pip --user`, shell rc files or global git config. The
+script was first written to bootstrap the repo, so its final "Next:" hints (create a GitHub
+repo, paste a prompt) don't apply to a clone; ignore them.
+
+If `pio` isn't found in a new terminal, add this line to your shell rc yourself:
+
+```bash
+export PATH="$HOME/.platformio/penv/bin:$PATH"
+```
+
+Then enable the git hooks:
+
+```bash
+source .venv/bin/activate
+pre-commit install
+```
+
+Two venvs, never mixed: PlatformIO in `~/.platformio/penv`, repo Python tools in `.venv`.
+Add repo tool dependencies to `tools/requirements.txt`; never `pip install` globally.
+
+If you cloned without submodules: `git submodule update --init --depth 1`.
+
+## Firmware
+
+All commands run from `firmware/`.
+
+```bash
+pio run                                       # build the device image (default env: crowpanel21)
+pio run -t upload                             # build and flash over the USB IN port
+pio device monitor                            # serial log (native USB CDC; Ctrl+C to quit)
+pio device monitor -f esp32_exception_decoder # only when decoding a crash backtrace
+pio test -e native                            # host unit tests for sarathi_core / sarathi_proto
+pio run -t compiledb                          # write compile_commands.json for clangd / clang-tidy
+pio run -t clean                              # remove build outputs
+```
+
+- **Environments.** `crowpanel21` is the device and the default, so a plain `pio run`
+  never tries to build the Arduino `main.cpp` on the host. `native` only runs tests; it
+  doesn't build `src/` and ignores the hardware libraries.
+- **First build** downloads the pinned platform and toolchain (about 10 minutes on a
+  typical connection). Later builds take seconds.
+- **Flashing** goes through the **USB IN** port, which is the ESP32-S3's native USB, so no
+  driver is needed. Use a data cable, not a charge-only one.
+- **Expected serial output** after boot (one hello line per second):
+
+  ```
+  [...][I][display.cpp:..] Begin(): [display] ready (480x480)
+  [...][I][touch.cpp:..] Begin(): [touch] ready
+  [...][I][knob.cpp:..] Begin(): [knob] ready
+  [...][I][lvgl_port.cpp:..] Init(): [lvgl] ready (2 x 460800 B buffers in PSRAM)
+  [...][I][main.cpp:..] LogHello(): [main] hello from sarathi | ESP32-S3 v0.2, 2 cores @ 240 MHz | flash 16 MB (chip 16 MB) | PSRAM 8192 KB (6825 KB free) | ...
+  ```
+
+  The first field is milliseconds since boot.
+
+### Pinned versions
+
+The ESP32 Arduino core, LVGL and the board libraries are pinned to Elecrow's tested versions
+in `firmware/platformio.ini`; the table and reasons are in `CLAUDE.md` ("Board
+configuration"). Upgrade only deliberately, in a dedicated PR, after testing on the device.
+
+## Lint and format
+
+```bash
+source .venv/bin/activate
+pre-commit run --all-files    # whitespace, YAML/JSON, private keys, clang-format, shellcheck, codespell
+```
+
+`pre-commit run --all-files` only checks files git tracks; for new files, use
+`pre-commit run --files <paths>` or stage them first. `.clang-tidy` is configured but needs
+`compile_commands.json` (see above).
+
+## Android
+
+Not started; the companion app arrives in Phase 4. This section will cover
+`./gradlew lint testDebugUnitTest`, `ktlintCheck detekt` and `installDebug`.
+
+## Troubleshooting
+
+**Serial log lines are cut off at the start.**
+The `esp32_exception_decoder` monitor filter drops the beginning of log lines. The project
+default is `monitor_filters = direct`. Use `pio device monitor -f esp32_exception_decoder`
+only when you need a crash backtrace decoded.
+
+**Upload can't connect, or no serial port appears.**
+- Check the cable carries data, and that you're on the **USB IN** port.
+- Force download mode: hold **BOOT**, plug in USB, release BOOT, then upload again.
+- Linux: `permission denied` on `/dev/ttyACM*` means the udev rules or `dialout` membership
+  are missing; re-run `tools/setup.sh .` and accept those steps, then log out and in.
+- WSL can't see USB by default; flash from the host OS.
+
+**No serial output at all after flashing.**
+The board logs over native USB CDC (`ARDUINO_USB_CDC_ON_BOOT=1`). The port re-enumerates
+after reset; reopen `pio device monitor` if it was open during the upload.
+
+**Build fails with `cannot find .../*.c.o` or `firmware.elf does not exist`.**
+Two builds wrote to `firmware/.pio/` at the same time, for example the CLI and the VS Code
+PlatformIO sidebar, or a build running while a formatter rewrote a source file. Re-run
+`pio run` (or `pio run -t clean && pio run`), and don't build from two places at once.
+
+**`pio run -v` fails with `TypeError: unsupported operand type(s) for +: '_Null' and 'str'`.**
+A bug in the platform's verbose command printing while building `firmware.bin`; the compile
+itself is fine. Use plain `pio run`. To see the exact compiler flags, run
+`pio run -t compiledb` and read `compile_commands.json`.
+
+**The editor shows errors like `Unknown argument '-mlongcalls'` or missing `stddef.h`.**
+clangd is reading the Xtensa GCC flags from `compile_commands.json`. Harmless: `pio run` and
+`pio test -e native` are the source of truth.
+
+**`pio: command not found`.**
+Add `~/.platformio/penv/bin` to your `PATH` (see First-time setup), or let `setup.sh`
+symlink `pio` into `~/.local/bin`.
+
+**Black screen, scrolling, wrong colours or touch offset.**
+See [`hardware.md`](hardware.md): panel timing, the R/B swap and the touch Y offset are all
+documented and verified there. Never hot-plug the display FPC cable while powered.

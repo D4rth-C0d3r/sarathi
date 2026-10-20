@@ -15,6 +15,8 @@ source .venv/bin/activate
 pre-commit install             # run format and lint hooks on every commit
 ```
 
+Details and troubleshooting are in [docs/building.md](docs/building.md).
+
 Repo Python tools run from the project `.venv` only. Add their dependencies to
 `tools/requirements.txt`; don't install packages globally.
 

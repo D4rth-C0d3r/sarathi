@@ -5,8 +5,28 @@ bus, CST8xx capacitive touch, rotary encoder with push button, PCF8574 I/O expan
 
 The values below are defined in code **only** in
 [`firmware/lib/sarathi_board/board_pins.h`](../firmware/lib/sarathi_board/board_pins.h),
-where each one cites its source. This page explains them and records where the sources
-disagree.
+where each one cites its source. This page explains them, records what has been verified on
+the device, and lists where the sources disagree. Build and flash instructions are in
+[`building.md`](building.md).
+
+## Status
+
+What has been checked on a real board (October 2026):
+
+| Subsystem | Status | Evidence |
+|---|---|---|
+| Chip, flash, PSRAM | ✅ verified | Boot log: ESP32-S3 rev v0.2, 2 cores @ 240 MHz, 16 MB flash (configured and physical), 8192 KB PSRAM |
+| USB CDC serial log | ✅ verified | `ESP_LOGx` output on the USB IN port with `monitor_filters = direct` |
+| Display: power-up, timing | ✅ verified | Full-screen fills and a centred ring: round, centred, no flicker, scrolling or line shift |
+| Display: colour order | ✅ verified | Labelled red, green, blue and white fills correct with the R/B swap and MADCTL `0x08` |
+| LVGL rendering | ✅ verified | Input test screen redraws without flicker or tearing |
+| Knob rotation | ✅ verified | Clockwise counts up, one step per detent |
+| Knob button | ✅ verified | Debounced press/release; click and double click |
+| Touch | ✅ verified | Dot under the finger at the centre and near the edge (Y offset 20) |
+| Backlight PWM | ✅ verified | Follows the knob from 5 % to 100 %; still readable at 5 % |
+| Wi-Fi, OTA, rollback | ⏳ not started | Phase 2 |
+| BLE | ⏳ not started | Phases 3–5 |
+| Onboard LED (GPIO 43?) | ❓ unresolved | See open question 2 |
 
 ## Sources
 
@@ -109,47 +129,69 @@ the area into the panel framebuffer with `draw16bitRGBBitmap()`. Labels use
 `lv_label_set_text_static()` with fixed buffers, because `lv_conf.h` routes LVGL's
 allocations to the C heap.
 
-## Verified on hardware
+## Memory and partitions
 
-Display bring-up was verified on the device in October 2026, using the timings in
-`board_pins.h` and the power-up sequence above. The bring-up pattern (red, green, blue and
-white fills, each labelled, then a centred ring) showed:
+`firmware/partitions.csv`, 16 MB flash:
 
-- RGB order correct with `kSwapRedBlue = true` and MADCTL `0x08`
-- Ring round and centred in the visible circle
-- No flicker, scrolling or line shift
+| Name | Type | Offset | Size | Use |
+|---|---|---|---|---|
+| `nvs` | data/nvs | 0x9000 | 20 KB | Settings, BLE bonds |
+| `otadata` | data/ota | 0xE000 | 8 KB | Which OTA slot boots |
+| `app0` | app/ota_0 | 0x10000 | 6 MB | Firmware slot A |
+| `app1` | app/ota_1 | 0x610000 | 6 MB | Firmware slot B (OTA target, rollback) |
+| `littlefs` | data/littlefs | 0xC10000 | ~3.9 MB | Fonts and small assets |
+| `coredump` | data/coredump | 0xFF0000 | 64 KB | Crash dumps |
 
-Input bring-up (step D) was verified on the device in October 2026 with the input test
-screen:
+Measured after the input bring-up (step D):
 
-- Knob: clockwise increases the count, one step per detent; backlight follows, still
-  visible at 5 %
-- Button: debounced press/release, click and double click detected
-- Touch: the dot sits under the finger at the centre and near the edge (Y offset 20 is right)
-- No flicker or tearing while labels and the touch dot update
+- **Firmware image:** 655,673 B, 10.4 % of a 6 MB slot.
+- **Internal RAM (static):** 25,916 B, 7.9 %; 236 KB heap free at runtime.
+- **PSRAM:** 1,367 KB in use of 8,192 KB. That is the panel framebuffer plus two LVGL draw
+  buffers, 3 × 460,800 B, all allocated once at init.
 
-## Discrepancies and open questions
+Elecrow's image-heavy demo is about 6 MB, so keep image assets small and prefer vector
+shapes and fonts.
 
-1. **P3 polarity.** The wiki calls P3 "LCD power supply" and only ever sets it HIGH; the
+## Boot log
+
+With `pio device monitor`, a healthy boot prints, in order:
+
+```
+[display] ready (480x480)
+[touch] ready
+[knob] ready
+[lvgl] ready (2 x 460800 B buffers in PSRAM)
+[main] hello from sarathi | ESP32-S3 v0.2, 2 cores @ 240 MHz | flash 16 MB (chip 16 MB) | PSRAM 8192 KB (6825 KB free) | heap 236 KB free | up 201 s
+```
+
+The hello line repeats every second. `flash … (chip …)` compares the configured size with
+the size read from the flash chip; they should match. `PCF8574 not responding`,
+`CST8xx not found` or `RGB panel init failed` instead point at the I2C bus, the touch
+controller or the panel.
+
+## Open questions
+
+1. **P3 wording.** The wiki calls P3 "LCD power supply" and only ever sets it HIGH; the
    lessons do the same. The schematic shows P3 driving the gate of a P-MOSFET with a pull-up,
    so HIGH leaves `VDD_LCD` **off** and LOW turns it on. The demo matches the schematic: it
    pulls P3 LOW at the end of `setup()`. The panel also has a second supply pin on 3.3V
-   directly, which is probably why the lessons work without it. **We follow the demo.**
-2. **R/B swap.** The demo swaps; the lessons don't. **Resolved:** the demo is right; the
-   swap is verified on hardware (see above).
-3. **Reset delays.** The lessons use shorter delays (50/100 ms) than the demo (100/120 ms).
-   We use the demo's.
-4. **Encoder A.** **Resolved:** the encoder (`J1`) connects to nets `GPIO42`/`GPIO4`. The
-   PCF8574 P6 net `ENCODER_A` connects to nothing else; it is a stray label. P6 is unused.
-7. **Touch Y offset.** The demo subtracts 20 from Y; the lessons don't. **Resolved:** the
-   demo is right; verified on hardware (see above).
-8. **Simple example encoder.** `example/Simple example/Encoder_code` uses GPIO 45/42/41,
-   but 45 (B1) and 41 (PCLK) are panel lines on this board. Like `RGB_CODE`, that example
-   is not for this board.
-5. **GPIO 43.** Elecrow's code and wiki call it the onboard/indicator LED; the schematic
+   directly, which is probably why the lessons work without it. We follow the demo, and the
+   display is verified with it; the open part is only why the wiki disagrees.
+2. **GPIO 43.** Elecrow's code and wiki call it the onboard/indicator LED; the schematic
    names it `U0TXD` (`ESP_TXD`). Not used until resolved.
-6. **GPIO 48.** `example/Simple example/RGB_CODE` drives a 5-LED NeoPixel strip on GPIO 48,
-   which is the B2 line of the panel on this board. That example is not for this board.
+
+## Resolved discrepancies
+
+- **R/B swap.** The demo swaps R and B; the lessons don't. The demo is right (verified).
+- **Reset delays.** The lessons use shorter delays (50/100 ms) than the demo (100/120 ms).
+  We use the demo's (verified).
+- **Encoder A.** The encoder (`J1`) connects to nets `GPIO42`/`GPIO4`. The PCF8574 P6 net
+  `ENCODER_A` connects to nothing else; it is a stray label. P6 is unused.
+- **Touch Y offset.** The demo subtracts 20 from Y; the lessons don't. The demo is right
+  (verified).
+- **Stray Elecrow examples.** `example/Simple example/RGB_CODE` drives a NeoPixel strip on
+  GPIO 48 (the panel's B2 line here), and `Encoder_code` uses GPIO 45/42/41 (45 and 41 are
+  panel lines here). Neither is for this board.
 
 ## Power and environment
 
