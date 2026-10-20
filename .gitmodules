@@ -1,0 +1,4 @@
+[submodule "vendor/crowpanel-2.1"]
+	path = vendor/crowpanel-2.1
+	url = https://github.com/Elecrow-RD/CrowPanel-2.1inch-HMI-ESP32-Rotary-Display-480-480-IPS-Round-Touch-Knob-Screen.git
+	shallow = true
