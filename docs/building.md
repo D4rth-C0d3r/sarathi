@@ -14,7 +14,8 @@ default; flash from the host OS or use `usbipd-win`.)
 | Python 3.10–3.13 with `venv` | PlatformIO, repo tools | pioarduino doesn't support other versions. Debian/Ubuntu: `sudo apt install python3-venv` |
 | Host C++ compiler (g++ or clang++) | `pio test -e native` | macOS: `xcode-select --install`; Debian/Ubuntu: `sudo apt install build-essential` |
 | VS Code + PlatformIO extension | optional | The CLI is enough |
-| JDK 17+ and Android Studio | Android app (Phase 4) | Not needed yet |
+| JDK 17+ | Android app | Gradle uses the `java` on `PATH` (or `JAVA_HOME`) |
+| Android SDK | Android app | Command-line tools or Android Studio; see [Android](#android) |
 
 ## First-time setup
 
@@ -117,6 +118,7 @@ GitHub Actions runs on every pull request and every push to `main`:
 |---|---|---|
 | `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`) | `pio test -e native`; `pio run -e crowpanel21` |
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
+| `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 
 Each `firmware` run uploads an artifact `firmware-<short sha>` with `firmware.bin` (to flash)
 and `firmware.elf` (to decode crash backtraces), kept for 30 days. Find it on the run's
@@ -128,8 +130,48 @@ files before you push.
 
 ## Android
 
-Not started; the companion app arrives in Phase 4. This section will cover
-`./gradlew lint testDebugUnitTest`, `ktlintCheck detekt` and `installDebug`.
+The companion app lives in `android/`: Kotlin, Jetpack Compose, Gradle (via the wrapper;
+no Gradle install needed). Modules:
+
+| Module | Kind | Purpose |
+|---|---|---|
+| `:app` | Android application | UI (Compose, Material 3); one placeholder screen for now |
+| `:core:protocol` | Kotlin/JVM library | Message encode/decode against `docs/protocol/vectors/` (Phase 4) |
+| `:core:ble` | Android library | BLE scan, bond and GATT transport (Phase 4) |
+
+Versions are in `android/gradle/libs.versions.toml`.
+
+### Android SDK
+
+You need JDK 17+ and an Android SDK. Either install Android Studio (it bundles the SDK), or
+install only the command-line tools, user-level, without sudo:
+
+```bash
+# Get the current "commandlinetools-linux-*_latest.zip" link from
+# https://developer.android.com/studio#command-line-tools-only, then:
+mkdir -p ~/Android/Sdk/cmdline-tools
+unzip commandlinetools-linux-*_latest.zip -d /tmp/cmdline-tools
+mv /tmp/cmdline-tools/cmdline-tools ~/Android/Sdk/cmdline-tools/latest
+~/Android/Sdk/cmdline-tools/latest/bin/sdkmanager \
+  "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"
+```
+
+Point Gradle at the SDK with either `export ANDROID_HOME=~/Android/Sdk`, or a
+`android/local.properties` file (gitignored) containing `sdk.dir=/home/<you>/Android/Sdk`.
+
+### Commands
+
+All from `android/`:
+
+```bash
+./gradlew lint testDebugUnitTest assembleDebug   # Android lint, unit tests, debug APK
+./gradlew ktlintCheck detekt                     # style and static analysis
+./gradlew ktlintFormat                           # auto-fix ktlint findings
+./gradlew installDebug                           # install on a USB-connected phone (adb)
+```
+
+`testDebugUnitTest` also runs `:core:protocol`'s JVM tests. The debug APK is written to
+`app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Troubleshooting
 
