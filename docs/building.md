@@ -116,10 +116,14 @@ pio run -e sim -t exec    # build and run (or run .pio/build/sim/program)
 |---|---|
 | ← / ↓ arrow, mouse wheel down | knob, one detent anticlockwise (−1) |
 | → / ↑ arrow, mouse wheel up | knob, one detent clockwise (+1) |
-| Enter (hold) | knob button (same 50 ms debounce, click and double click) |
+| Enter | knob button: click activates, double-click = next screen, hold 0.8 s = leave the input test |
 | Left mouse button inside the circle | touch |
+| S | pause/resume the demo ride (the bike stops, so Settings unlocks) |
 
-Close the window to quit. The simulator has no backlight, panel timing or ESP32-S3
+Both the device and the simulator replay a scripted demo ride (about 4.5 minutes, looping):
+navigation with a route window, a traffic-light stop, an incoming call at 60 s, and a
+playlist. `pio run -e sim -t exec` runs it in real time; to replay faster, run the program
+directly: `.pio/build/sim/program --speed 10`. Close the window to quit. The simulator has no backlight, panel timing or ESP32-S3
 performance limits: check speed, flicker and colours on the device. Colours are authored as
 true RGB; only the device flush swaps red and blue.
 

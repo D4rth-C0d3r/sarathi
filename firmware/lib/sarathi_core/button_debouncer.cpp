@@ -8,8 +8,9 @@ bool Reached(uint32_t now, uint32_t deadline) { return static_cast<int32_t>(now 
 
 }  // namespace
 
-ButtonDebouncer::ButtonDebouncer(uint32_t debounce_ms, uint32_t double_click_ms)
-    : debounce_ms_(debounce_ms), double_click_ms_(double_click_ms) {}
+ButtonDebouncer::ButtonDebouncer(uint32_t debounce_ms, uint32_t double_click_ms,
+                                 uint32_t long_press_ms)
+    : debounce_ms_(debounce_ms), double_click_ms_(double_click_ms), long_press_ms_(long_press_ms) {}
 
 ButtonUpdate ButtonDebouncer::Update(bool raw_pressed, uint32_t now_ms) {
   ButtonUpdate result{stable_, false, ButtonGesture::kNone};
@@ -23,13 +24,22 @@ ButtonUpdate ButtonDebouncer::Update(bool raw_pressed, uint32_t now_ms) {
     stable_ = raw_;
     result.pressed = stable_;
     result.changed = true;
-    if (!stable_) {  // a press completed
+    if (stable_) {
+      pressed_since_ms_ = now_ms;
+    } else if (long_fired_) {
+      long_fired_ = false;  // the release ending a long press is not a click
+    } else {                // a press completed
       ++press_count_;
       click_deadline_ms_ = now_ms + double_click_ms_;
     }
   }
 
-  if (press_count_ >= 2) {
+  if (stable_ && long_press_ms_ > 0 && !long_fired_ &&
+      now_ms - pressed_since_ms_ >= long_press_ms_) {
+    long_fired_ = true;
+    press_count_ = 0;
+    result.gesture = ButtonGesture::kLongPress;
+  } else if (press_count_ >= 2) {
     press_count_ = 0;
     result.gesture = ButtonGesture::kDoubleClick;
   } else if (press_count_ == 1 && !stable_ && Reached(now_ms, click_deadline_ms_)) {

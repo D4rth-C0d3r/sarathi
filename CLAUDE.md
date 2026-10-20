@@ -223,6 +223,12 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 
 ### Rider safety and UX
 - Everything must be operable with the knob alone (gloves). Touch is optional.
+- Knob grammar (`sarathi_ui/app_shell`), the same on every screen: **rotate** moves focus
+  (or changes a value in edit mode); **click** activates, delivered after the 300 ms
+  double-click window so a double-click never also presses a button; **double-click** goes
+  to the next screen (Nav → Music → Settings; Settings skipped while moving); **long press**
+  leaves the input test. An incoming or active call takes over the screen with focus on
+  Accept, then returns. Every focusable control belongs to its screen's LVGL group.
 - One-second-glance UI: large type, high contrast, at most one primary item per screen.
 - Content stays inside the 480 px circle. Keep a safe margin from the edge.
 - Settings menus are locked while moving. That includes changing the theme.

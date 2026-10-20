@@ -106,6 +106,44 @@ void TestWorksAcrossMillisWrap() {
   TEST_ASSERT_EQUAL(ButtonGesture::kClick, Hold(b, false, now, kDoubleClickMs + 100));
 }
 
+constexpr uint32_t kLongPressMs = 800;
+
+void TestLongPressDisabledByDefault() {
+  ButtonDebouncer b(kDebounceMs, kDoubleClickMs);
+  uint32_t now = 1000;
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, Hold(b, true, now, 3000));
+  TEST_ASSERT_EQUAL(ButtonGesture::kClick, Hold(b, false, now, kDoubleClickMs + 100));
+}
+
+void TestLongPressFiresOnceWhileHeld() {
+  ButtonDebouncer b(kDebounceMs, kDoubleClickMs, kLongPressMs);
+  uint32_t now = 1000;
+  int long_presses = 0;
+  for (uint32_t elapsed = 0; elapsed < 3000; elapsed += kTickMs, now += kTickMs) {
+    if (b.Update(true, now).gesture == ButtonGesture::kLongPress) {
+      ++long_presses;
+    }
+  }
+  TEST_ASSERT_EQUAL_INT(1, long_presses);
+}
+
+void TestLongPressReleaseIsNotAClick() {
+  ButtonDebouncer b(kDebounceMs, kDoubleClickMs, kLongPressMs);
+  uint32_t now = 1000;
+  TEST_ASSERT_EQUAL(ButtonGesture::kLongPress, Hold(b, true, now, 1000));
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, Hold(b, false, now, kDoubleClickMs * 2));
+  // The next short press is a normal click again.
+  Hold(b, true, now, 80);
+  TEST_ASSERT_EQUAL(ButtonGesture::kClick, Hold(b, false, now, kDoubleClickMs + 100));
+}
+
+void TestShortPressStillClicksWithLongPressEnabled() {
+  ButtonDebouncer b(kDebounceMs, kDoubleClickMs, kLongPressMs);
+  uint32_t now = 1000;
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, Hold(b, true, now, 200));
+  TEST_ASSERT_EQUAL(ButtonGesture::kClick, Hold(b, false, now, kDoubleClickMs + 100));
+}
+
 }  // namespace
 
 int main() {
@@ -118,5 +156,9 @@ int main() {
   RUN_TEST(TestDoubleClick);
   RUN_TEST(TestTwoSlowPressesAreTwoClicks);
   RUN_TEST(TestWorksAcrossMillisWrap);
+  RUN_TEST(TestLongPressDisabledByDefault);
+  RUN_TEST(TestLongPressFiresOnceWhileHeld);
+  RUN_TEST(TestLongPressReleaseIsNotAClick);
+  RUN_TEST(TestShortPressStillClicksWithLongPressEnabled);
   return UNITY_END();
 }

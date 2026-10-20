@@ -1,9 +1,7 @@
-// sārathi firmware entry point.
+// sārathi firmware entry point: constructs the modules and wires them together.
 //
-// Phase 0 bring-up: starts the display, touch, knob and LVGL, and shows the input test
-// screen (knob count, button, touch position, backlight). The knob also sets the backlight.
-// Logs chip, flash and PSRAM info once a second. This is a temporary exception to the
-// "main.cpp only wires modules" rule and is replaced in Phase 1.
+// Phase 1: the UI shell (Nav, Music, Settings, Call, Input test) fed by the scripted demo
+// ride until the phone link exists. Also logs chip, flash and PSRAM info once a second.
 
 #include <cinttypes>
 #include <cstdint>
@@ -13,11 +11,13 @@
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 
+#include "app_model.h"
+#include "app_shell.h"
 #include "backlight.h"
 #include "board_pins.h"
+#include "demo_ride.h"
 #include "display.h"
 #include "input_test_model.h"
-#include "input_test_screen.h"
 #include "knob.h"
 #include "lvgl_port.h"
 #include "touch.h"
@@ -44,8 +44,10 @@ board::Touch touch;
 board::Knob knob;
 core::TouchFilter touch_filter(pins::kScreenWidth, pins::kScreenHeight, pins::kTouchYOffset,
                                pins::kTouchJitterPx);
-core::InputTestModel model(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
-                           pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
+core::AppModel app;
+core::DemoRide demo_ride;
+core::InputTestModel input_test(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
+                                pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
 bool ui_ready = false;
 bool touch_ready = false;
 uint32_t last_log_ms = 0;
@@ -60,13 +62,13 @@ bool ReadTouch(int16_t& x, int16_t& y) {
   int16_t raw_y = 0;
   if (!touch_ready || !touch.ReadRaw(raw_x, raw_y)) {
     touch_filter.Release();
-    model.OnTouch(false, 0, 0);
+    ui::app_shell::OnTouch(false, 0, 0);
     return false;
   }
   const core::TouchPoint p = touch_filter.Apply(raw_x, raw_y);
   x = p.x;
   y = p.y;
-  model.OnTouch(true, p.x, p.y);
+  ui::app_shell::OnTouch(true, p.x, p.y);
   return true;
 }
 
@@ -90,13 +92,23 @@ void LogHello() {
            ESP.getFreePsram() / kKiB, ESP.getFreeHeap() / kKiB, millis() / 1000);
 }
 
-void PollInputs() {
+void RunUi(uint32_t now) {
+  demo_ride.Poll(now, app);
+
   int8_t step = 0;
   while (knob.TakeStep(step)) {
-    model.OnKnobStep(step);
+    ui::app_shell::OnKnobStep(step);
   }
-  backlight.SetPercent(model.State().backlight_percent);
-  model.OnButtonSample(knob.ReadButtonRaw(), millis());
+  ui::app_shell::OnButtonSample(knob.ReadButtonRaw(), now);
+
+  ui::lvgl_port::Run();  // reads touch via ReadTouch()
+  ui::app_shell::Update(now);
+
+  core::Command command;
+  while (app.TakeCommand(command)) {
+    demo_ride.OnCommand(command, now, app);
+  }
+  backlight.SetPercent(ui::app_shell::BacklightPercent());
 }
 
 }  // namespace
@@ -125,18 +137,15 @@ void setup() {
     return;
   }
   ESP_LOGI(kTag, "LVGL ready (2 x %u B buffers in PSRAM)", buffer_bytes);
-  ui::input_test_screen::Create();
+  ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
   ui_ready = true;
 }
 
 void loop() {
-  if (ui_ready) {
-    PollInputs();
-    ui::lvgl_port::Run();  // reads touch via ReadTouch()
-    ui::input_test_screen::Update(model.State());
-  }
-
   const uint32_t now = millis();
+  if (ui_ready) {
+    RunUi(now);
+  }
   if (now - last_log_ms >= kLogPeriodMs) {
     last_log_ms = now;
     LogHello();

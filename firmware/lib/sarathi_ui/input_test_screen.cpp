@@ -14,6 +14,7 @@ constexpr int32_t kLineSpacing = 60;
 constexpr int32_t kDotSize = 24;
 constexpr uint32_t kTextColor = 0xFFFFFF;
 constexpr uint32_t kDotColor = 0xFFA000;
+constexpr uint32_t kHintColor = 0xC8C8C8;
 
 // Label text lives in fixed buffers (lv_label_set_text_static), so updates never allocate.
 using Text = std::array<char, 32>;
@@ -39,6 +40,8 @@ const char* GestureName(ButtonGesture g) {
       return "click";
     case ButtonGesture::kDoubleClick:
       return "double";
+    case ButtonGesture::kLongPress:
+      return "long";
     case ButtonGesture::kNone:
       break;
   }
@@ -63,11 +66,17 @@ void SetLine(Line& line, const char* format, Args... args) {
 
 }  // namespace
 
-void Create() {
+lv_obj_t* Create() {
   lv_obj_t* screen = lv_obj_create(nullptr);
   lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
   lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* hint = lv_label_create(screen);
+  lv_obj_set_style_text_font(hint, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(hint, lv_color_hex(kHintColor), 0);
+  lv_label_set_text_static(hint, "Hold button to exit");
+  lv_obj_align(hint, LV_ALIGN_CENTER, 0, kLineSpacing * 5 / 2);
 
   MakeLine(screen, knob_line, -kLineSpacing * 3 / 2);
   MakeLine(screen, button_line, -kLineSpacing / 2);
@@ -81,8 +90,7 @@ void Create() {
   lv_obj_set_style_border_width(touch_dot, 0, 0);
   lv_obj_remove_flag(touch_dot, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(touch_dot, LV_OBJ_FLAG_HIDDEN);
-
-  lv_screen_load(screen);
+  return screen;
 }
 
 void Update(const State& s) {
