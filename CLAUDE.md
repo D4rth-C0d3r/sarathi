@@ -62,6 +62,7 @@ vendor/crowpanel-2.1/   Elecrow examples (git submodule, shallow), READ-ONLY
 pio run -e crowpanel21              # build for the device
 pio run -e crowpanel21 -t upload    # flash over the USB IN port
 pio device monitor                  # serial log (115200, native USB CDC)
+pio device monitor -f esp32_exception_decoder   # only when decoding a crash
 pio test -e native                  # host unit tests (core + proto)
 pio run -e sim                      # LVGL SDL simulator (once added)
 ```
