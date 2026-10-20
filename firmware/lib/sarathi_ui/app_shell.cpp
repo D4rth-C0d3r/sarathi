@@ -4,8 +4,9 @@
 
 #include "button_debouncer.h"
 #include "input.h"
-#include "placeholder_style.h"
 #include "screen_manager.h"
+#include "theme_binding.h"
+#include "theme_registry.h"
 
 namespace sarathi::ui::app_shell {
 namespace {
@@ -26,14 +27,7 @@ void Init(core::AppModel& model, core::InputTestModel& input_test, uint32_t debo
   test = &input_test;
   button = core::ButtonDebouncer(debounce_ms, double_click_ms, kLongPressMs);
 
-  // LVGL's default theme in dark mode for widget basics (rollers, sliders); our screens set
-  // their own colours and fonts on top.
-  lv_display_t* display = lv_display_get_default();
-  lv_theme_t* theme =
-      lv_theme_default_init(display, lv_color_hex(style::kAccent), lv_color_hex(style::kRejectFill),
-                            true, style::StoppedOnly());
-  lv_display_set_theme(display, theme);
-
+  theme::Apply(core::ThemeFor(model.State().settings.theme));  // before any screen exists
   screen_manager::Init(input::Init(), model);
 }
 
@@ -73,7 +67,14 @@ void OnButtonSample(bool raw_pressed, uint32_t now_ms) {
 
 void OnTouch(bool touching, int16_t x, int16_t y) { test->OnTouch(touching, x, y); }
 
-void Update(uint32_t now_ms) { screen_manager::Update(*app, test->State(), now_ms); }
+void Update(uint32_t now_ms) {
+  // A theme change in Settings restyles every screen in place: no reboot, no rebuild.
+  const core::ThemeDescriptor& wanted = core::ThemeFor(app->State().settings.theme);
+  if (&wanted != &theme::Current()) {
+    theme::Apply(wanted);
+  }
+  screen_manager::Update(*app, test->State(), now_ms);
+}
 
 int BacklightPercent() {
   return InputTestOpen() ? test->State().backlight_percent

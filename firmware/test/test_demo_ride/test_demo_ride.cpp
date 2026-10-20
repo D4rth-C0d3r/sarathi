@@ -142,6 +142,11 @@ void TestPauseStopsTheBike() {
   Run(ride, model, now, 5000);
   TEST_ASSERT_FLOAT_WITHIN(0.01F, before, ride.PositionM());
   TEST_ASSERT_FALSE(model.State().ride.moving);
+  // Route windows keep arriving while stopped, so the map never looks stale.
+  const uint32_t sequence = model.State().nav.window.sequence;
+  Run(ride, model, now, 3000);
+  TEST_ASSERT_UINT32_WITHIN(1, sequence + 3, model.State().nav.window.sequence);
+  TEST_ASSERT_TRUE(now - model.State().nav.window_received_ms <= 1000);
   ride.SetPaused(false);
   Run(ride, model, now, 1000);
   TEST_ASSERT_TRUE(ride.PositionM() > before);

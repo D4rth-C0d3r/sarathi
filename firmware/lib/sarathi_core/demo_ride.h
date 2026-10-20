@@ -94,7 +94,7 @@ class DemoRide final : public DataSource {
   bool arrived_ = false;
   uint32_t arrived_at_ms_ = 0;
   bool window_due_ = true;
-  uint32_t last_window_ms_ = 0;
+  uint32_t last_window_ms_ = 0;  // wall-clock time of the last window
   uint32_t window_sequence_ = 0;
 
   CallStage call_stage_ = CallStage::kWaiting;

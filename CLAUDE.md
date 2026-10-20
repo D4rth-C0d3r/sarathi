@@ -59,7 +59,8 @@ firmware/        PlatformIO project
   lib/sarathi_link      BLE (NimBLE) transport
   lib/sarathi_ota       Wi-Fi + BLE OTA, rollback
   lib/sarathi_settings  NVS/Preferences
-  lib/sarathi_ui        LVGL screens            (LVGL + core only; also builds in the simulator)
+  lib/sarathi_ui        LVGL screens, semantic components, theme binding
+                        (LVGL + core only; also builds in the simulator)
   test/                 native unit tests
 android/         app, core/protocol, core/ble, feature/{navigation,media,calls,ota}
 hardware/        enclosure/, wiring/
@@ -237,8 +238,14 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   supporting context. Stale or missing route data must be shown, never silently frozen.
 
 ### Themes (ADR-0003)
-- Screens use semantic components only. Never hard-code colours, fonts or sizes in a
-  screen; take them from the active theme.
+- Screens use semantic components only (`BigValue`, `ManeuverArrow`, `RingGauge`,
+  `RouteView`, `ListMenu`, `StaticLabel` with a text role, `theme::MakeButton`). Never
+  hard-code colours, fonts or sizes in a screen; take them from the active theme
+  (`sarathi_ui/theme_binding`). Theme data lives in `sarathi_core` (`theme.h`,
+  `theme_registry`); a new theme is a descriptor plus a registry entry, and must pass
+  `test_theme_legibility`.
+- Focus rings use `LV_STATE_FOCUSED`, not `FOCUS_KEY`: screens focus their first control
+  from code, and the ring must show then too.
 - A theme changes appearance only: never layout semantics, input mapping or screen order.
 - Every theme passes the legibility rules, enforced by native tests. Text size comes from
   visual angle at 75 cm on this panel (111 µm pitch, Montserrat cap height 0.70):

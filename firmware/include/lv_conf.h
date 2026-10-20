@@ -8,7 +8,8 @@
  *
  * Changes from the original: this header added, UTF-8 BOM removed, trailing whitespace
  * trimmed. The desktop simulator (`pio run -e sim`, -DSARATHI_SIM) turns on LV_USE_LOG,
- * LV_LOG_PRINTF and LV_USE_SDL; device settings are unchanged.
+ * LV_LOG_PRINTF and LV_USE_SDL; -DSARATHI_PERF_OVERLAY turns on LVGL's FPS/CPU overlay
+ * (LV_USE_SYSMON, LV_USE_PERF_MONITOR). Otherwise device settings are unchanged.
  */
 
 /**
@@ -767,16 +768,24 @@
 #define LV_USE_SNAPSHOT 0
 
 /*1: Enable system monitor component*/
+#ifdef SARATHI_PERF_OVERLAY
+#define LV_USE_SYSMON   1
+#else
 #define LV_USE_SYSMON   0
+#endif
 #if LV_USE_SYSMON
     /*Get the idle percentage. E.g. uint32_t my_get_idle(void);*/
     #define LV_SYSMON_GET_IDLE lv_timer_get_idle
 
     /*1: Show CPU usage and FPS count
      * Requires `LV_USE_SYSMON = 1`*/
+    #ifdef SARATHI_PERF_OVERLAY
+    #define LV_USE_PERF_MONITOR 1
+    #else
     #define LV_USE_PERF_MONITOR 0
+    #endif
     #if LV_USE_PERF_MONITOR
-        #define LV_USE_PERF_MONITOR_POS LV_ALIGN_BOTTOM_RIGHT
+        #define LV_USE_PERF_MONITOR_POS LV_ALIGN_BOTTOM_MID  /*inside the round glass*/
 
         /*0: Displays performance data on the screen, 1: Prints performance data using log.*/
         #define LV_USE_PERF_MONITOR_LOG_MODE 0

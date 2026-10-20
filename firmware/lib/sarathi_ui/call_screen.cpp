@@ -3,8 +3,9 @@
 #include <array>
 
 #include "format.h"
-#include "placeholder_style.h"
+#include "layout.h"
 #include "static_label.h"
+#include "theme_binding.h"
 
 namespace sarathi::ui::call_screen {
 namespace {
@@ -51,17 +52,17 @@ void ShowPhase(core::CallPhase phase) {
 lv_obj_t* Create(lv_group_t* group, core::AppModel& model) {
   app = &model;
   focus_group = group;
-  lv_obj_t* screen = style::MakeScreen();
-  header.Create(screen, style::Supporting(), style::kTextSupporting, -140, style::kContentWidth);
-  caller.Create(screen, style::Essential(), style::kText, -70, style::kContentWidth);
+  lv_obj_t* screen = theme::MakeScreen();
+  header.Create(screen, theme::Text::kSupporting, -140, layout::kContentWidth);
+  caller.Create(screen, theme::Text::kEssential, -70, layout::kContentWidth);
 
-  accept_button = style::MakeButton(screen, "Accept", style::Essential(), style::kAcceptFill,
-                                    kButtonWidth, kButtonHeight);
+  accept_button = theme::MakeButton(screen, "Accept", theme::Fill::kAccept,
+                                    core::FontRole::kEssential, kButtonWidth, kButtonHeight);
   lv_obj_align(accept_button, LV_ALIGN_CENTER, 0, 40);
   lv_obj_add_event_cb(accept_button, OnAccept, LV_EVENT_CLICKED, nullptr);
 
-  reject_button = style::MakeButton(screen, "Reject", style::Essential(), style::kRejectFill,
-                                    kButtonWidth, kButtonHeight);
+  reject_button = theme::MakeButton(screen, "Reject", theme::Fill::kReject,
+                                    core::FontRole::kEssential, kButtonWidth, kButtonHeight);
   reject_label = lv_obj_get_child(reject_button, 0);
   lv_obj_add_event_cb(reject_button, OnReject, LV_EVENT_CLICKED, nullptr);
 

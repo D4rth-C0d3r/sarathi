@@ -127,6 +127,22 @@ directly: `.pio/build/sim/program --speed 10`. Close the window to quit. The sim
 performance limits: check speed, flicker and colours on the device. Colours are authored as
 true RGB; only the device flush swaps red and blue.
 
+**Screenshot tour.** `.pio/build/sim/program --tour DIR` walks every screen with scripted
+knob input (Nav, an incoming call, Music, Settings, the theme list, switching to the HUD
+theme, adjusting brightness) and saves a BMP of each stop in `DIR`, then exits. It runs
+headless too: `SDL_VIDEODRIVER=dummy .pio/build/sim/program --tour /tmp/tour`.
+
+### Performance overlay (device)
+
+To see LVGL's frame rate, CPU load and render time on the board (for example while the Nav
+map redraws), build with the overlay:
+
+```bash
+PLATFORMIO_BUILD_FLAGS=-DSARATHI_PERF_OVERLAY pio run -e crowpanel21 -t upload
+```
+
+The numbers appear at the bottom of the screen. A normal `pio run -t upload` removes it.
+
 ### Pinned versions
 
 The ESP32 Arduino core, LVGL and the board libraries are pinned to Elecrow's tested versions

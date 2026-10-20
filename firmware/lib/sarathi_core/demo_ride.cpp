@@ -94,12 +94,13 @@ void DemoRide::PublishNav(uint32_t now_ms, AppModel& model) {
         StreetFor(next), static_cast<uint32_t>(std::lround(remaining / kEtaSpeedMps)));
   }
 
-  if (window_due_ || ride_ms_ - last_window_ms_ >= kWindowPeriodMs) {
+  // Like the phone, keep sending windows on wall-clock time, also while the bike stands still.
+  if (window_due_ || now_ms - last_window_ms_ >= kWindowPeriodMs) {
     RouteWindow window{};
     path_.Window(position_m_, kWindowBehindM, kWindowAheadM, kWindowToleranceM, window);
     window.sequence = ++window_sequence_;
     model.SetRouteWindow(window, now_ms);
-    last_window_ms_ = ride_ms_;
+    last_window_ms_ = now_ms;
     window_due_ = false;
   }
 }

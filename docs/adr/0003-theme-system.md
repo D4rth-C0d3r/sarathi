@@ -140,3 +140,20 @@ The other rules:
   work (custom typefaces, subsets, a font-generation tool) is deferred until after the
   product is functional, and will be decided then.
 - Night or high-brightness variants per theme are out of scope for now.
+
+## Implementation (Phase 1)
+
+- **Theme data** (`sarathi_core`): `theme.h` (palette roles, font roles in px, component
+  parameters, ornament id), `theme_registry` (Classic, Fighter jet HUD), `theme_classic.cpp`,
+  `theme_hud.cpp`. `legibility` implements the rules above; `test_theme_legibility` checks
+  every registered theme, so a theme that breaks a rule fails CI.
+- **Binding** (`sarathi_ui/theme_binding`): one shared `lv_style_t` per role. `Apply()`
+  rewrites them in place and calls `lv_obj_report_style_change(nullptr)`, so a theme chosen
+  in Settings restyles every screen at once, without a reboot or rebuilt screens. Drawn
+  components read `theme::Current()` when they draw.
+- **Semantic components** (`sarathi_ui`): `BigValue`, `ManeuverArrow` (shapes from
+  `core::maneuver_glyph`), `RingGauge`, `RouteView` (geometry from `core::route_projection`,
+  ADR-0002) and `ListMenu`. Screens use only these, `StaticLabel` with a text role, and
+  `theme::MakeButton`.
+- **Not yet:** ornaments (the HUD theme is palette and parameters only), the Racing game
+  theme, and saving the chosen theme across reboots (`sarathi_settings`).

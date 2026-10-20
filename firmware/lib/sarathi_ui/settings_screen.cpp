@@ -1,50 +1,87 @@
 #include "settings_screen.h"
 
-#include "placeholder_style.h"
+#include <array>
+#include <cstdio>
+
+#include "layout.h"
+#include "list_menu.h"
 #include "static_label.h"
+#include "theme_binding.h"
+#include "theme_registry.h"
 
 namespace sarathi::ui::settings_screen {
 namespace {
 
-// Same order as core::ThemeId.
-constexpr const char* kThemeOptions = "Classic\nFighter jet HUD\nRacing game";
-constexpr int32_t kControlWidth = 300;
+constexpr int32_t kTitleY = -175;
+constexpr int32_t kMenuY = 10;
+constexpr int32_t kMenuWidth = 340;
+constexpr int kBrightnessStep = 5;
+
+enum class Page : uint8_t { kMain, kThemes };
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 core::AppModel* app = nullptr;
 lv_group_t* focus_group = nullptr;
 OpenInputTestFn open_input_test_fn = nullptr;
-lv_obj_t* controls = nullptr;  // container for everything that is locked while moving
-lv_obj_t* theme_roller = nullptr;
-lv_obj_t* brightness_slider = nullptr;
-lv_obj_t* input_test_button = nullptr;
-StaticLabel<24> brightness_value;
+StaticLabel<24> title;
 StaticLabel<40> lock_message;
-bool shown_locked = false;
+ListMenu main_menu;
+ListMenu theme_menu;
+size_t theme_row = 0;  // "Theme: ..." in the main menu
+std::array<size_t, ListMenu::kMaxRows> theme_indices{};
+Page page = Page::kMain;
+bool shown_locked = true;
+core::ThemeId shown_theme = core::ThemeId::kRacing;  // forces the first refresh
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void OnTheme(lv_event_t* /*event*/) {
-  app->SetTheme(static_cast<core::ThemeId>(lv_roller_get_selected(theme_roller)));
+void ShowPage(Page next) {
+  main_menu.Hide();
+  theme_menu.Hide();
+  page = next;
+  if (next == Page::kMain) {
+    title.Set("%s", "Settings");
+    main_menu.Show(focus_group);
+  } else {
+    title.Set("%s", "Theme");
+    theme_menu.Show(focus_group);
+  }
 }
 
-void OnBrightness(lv_event_t* /*event*/) {
-  app->SetBrightness(static_cast<int>(lv_slider_get_value(brightness_slider)));
+void OpenThemes(void* /*context*/) { ShowPage(Page::kThemes); }
+void Back(void* /*context*/) { ShowPage(Page::kMain); }
+void OpenInputTest(void* /*context*/) { open_input_test_fn(); }
+
+void SelectTheme(void* context) {
+  const size_t index = *static_cast<const size_t*>(context);
+  app->SetTheme(core::ThemeAt(index).id);  // the shell applies it on the next update
+  ShowPage(Page::kMain);
 }
 
-void OnInputTest(lv_event_t* /*event*/) { open_input_test_fn(); }
+int GetBrightness(void* /*context*/) { return app->State().settings.brightness_percent; }
+void SetBrightness(void* /*context*/, int value) { app->SetBrightness(value); }
+
+void RefreshThemeTexts(core::ThemeId current) {
+  std::array<char, 40> text{};
+  std::snprintf(text.data(), text.size(), "Theme: %s", core::ThemeFor(current).short_name);
+  main_menu.SetText(theme_row, text.data());
+  for (size_t i = 0; i < core::ThemeCount() && i + 1 < ListMenu::kMaxRows; ++i) {
+    const core::ThemeDescriptor& t = core::ThemeAt(i);
+    std::snprintf(text.data(), text.size(), "%s %s", t.id == current ? LV_SYMBOL_OK : "  ", t.name);
+    theme_menu.SetText(i, text.data());
+  }
+  shown_theme = current;
+}
 
 void SetLocked(bool locked) {
-  lv_group_remove_all_objs(focus_group);
   if (locked) {
-    lv_obj_add_flag(controls, LV_OBJ_FLAG_HIDDEN);
+    main_menu.Hide();
+    theme_menu.Hide();
+    lv_obj_add_flag(title.Obj(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(lock_message.Obj(), LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_obj_remove_flag(controls, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(title.Obj(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(lock_message.Obj(), LV_OBJ_FLAG_HIDDEN);
-    lv_group_add_obj(focus_group, theme_roller);
-    lv_group_add_obj(focus_group, brightness_slider);
-    lv_group_add_obj(focus_group, input_test_button);
-    lv_group_focus_obj(theme_roller);
+    ShowPage(Page::kMain);
   }
   shown_locked = locked;
 }
@@ -55,44 +92,29 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, OpenInputTestFn open_
   app = &model;
   focus_group = group;
   open_input_test_fn = open_input_test;
-  lv_obj_t* screen = style::MakeScreen();
+  lv_obj_t* screen = theme::MakeScreen();
 
-  // Transparent full-screen container, so the whole control set hides at once.
-  controls = lv_obj_create(screen);
-  lv_obj_remove_style_all(controls);
-  lv_obj_set_size(controls, style::kScreenSize, style::kScreenSize);
-  lv_obj_remove_flag(controls, LV_OBJ_FLAG_SCROLLABLE);
+  title.Create(screen, theme::Text::kStoppedOnly, kTitleY);
 
-  StaticLabel<16> title;
-  title.Create(controls, style::StoppedOnly(), style::kTextSupporting, -170);
-  lv_label_set_text_static(title.Obj(), "Settings");
+  main_menu.Create(screen, kMenuY, kMenuWidth);
+  theme_row = main_menu.AddAction("Theme", OpenThemes, nullptr);
+  main_menu.AddValue("Brightness", "%", 5, 100, kBrightnessStep, GetBrightness, SetBrightness,
+                     nullptr);
+  main_menu.AddAction("Input test", OpenInputTest, nullptr);
 
-  theme_roller = lv_roller_create(controls);
-  lv_roller_set_options(theme_roller, kThemeOptions, LV_ROLLER_MODE_NORMAL);
-  lv_roller_set_visible_row_count(theme_roller, 3);
-  lv_obj_set_width(theme_roller, kControlWidth);
-  lv_obj_set_style_text_font(theme_roller, style::StoppedOnly(), 0);
-  lv_obj_align(theme_roller, LV_ALIGN_CENTER, 0, -75);
-  style::AddFocusRing(theme_roller);
-  lv_obj_add_event_cb(theme_roller, OnTheme, LV_EVENT_VALUE_CHANGED, nullptr);
+  theme_menu.Create(screen, kMenuY, kMenuWidth);
+  for (size_t i = 0; i < core::ThemeCount() && i + 1 < ListMenu::kMaxRows; ++i) {
+    theme_indices.at(i) = i;
+    theme_menu.AddAction(core::ThemeAt(i).name, SelectTheme, &theme_indices.at(i));
+  }
+  theme_menu.AddAction(LV_SYMBOL_LEFT " Back", Back, nullptr);
 
-  brightness_value.Create(controls, style::StoppedOnly(), style::kText, 25);
-  brightness_slider = lv_slider_create(controls);
-  lv_slider_set_range(brightness_slider, 5, 100);
-  lv_obj_set_width(brightness_slider, kControlWidth - 40);
-  lv_obj_align(brightness_slider, LV_ALIGN_CENTER, 0, 70);
-  style::AddFocusRing(brightness_slider);
-  lv_obj_add_event_cb(brightness_slider, OnBrightness, LV_EVENT_VALUE_CHANGED, nullptr);
-
-  input_test_button =
-      style::MakeButton(controls, "Input test", style::StoppedOnly(), style::kNeutralFill, 220, 60);
-  lv_obj_align(input_test_button, LV_ALIGN_CENTER, 0, 145);
-  lv_obj_add_event_cb(input_test_button, OnInputTest, LV_EVENT_CLICKED, nullptr);
-
-  lock_message.Create(screen, style::Supporting(), style::kWarning, 0, style::kContentWidth);
+  lock_message.Create(screen, theme::Text::kWarning, 0, layout::kContentWidth);
   lv_label_set_long_mode(lock_message.Obj(), LV_LABEL_LONG_WRAP);
   lock_message.Set("%s", "Stop to change settings");
 
+  main_menu.Hide();
+  theme_menu.Hide();
   SetLocked(false);
   return screen;
 }
@@ -101,14 +123,10 @@ void Update(const core::AppState& state, bool locked) {
   if (locked != shown_locked) {
     SetLocked(locked);
   }
-  const auto theme = static_cast<uint32_t>(state.settings.theme);
-  if (lv_roller_get_selected(theme_roller) != theme) {
-    lv_roller_set_selected(theme_roller, theme, LV_ANIM_OFF);
+  if (state.settings.theme != shown_theme) {
+    RefreshThemeTexts(state.settings.theme);
   }
-  if (lv_slider_get_value(brightness_slider) != state.settings.brightness_percent) {
-    lv_slider_set_value(brightness_slider, state.settings.brightness_percent, LV_ANIM_OFF);
-  }
-  brightness_value.Set("Brightness %d%%", state.settings.brightness_percent);
+  main_menu.Refresh();
 }
 
 }  // namespace sarathi::ui::settings_screen
