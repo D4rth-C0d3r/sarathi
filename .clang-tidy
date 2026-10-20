@@ -1,0 +1,50 @@
+---
+# Static analysis for firmware/. Needs compile_commands.json
+# (`pio run -e native -t compiledb` once the firmware project exists).
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers
+
+# Only our code. vendor/, LVGL, Arduino and ESP-IDF headers are never checked.
+HeaderFilterRegex: 'firmware/(src|lib|test)/'
+WarningsAsErrors: ''
+FormatStyle: file
+
+CheckOptions:
+  # Google naming.
+  - { key: readability-identifier-naming.NamespaceCase,          value: lower_case }
+  - { key: readability-identifier-naming.ClassCase,              value: CamelCase }
+  - { key: readability-identifier-naming.StructCase,             value: CamelCase }
+  - { key: readability-identifier-naming.EnumCase,               value: CamelCase }
+  - { key: readability-identifier-naming.EnumConstantCase,       value: CamelCase }
+  - { key: readability-identifier-naming.EnumConstantPrefix,     value: k }
+  - { key: readability-identifier-naming.TypeAliasCase,          value: CamelCase }
+  - { key: readability-identifier-naming.FunctionCase,           value: CamelCase }
+  - { key: readability-identifier-naming.VariableCase,           value: lower_case }
+  - { key: readability-identifier-naming.ParameterCase,          value: lower_case }
+  - { key: readability-identifier-naming.PrivateMemberCase,      value: lower_case }
+  - { key: readability-identifier-naming.PrivateMemberSuffix,    value: _ }
+  - { key: readability-identifier-naming.ProtectedMemberCase,    value: lower_case }
+  - { key: readability-identifier-naming.ProtectedMemberSuffix,  value: _ }
+  - { key: readability-identifier-naming.ConstexprVariableCase,  value: CamelCase }
+  - { key: readability-identifier-naming.ConstexprVariablePrefix, value: k }
+  - { key: readability-identifier-naming.GlobalConstantCase,     value: CamelCase }
+  - { key: readability-identifier-naming.GlobalConstantPrefix,   value: k }
+  - { key: readability-identifier-naming.MacroDefinitionCase,    value: UPPER_CASE }
+  # Embedded: allow plain C arrays for fixed buffers passed to C APIs.
+  - { key: cppcoreguidelines-avoid-c-arrays.AllowStringArrays,   value: true }
+  - { key: readability-function-cognitive-complexity.Threshold,  value: 30 }
