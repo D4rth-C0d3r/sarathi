@@ -1,31 +1,31 @@
 // Adapted from Elecrow's CrowPanel 2.1" examples (vendor/crowpanel-2.1/example/Arduino/
-// RotaryScreen_2_1/RotaryScreen_2_1.ino, setup() and the display driver block).
+// RotaryScreen_2_1/RotaryScreen_2_1.ino, setup(), the display driver block and
+// my_disp_flush()).
 
 #include "display.h"
 
+#include <cstddef>
+
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
-#include <PCF8574.h>
-#include <Wire.h>
 #include <esp_log.h>
 
+#include "backlight.h"
 #include "board_pins.h"
+#include "expander.h"
+#include "rgb565.h"
 
 namespace sarathi::board {
 namespace {
 
 namespace p = pins;
 
-constexpr const char* kTag = "board";
+constexpr const char* kTag = "display";
 
 // Driver objects live for the whole program and are built at static-init time, so nothing
 // here is heap-allocated by us. gfx_display.begin() allocates the 480x480 RGB565 framebuffer
 // in PSRAM once.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-// The constructor only stores &Wire; the bus is started in Display::Begin().
-PCF8574 pcf(&Wire, p::kPcf8574Addr, p::kI2cSda,  // NOLINT(cppcoreguidelines-interfaces-global-init)
-            p::kI2cScl);
-
 Arduino_SWSPI spi_bus(GFX_NOT_DEFINED /* DC: 9-bit SPI */, p::kLcdSpiCs, p::kLcdSpiSck,
                       p::kLcdSpiSda, GFX_NOT_DEFINED /* MISO */);
 
@@ -43,36 +43,28 @@ Arduino_RGB_Display gfx_display(p::kScreenWidth, p::kScreenHeight, &rgb_panel, 0
                                 st7701_type5_init_operations, sizeof(st7701_type5_init_operations));
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void PcfPulse(uint8_t pin, uint32_t pre_ms, uint32_t low_ms, uint32_t recover_ms) {
-  pcf.digitalWrite(pin, HIGH);
+void ExpanderPulse(uint8_t pin, uint32_t pre_ms, uint32_t low_ms, uint32_t recover_ms) {
+  expander::Write(pin, true);
   delay(pre_ms);
-  pcf.digitalWrite(pin, LOW);
+  expander::Write(pin, false);
   delay(low_ms);
-  pcf.digitalWrite(pin, HIGH);
+  expander::Write(pin, true);
   delay(recover_ms);
 }
 
 }  // namespace
 
-bool Display::Begin() {
-  Wire.begin(p::kI2cSda, p::kI2cScl);
-
-  // The library applies pin modes in begin(), so set them first.
-  pcf.pinMode(p::kPcfTouchReset, OUTPUT);
-  pcf.pinMode(p::kPcfTouchInt, OUTPUT);
-  pcf.pinMode(p::kPcfLcdPower, OUTPUT);
-  pcf.pinMode(p::kPcfLcdReset, OUTPUT);
-  pcf.pinMode(p::kPcfKnobButton, INPUT_PULLUP);
-  if (!pcf.begin()) {
-    ESP_LOGE(kTag, "PCF8574 not responding at 0x%02X", p::kPcf8574Addr);
+bool Display::Begin(Backlight& backlight, int backlight_percent) {
+  if (!expander::Begin()) {
     return false;
   }
 
-  pcf.digitalWrite(p::kPcfLcdPower, HIGH);
+  expander::Write(p::kPcfLcdPower, true);
   delay(p::kLcdPowerSettleMs);
-  PcfPulse(p::kPcfLcdReset, p::kLcdResetPreMs, p::kLcdResetPulseMs, p::kLcdResetRecoverMs);
-  PcfPulse(p::kPcfTouchReset, p::kTouchResetPreMs, p::kTouchResetPulseMs, p::kTouchResetRecoverMs);
-  pcf.digitalWrite(p::kPcfTouchInt, HIGH);
+  ExpanderPulse(p::kPcfLcdReset, p::kLcdResetPreMs, p::kLcdResetPulseMs, p::kLcdResetRecoverMs);
+  ExpanderPulse(p::kPcfTouchReset, p::kTouchResetPreMs, p::kTouchResetPulseMs,
+                p::kTouchResetRecoverMs);
+  expander::Write(p::kPcfTouchInt, true);
   delay(p::kTouchIntSettleMs);
 
   if (!gfx_display.begin()) {
@@ -86,47 +78,24 @@ bool Display::Begin() {
   gfx_display.fillScreen(0x0000);
 
   delay(p::kBacklightOnDelayMs);
-  if (!ledcAttach(p::kBacklight, p::kBacklightPwmHz, p::kBacklightPwmBits)) {
-    ESP_LOGE(kTag, "backlight PWM attach failed");
+  if (!backlight.Begin(backlight_percent)) {
     return false;
   }
-  ledcWrite(p::kBacklight, p::kBacklightDefaultDuty);
   // P3 LOW switches on VDD_LCD (active-low P-MOSFET), as Elecrow's demo does last.
-  pcf.digitalWrite(p::kPcfLcdPower, LOW);
+  expander::Write(p::kPcfLcdPower, false);
 
-  ESP_LOGI(kTag, "display ready (%dx%d)", p::kScreenWidth, p::kScreenHeight);
+  ESP_LOGI(kTag, "ready (%dx%d)", p::kScreenWidth, p::kScreenHeight);
   return true;
 }
 
-void Display::Fill(uint16_t rgb565) { gfx_display.fillScreen(ToPanel(rgb565)); }
-
-void Display::DrawRing(int16_t cx, int16_t cy, int16_t outer_radius, int16_t thickness,
-                       uint16_t rgb565) {
-  gfx_display.fillArc(cx, cy, outer_radius, static_cast<int16_t>(outer_radius - thickness), 0.0F,
-                      360.0F, ToPanel(rgb565));
-}
-
-void Display::DrawCentredText(const char* text, int16_t cy, uint8_t scale, uint16_t rgb565) {
-  int16_t x1 = 0;
-  int16_t y1 = 0;
-  uint16_t w = 0;
-  uint16_t h = 0;
-  gfx_display.setTextSize(scale);
-  gfx_display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-  gfx_display.setCursor(static_cast<int16_t>((p::kScreenWidth - w) / 2 - x1),
-                        static_cast<int16_t>(cy - (h / 2) - y1));
-  gfx_display.setTextColor(ToPanel(rgb565));
-  gfx_display.print(text);
-}
-
-uint16_t Display::ToPanel(uint16_t rgb565) {
+void Display::DrawBitmap(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
   if constexpr (p::kSwapRedBlue) {
-    return static_cast<uint16_t>((rgb565 & 0x07E0U) | ((rgb565 & 0x001FU) << 11U) |
-                                 ((rgb565 & 0xF800U) >> 11U));
+    const size_t count = static_cast<size_t>(w) * static_cast<size_t>(h);
+    for (size_t i = 0; i < count; ++i) {
+      pixels[i] = core::SwapRedBlue(pixels[i]);  // NOLINT(*-pointer-arithmetic)
+    }
   }
-  return rgb565;
+  gfx_display.draw16bitRGBBitmap(x, y, pixels, w, h);
 }
-
-Arduino_GFX& Display::Gfx() { return gfx_display; }
 
 }  // namespace sarathi::board

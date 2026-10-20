@@ -141,7 +141,7 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   | P3 | `LED-ON`: gate of P-MOSFET Q1 switching `VDD_LCD`, **active low** (schematic) |
   | P4 | LCD reset |
   | P5 | Encoder button (active low, pull-up) |
-  | P6 | Net `ENCODER_A` in the schematic; unused by Elecrow's code (see `docs/hardware.md`) |
+  | P6 | Stray `ENCODER_A` label in the schematic, connected to nothing; unused |
 
 - **Encoder:** A on GPIO 42, B on GPIO 4.
   - Elecrow polls it every 2 ms in a task on core 0 and pushes events to a queue.

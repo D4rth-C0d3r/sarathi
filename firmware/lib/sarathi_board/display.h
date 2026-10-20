@@ -7,25 +7,20 @@
 
 #include <cstdint>
 
-class Arduino_GFX;
-
 namespace sarathi::board {
+
+class Backlight;
 
 class Display {
  public:
-  // Runs the board power-up order from CLAUDE.md (I2C, PCF8574, LCD power and reset, touch
-  // reset, panel init, backlight). Call once. Returns false if the PCF8574 or panel fails.
-  bool Begin();
+  // Runs the board power-up order (see docs/hardware.md): I2C and PCF8574, LCD power and
+  // reset, touch reset, panel init, then the backlight at `backlight_percent`. Call once.
+  // Returns false if the PCF8574, panel or backlight fails.
+  bool Begin(Backlight& backlight, int backlight_percent);
 
-  // Colours are plain RGB565; the panel's R/B order is handled here.
-  void Fill(uint16_t rgb565);
-  void DrawRing(int16_t cx, int16_t cy, int16_t outer_radius, int16_t thickness, uint16_t rgb565);
-  void DrawCentredText(const char* text, int16_t cy, uint8_t scale, uint16_t rgb565);
-
-  // Converts RGB565 to the order the panel expects (see pins::kSwapRedBlue).
-  static uint16_t ToPanel(uint16_t rgb565);
-
-  Arduino_GFX& Gfx();
+  // Copies a w x h block of RGB565 pixels to (x, y). Swaps R and B in place for the panel,
+  // so `pixels` is modified. Safe to call from the LVGL flush callback.
+  void DrawBitmap(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels);
 };
 
 }  // namespace sarathi::board

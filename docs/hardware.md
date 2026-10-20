@@ -32,7 +32,7 @@ Last cross-checked: October 2026.
 | G0–G5 | 14, 13, 12, 11, 10, 9 | `G0`–`G5` | all four |
 | B0–B4 | 5, 45, 48, 47, 21 | `B1`–`B5` | all four |
 | Backlight PWM | 6 | `BL_PWM` → NPN Q3, low side of LED string | all four |
-| Encoder A / B | 42 / 4 | `GPIO42` / `GPIO4` | demo, lesson, wiki |
+| Encoder A / B | 42 / 4 | `GPIO42` / `GPIO4` from encoder `J1`, 10 kΩ pull-ups | demo, lesson, sch, wiki |
 
 The schematic numbers the red and blue lines from 1; the GFX library numbers them from 0.
 The GPIOs are the same.
@@ -47,7 +47,7 @@ The GPIOs are the same.
 | P3 | `LED-ON` | Gate of P-MOSFET Q1 (3.3V → `VDD_LCD`), 10 kΩ pull-up: **LOW = `VDD_LCD` on** |
 | P4 | `LCD_RST` | Panel reset |
 | P5 | `ENCODER_SW` | Knob button, active low, pull-up |
-| P6 | `ENCODER_A` | Unused by Elecrow's code (see below) |
+| P6 | `ENCODER_A` | Stray label, connected to nothing else; unused |
 
 ## Panel timing and colour
 
@@ -75,7 +75,39 @@ Implemented in `Display::Begin()`, following the demo (`setup()`, L470–579):
 7. Wait 200 ms, start the backlight (GPIO 6, 5 kHz, 8-bit, duty 204 ≈ 80 %).
 8. P3 LOW.
 
-Touch `begin()` and `lv_init()` follow in later steps.
+After `Display::Begin()`, `main.cpp` starts touch (`Touch::Begin()`), the knob task and
+LVGL (`lv_init()`), in that order.
+
+## Knob
+
+- **Rotation:** encoder `J1` (EC28A), A → GPIO 42, B → GPIO 4, external 10 kΩ pull-ups.
+  A task pinned to core 0 samples both pins every 2 ms (demo) and decodes them with
+  Elecrow's quadrature table, 4 transitions per detent (Lesson02). It posts ±1 per detent
+  to a 16-entry queue; the UI task drains it. Contact bounce cancels out in the table.
+- **Button:** PCF8574 P5 (`ENCODER_SW`), active low, 10 kΩ pull-up. Read over I2C from the
+  UI task only (the touch controller shares the bus). 50 ms debounce; a second completed
+  press within 300 ms is a double click (demo).
+- Logic lives in `sarathi_core` (`KnobDecoder`, `ButtonDebouncer`) with native tests.
+
+## Touch
+
+- CST8xx at 0x15 on the shared I2C bus (`Adafruit CST8XX` library), polled by LVGL from the
+  UI task. The interrupt line (P2) isn't used.
+- Correction (`sarathi_core::TouchFilter`, from the demo): subtract 20 from Y, clamp to
+  0–479, and ignore moves under 4 px while the finger is down.
+
+## Backlight
+
+GPIO 6, LEDC 5 kHz, 8-bit. `Backlight::SetPercent()` clamps to 5–100 % (at 0 % the screen
+is invisible) and maps with `percent × 255 / 100`, as the demo does. Starts at 80 % (duty 204).
+
+## LVGL
+
+Two full-screen RGB565 draw buffers (2 × 460,800 B) in PSRAM, allocated once in
+`lvgl_port::Init()`, partial render mode. The flush callback swaps R/B in place and copies
+the area into the panel framebuffer with `draw16bitRGBBitmap()`. Labels use
+`lv_label_set_text_static()` with fixed buffers, because `lv_conf.h` routes LVGL's
+allocations to the C heap.
 
 ## Verified on hardware
 
@@ -86,6 +118,15 @@ white fills, each labelled, then a centred ring) showed:
 - RGB order correct with `kSwapRedBlue = true` and MADCTL `0x08`
 - Ring round and centred in the visible circle
 - No flicker, scrolling or line shift
+
+Input bring-up (step D) was verified on the device in October 2026 with the input test
+screen:
+
+- Knob: clockwise increases the count, one step per detent; backlight follows, still
+  visible at 5 %
+- Button: debounced press/release, click and double click detected
+- Touch: the dot sits under the finger at the centre and near the edge (Y offset 20 is right)
+- No flicker or tearing while labels and the touch dot update
 
 ## Discrepancies and open questions
 
@@ -98,8 +139,13 @@ white fills, each labelled, then a centred ring) showed:
    swap is verified on hardware (see above).
 3. **Reset delays.** The lessons use shorter delays (50/100 ms) than the demo (100/120 ms).
    We use the demo's.
-4. **Encoder A.** The code reads the encoder on GPIO 42/4, but the schematic also routes a
-   net named `ENCODER_A` to PCF8574 P6. To resolve when the encoder driver is written.
+4. **Encoder A.** **Resolved:** the encoder (`J1`) connects to nets `GPIO42`/`GPIO4`. The
+   PCF8574 P6 net `ENCODER_A` connects to nothing else; it is a stray label. P6 is unused.
+7. **Touch Y offset.** The demo subtracts 20 from Y; the lessons don't. **Resolved:** the
+   demo is right; verified on hardware (see above).
+8. **Simple example encoder.** `example/Simple example/Encoder_code` uses GPIO 45/42/41,
+   but 45 (B1) and 41 (PCLK) are panel lines on this board. Like `RGB_CODE`, that example
+   is not for this board.
 5. **GPIO 43.** Elecrow's code and wiki call it the onboard/indicator LED; the schematic
    names it `U0TXD` (`ESP_TXD`). Not used until resolved.
 6. **GPIO 48.** `example/Simple example/RGB_CODE` drives a 5-LED NeoPixel strip on GPIO 48,

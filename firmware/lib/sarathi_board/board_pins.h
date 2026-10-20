@@ -93,7 +93,35 @@ constexpr bool kSwapRedBlue = true;
 constexpr int kBacklight = 6;
 constexpr uint32_t kBacklightPwmHz = 5000;
 constexpr uint8_t kBacklightPwmBits = 8;
-constexpr uint32_t kBacklightDefaultDuty = 204;  // ~80 %
+// [demo] starts at duty 204/255 (L430), which is 80 % (204 = 80 * 255 / 100).
+constexpr int kBacklightDefaultPercent = 80;
+
+// ---- Rotary knob ----
+// [demo] L19-20, [lesson] L20-21, [wiki]. [sch] encoder J1 (EC28A): A -> net GPIO42,
+// B -> net GPIO4, each with a 10k pull-up (R19, R20). The PCF8574 P6 net "ENCODER_A"
+// connects to nothing else and is unused.
+constexpr int kKnobA = 42;
+constexpr int kKnobB = 4;
+// Sampled every 2 ms in a task on core 0, stack 2048, priority 1, queue of 16:
+// [demo] L585, L589, L861.
+constexpr uint32_t kKnobPollMs = 2;
+constexpr uint32_t kKnobTaskStack = 2048;
+constexpr uint32_t kKnobTaskPriority = 1;
+constexpr int kKnobTaskCore = 0;
+constexpr uint32_t kKnobQueueLength = 16;
+// "Four valid transitions represent one encoder detent." [lesson] Lesson02-Rotate.ino L78.
+constexpr uint8_t kKnobTransitionsPerDetent = 4;
+// Button on PCF8574 P5: 50 ms debounce, 300 ms double click. [demo] L31-32,
+// [lesson] Lesson02-Rotate.ino L96.
+constexpr uint32_t kKnobDebounceMs = 50;
+constexpr uint32_t kKnobDoubleClickMs = 300;
+
+// ---- Touch (CST8xx) ----
+constexpr uint8_t kTouchAddr = 0x15;  // [demo] L67, [lesson] L22, [wiki]
+// [demo] L179 subtracts 20 from Y "to match the visible area"; [lesson] doesn't. We follow
+// the demo; verified on hardware, Oct 2026 (see docs/hardware.md).
+constexpr int16_t kTouchYOffset = 20;
+constexpr int16_t kTouchJitterPx = 4;  // [demo] L180: ignore moves under 4 px
 
 // ---- Power-up delays, ms ([demo] L484-505 and L577; longer than [lesson] L63-72) ----
 constexpr uint32_t kLcdPowerSettleMs = 100;     // after P3 HIGH
