@@ -1,20 +1,13 @@
 // Display and input registration follow Elecrow's demo (vendor/crowpanel-2.1/example/Arduino/
-// RotaryScreen_2_1/RotaryScreen_2_1.ino, setup()): two full-screen RGB565 buffers in PSRAM,
-// partial render mode, and a pointer input device.
+// RotaryScreen_2_1/RotaryScreen_2_1.ino, setup()): two full-screen RGB565 buffers, partial
+// render mode, and a pointer input device.
 
 #include "lvgl_port.h"
 
-#include <cstddef>
-
-#include <Arduino.h>
-#include <esp_heap_caps.h>
-#include <esp_log.h>
 #include <lvgl.h>
 
 namespace sarathi::ui::lvgl_port {
 namespace {
-
-constexpr const char* kTag = "lvgl";
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 FlushFn flush_fn = nullptr;
@@ -41,25 +34,24 @@ void TouchCb(lv_indev_t* /*indev*/, lv_indev_data_t* data) {
   }
 }
 
-uint32_t TickMs() { return millis(); }
-
 }  // namespace
 
-bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch) {
+size_t BufferBytes(int16_t width, int16_t height) {
+  return sizeof(uint16_t) * static_cast<size_t>(width) * static_cast<size_t>(height);
+}
+
+bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn tick, AllocFn alloc) {
   flush_fn = flush;
   touch_fn = touch;
 
   lv_init();
-  lv_tick_set_cb(TickMs);
+  lv_tick_set_cb(tick);
 
-  const size_t bytes = sizeof(uint16_t) * static_cast<size_t>(width) * static_cast<size_t>(height);
-  void* buf1 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
-  void* buf2 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
+  const size_t bytes = BufferBytes(width, height);
+  void* buf1 = alloc(bytes);
+  void* buf2 = alloc(bytes);
   if (buf1 == nullptr || buf2 == nullptr) {
-    ESP_LOGE(kTag, "draw buffer alloc failed (2 x %u B in PSRAM)", static_cast<unsigned>(bytes));
-    heap_caps_free(buf1);
-    heap_caps_free(buf2);
-    return false;
+    return false;  // one-time init failure; the caller logs and disables the UI
   }
 
   lv_display_t* display = lv_display_create(width, height);
@@ -71,8 +63,6 @@ bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch) {
   lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(indev, TouchCb);
   lv_indev_set_display(indev, display);
-
-  ESP_LOGI(kTag, "ready (2 x %u B buffers in PSRAM)", static_cast<unsigned>(bytes));
   return true;
 }
 

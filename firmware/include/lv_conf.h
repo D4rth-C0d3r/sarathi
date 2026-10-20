@@ -7,7 +7,8 @@
  * which is based on LVGL's lv_conf_template.h (MIT License, Copyright (c) 2021 LVGL Kft).
  *
  * Changes from the original: this header added, UTF-8 BOM removed, trailing whitespace
- * trimmed. Settings are unchanged. Tune them deliberately in Phase 1.
+ * trimmed. The desktop simulator (`pio run -e sim`, -DSARATHI_SIM) turns on LV_USE_LOG,
+ * LV_LOG_PRINTF and LV_USE_SDL; device settings are unchanged.
  */
 
 /**
@@ -220,7 +221,11 @@
  *-----------*/
 
 /*Enable the log module*/
+#ifdef SARATHI_SIM
+#define LV_USE_LOG 1
+#else
 #define LV_USE_LOG 0
+#endif
 #if LV_USE_LOG
 
     /*How important log should be added:
@@ -234,7 +239,11 @@
 
     /*1: Print the log with 'printf';
     *0: User need to register a callback with `lv_log_register_print_cb()`*/
+    #ifdef SARATHI_SIM
+    #define LV_LOG_PRINTF 1
+    #else
     #define LV_LOG_PRINTF 0
+    #endif
 
     /*1: Enable print timestamp;
      *0: Disable print timestamp*/
@@ -858,7 +867,11 @@
  *==================*/
 
 /*Use SDL to open window on PC and handle mouse and keyboard*/
+#ifdef SARATHI_SIM
+#define LV_USE_SDL              1
+#else
 #define LV_USE_SDL              0
+#endif
 #if LV_USE_SDL
     #define LV_SDL_INCLUDE_PATH     <SDL2/SDL.h>
     #define LV_SDL_RENDER_MODE      LV_DISPLAY_RENDER_MODE_DIRECT   /*LV_DISPLAY_RENDER_MODE_DIRECT is recommended for best performance*/

@@ -40,6 +40,28 @@ jobs:
       - name: Run native tests
         run: pio test -e native
 
+  sim:
+    name: build simulator
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install SDL2
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsdl2-dev
+
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+
+      # Build only: the runner has no display. Keeps sarathi_ui free of device-only code.
+      - name: Build simulator
+        run: pio run -e sim
+
   build:
     name: build crowpanel21
     runs-on: ubuntu-24.04

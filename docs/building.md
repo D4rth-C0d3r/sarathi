@@ -87,11 +87,41 @@ pio run -t clean                              # remove build outputs
   [...][I][display.cpp:..] Begin(): [display] ready (480x480)
   [...][I][touch.cpp:..] Begin(): [touch] ready
   [...][I][knob.cpp:..] Begin(): [knob] ready
-  [...][I][lvgl_port.cpp:..] Init(): [lvgl] ready (2 x 460800 B buffers in PSRAM)
+  [...][I][main.cpp:..] setup(): [main] LVGL ready (2 x 460800 B buffers in PSRAM)
   [...][I][main.cpp:..] LogHello(): [main] hello from sarathi | ESP32-S3 v0.2, 2 cores @ 240 MHz | flash 16 MB (chip 16 MB) | PSRAM 8192 KB (6825 KB free) | ...
   ```
 
   The first field is milliseconds since boot.
+
+### Desktop simulator
+
+Runs the same `sarathi_ui` screens and `sarathi_core` logic on your desktop in a 480×480
+window, with everything outside the round glass masked black. Useful for layout, themes
+and input logic without flashing the board.
+
+It needs the SDL2 development package once (Linux):
+
+```bash
+sudo apt install libsdl2-dev   # Debian/Ubuntu; ~45 small -dev packages
+```
+
+Then, from `firmware/`:
+
+```bash
+pio run -e sim            # build
+pio run -e sim -t exec    # build and run (or run .pio/build/sim/program)
+```
+
+| Desktop | Device equivalent |
+|---|---|
+| ← / ↓ arrow, mouse wheel down | knob, one detent anticlockwise (−1) |
+| → / ↑ arrow, mouse wheel up | knob, one detent clockwise (+1) |
+| Enter (hold) | knob button (same 50 ms debounce, click and double click) |
+| Left mouse button inside the circle | touch |
+
+Close the window to quit. The simulator has no backlight, panel timing or ESP32-S3
+performance limits: check speed, flicker and colours on the device. Colours are authored as
+true RGB; only the device flush swaps red and blue.
 
 ### Pinned versions
 
@@ -116,7 +146,7 @@ GitHub Actions runs on every pull request and every push to `main`:
 
 | Workflow | Jobs | Same as running locally |
 |---|---|---|
-| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`) | `pio test -e native`; `pio run -e crowpanel21` |
+| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`); **build simulator** | `pio test -e native`; `pio run -e crowpanel21`; `pio run -e sim` |
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
 | `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 

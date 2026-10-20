@@ -3,23 +3,13 @@
 
 #pragma once
 
-#include <cstdint>
-
-#include "button_debouncer.h"
+#include "input_test_model.h"
 
 namespace sarathi::ui::input_test_screen {
 
-struct State {
-  int knob_count = 0;
-  bool button_pressed = false;
-  core::ButtonGesture last_gesture = core::ButtonGesture::kNone;
-  bool touching = false;
-  int16_t touch_x = 0;
-  int16_t touch_y = 0;
-  int backlight_percent = 0;
-};
+using State = core::InputTestState;
 
-// Builds the screen and makes it active. Call once after lvgl_port::Init().
+// Builds the screen and makes it active. Call once after LVGL and a display exist.
 void Create();
 
 // Refreshes only the parts that changed. Call from the UI task.

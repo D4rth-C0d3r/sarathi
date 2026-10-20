@@ -59,7 +59,7 @@ firmware/        PlatformIO project
   lib/sarathi_link      BLE (NimBLE) transport
   lib/sarathi_ota       Wi-Fi + BLE OTA, rollback
   lib/sarathi_settings  NVS/Preferences
-  lib/sarathi_ui        LVGL screens
+  lib/sarathi_ui        LVGL screens            (LVGL + core only; also builds in the simulator)
   test/                 native unit tests
 android/         app, core/protocol, core/ble, feature/{navigation,media,calls,ota}
 hardware/        enclosure/, wiring/
@@ -76,7 +76,8 @@ pio run -e crowpanel21 -t upload    # flash over the USB IN port
 pio device monitor                  # serial log (115200, native USB CDC)
 pio device monitor -f esp32_exception_decoder   # only when decoding a crash
 pio test -e native                  # host unit tests (core + proto)
-pio run -e sim                      # LVGL SDL simulator (once added)
+pio run -e sim                      # build the desktop simulator (needs libsdl2-dev)
+pio run -e sim -t exec              # build and run it (arrows/wheel = knob, Enter = button)
 ```
 
 ### Android (run from `android/`)
@@ -181,7 +182,11 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - `sarathi_core` and `sarathi_proto` include **no** Arduino, ESP-IDF, LVGL or NimBLE
   headers. They must build and test under `pio test -e native`.
 - Dependencies flow inward: `ui/link/ota/settings/board → core/proto`. Never the reverse.
-- `main.cpp` only constructs and wires modules together.
+- `main.cpp` only constructs and wires modules together. The simulator's `sim/main.cpp` does
+  the same for the desktop; logic shared by both lives in `sarathi_core` or `sarathi_ui`.
+- `sarathi_ui` includes only LVGL, the C++ standard library and `sarathi_core`: no Arduino,
+  ESP-IDF or `sarathi_board`. Platform access (flush, touch, tick, buffer allocation) is
+  passed in as callbacks. `pio run -e sim` must keep building.
 - Theme descriptors (palette, font roles and sizes, style parameters) are plain data in
   `sarathi_core`, so legibility rules run as native tests. `sarathi_ui` binds them to LVGL
   styles once, at init or on theme change.

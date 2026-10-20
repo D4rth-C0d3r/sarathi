@@ -176,7 +176,7 @@ With `pio device monitor`, a healthy boot prints, in order:
 [display] ready (480x480)
 [touch] ready
 [knob] ready
-[lvgl] ready (2 x 460800 B buffers in PSRAM)
+[main] LVGL ready (2 x 460800 B buffers in PSRAM)
 [main] hello from sarathi | ESP32-S3 v0.2, 2 cores @ 240 MHz | flash 16 MB (chip 16 MB) | PSRAM 8192 KB (6825 KB free) | heap 236 KB free | up 201 s
 ```
 

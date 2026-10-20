@@ -101,7 +101,7 @@ void Update(const State& s) {
       lv_obj_set_pos(touch_dot, s.touch_x - (kDotSize / 2), s.touch_y - (kDotSize / 2));
       lv_obj_remove_flag(touch_dot, LV_OBJ_FLAG_HIDDEN);
     } else {
-      SetLine(touch_line, "Touch: -");
+      SetLine(touch_line, "%s", "Touch: -");
       lv_obj_add_flag(touch_dot, LV_OBJ_FLAG_HIDDEN);
     }
   }

@@ -10,12 +10,13 @@
 
 #include <Arduino.h>
 #include <esp_flash.h>
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 
 #include "backlight.h"
 #include "board_pins.h"
-#include "button_debouncer.h"
 #include "display.h"
+#include "input_test_model.h"
 #include "input_test_screen.h"
 #include "knob.h"
 #include "lvgl_port.h"
@@ -33,7 +34,6 @@ constexpr const char* kTag = "main";
 constexpr uint32_t kLogPeriodMs = 1000;
 constexpr uint32_t kSerialWaitMs = 2000;
 constexpr uint32_t kLoopDelayMs = 5;
-constexpr int kBacklightStepPercent = 5;  // per detent, as in Elecrow's Lesson02-Rotate
 constexpr uint32_t kKiB = 1024;
 constexpr uint32_t kMiB = 1024 * 1024;
 
@@ -44,8 +44,8 @@ board::Touch touch;
 board::Knob knob;
 core::TouchFilter touch_filter(pins::kScreenWidth, pins::kScreenHeight, pins::kTouchYOffset,
                                pins::kTouchJitterPx);
-core::ButtonDebouncer button(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
-ui::input_test_screen::State screen_state;
+core::InputTestModel model(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
+                           pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
 bool ui_ready = false;
 bool touch_ready = false;
 uint32_t last_log_ms = 0;
@@ -60,17 +60,19 @@ bool ReadTouch(int16_t& x, int16_t& y) {
   int16_t raw_y = 0;
   if (!touch_ready || !touch.ReadRaw(raw_x, raw_y)) {
     touch_filter.Release();
-    screen_state.touching = false;
+    model.OnTouch(false, 0, 0);
     return false;
   }
   const core::TouchPoint p = touch_filter.Apply(raw_x, raw_y);
   x = p.x;
   y = p.y;
-  screen_state.touching = true;
-  screen_state.touch_x = p.x;
-  screen_state.touch_y = p.y;
+  model.OnTouch(true, p.x, p.y);
   return true;
 }
+
+uint32_t TickMs() { return millis(); }
+
+void* AllocPsram(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM); }
 
 void LogHello() {
   uint32_t flash_physical = 0;
@@ -91,16 +93,10 @@ void LogHello() {
 void PollInputs() {
   int8_t step = 0;
   while (knob.TakeStep(step)) {
-    screen_state.knob_count += step;
-    backlight.SetPercent(backlight.Percent() + (step * kBacklightStepPercent));
+    model.OnKnobStep(step);
   }
-  screen_state.backlight_percent = backlight.Percent();
-
-  const core::ButtonUpdate b = button.Update(knob.ReadButtonRaw(), millis());
-  screen_state.button_pressed = b.pressed;
-  if (b.gesture != core::ButtonGesture::kNone) {
-    screen_state.last_gesture = b.gesture;
-  }
+  backlight.SetPercent(model.State().backlight_percent);
+  model.OnButtonSample(knob.ReadButtonRaw(), millis());
 }
 
 }  // namespace
@@ -121,10 +117,14 @@ void setup() {
   if (!knob.Begin()) {
     ESP_LOGE(kTag, "knob init failed");
   }
-  if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, ReadTouch)) {
-    ESP_LOGE(kTag, "LVGL init failed; UI disabled");
+  const auto buffer_bytes =
+      static_cast<unsigned>(ui::lvgl_port::BufferBytes(pins::kScreenWidth, pins::kScreenHeight));
+  if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, ReadTouch,
+                           TickMs, AllocPsram)) {
+    ESP_LOGE(kTag, "LVGL draw buffer alloc failed (2 x %u B in PSRAM); UI disabled", buffer_bytes);
     return;
   }
+  ESP_LOGI(kTag, "LVGL ready (2 x %u B buffers in PSRAM)", buffer_bytes);
   ui::input_test_screen::Create();
   ui_ready = true;
 }
@@ -133,7 +133,7 @@ void loop() {
   if (ui_ready) {
     PollInputs();
     ui::lvgl_port::Run();  // reads touch via ReadTouch()
-    ui::input_test_screen::Update(screen_state);
+    ui::input_test_screen::Update(model.State());
   }
 
   const uint32_t now = millis();
