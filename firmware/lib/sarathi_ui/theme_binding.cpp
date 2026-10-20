@@ -24,7 +24,12 @@ lv_style_t list_row_style;
 lv_style_t gauge_track_style;
 lv_style_t gauge_indicator_style;
 lv_style_t accent_dot_style;
+lv_style_t card_style;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+constexpr int32_t kCardRadius = 24;
+constexpr int32_t kCardPadX = 14;
+constexpr int32_t kCardPadY = 4;
 
 size_t Index(Text t) { return static_cast<size_t>(t); }
 size_t Index(Fill f) { return static_cast<size_t>(f); }
@@ -46,6 +51,7 @@ void InitStyles() {
   lv_style_init(&gauge_track_style);
   lv_style_init(&gauge_indicator_style);
   lv_style_init(&accent_dot_style);
+  lv_style_init(&card_style);
 }
 
 void SetText(Text role, core::FontRole font, core::Rgb color) {
@@ -111,6 +117,14 @@ void WriteStyles(const core::ThemeDescriptor& t) {
   lv_style_set_arc_width(&gauge_indicator_style, c.ring_width_px);
   lv_style_set_arc_rounded(&gauge_indicator_style, true);
 
+  lv_style_set_bg_color(&card_style, Color(p.background));
+  lv_style_set_bg_opa(&card_style,
+                      static_cast<lv_opa_t>(core::kCardOpacityPercent * LV_OPA_COVER / 100));
+  lv_style_set_radius(&card_style, kCardRadius);
+  lv_style_set_pad_hor(&card_style, kCardPadX);
+  lv_style_set_pad_ver(&card_style, kCardPadY);
+  lv_style_set_border_width(&card_style, 0);
+
   lv_style_set_bg_color(&accent_dot_style, Color(p.accent));
   lv_style_set_bg_opa(&accent_dot_style, LV_OPA_COVER);
   lv_style_set_radius(&accent_dot_style, LV_RADIUS_CIRCLE);
@@ -171,6 +185,7 @@ lv_style_t* ListRowStyle() { return &list_row_style; }
 lv_style_t* GaugeTrackStyle() { return &gauge_track_style; }
 lv_style_t* GaugeIndicatorStyle() { return &gauge_indicator_style; }
 lv_style_t* AccentDotStyle() { return &accent_dot_style; }
+lv_style_t* CardStyle() { return &card_style; }
 
 lv_obj_t* MakeScreen() {
   lv_obj_t* screen = lv_obj_create(nullptr);

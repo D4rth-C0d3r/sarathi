@@ -37,4 +37,7 @@ void Update(uint32_t now_ms);
 // brightness setting.
 [[nodiscard]] int BacklightPercent();
 
+// Name of the screen shown now ("nav", "music", ...), for logs.
+[[nodiscard]] const char* CurrentScreenName();
+
 }  // namespace sarathi::ui::app_shell

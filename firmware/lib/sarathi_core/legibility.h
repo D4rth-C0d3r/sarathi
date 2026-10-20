@@ -22,6 +22,9 @@ constexpr float kMinContrastNonText = 3.0F;     // focus ring, danger cue (WCAG 
 // WCAG 2 contrast ratio between two colours, 1.0 to 21.0.
 [[nodiscard]] float ContrastRatio(Rgb a, Rgb b);
 
+// `top` drawn at `top_percent` opacity over `bottom` (per-channel, like LVGL's blending).
+[[nodiscard]] Rgb Blend(Rgb top, Rgb bottom, uint8_t top_percent);
+
 struct LegibilityIssue {
   const char* rule = "";
   float value = 0.0F;

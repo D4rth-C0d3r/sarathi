@@ -19,8 +19,10 @@ class RouteView {
   // screen coordinates.
   void Create(lv_obj_t* parent, int32_t top, const core::ProjectionParams& params);
 
-  // `stale` draws the route dimmed. Ignored if the window is the one already shown.
-  void Set(const core::RouteWindow& window, bool stale);
+  // `stale` draws the route dimmed; `metres_per_px` is the zoom. Re-projects only when the
+  // window or staleness changes (a zoom change waits for the next window), unless `force`
+  // (used by the stress build).
+  void Set(const core::RouteWindow& window, bool stale, float metres_per_px, bool force = false);
   void Clear();
 
  private:

@@ -143,6 +143,26 @@ PLATFORMIO_BUILD_FLAGS=-DSARATHI_PERF_OVERLAY pio run -e crowpanel21 -t upload
 
 The numbers appear at the bottom of the screen. A normal `pio run -t upload` removes it.
 
+Every build also logs a `perf` line every 5 s on the serial monitor:
+
+```
+[main] perf normal | frames 15/5s | frame avg … ms max … ms | flush avg … ms max … ms (n) |
+       heap int … KB free (min …, largest …) | psram … KB free (min …) | stack free ui … B, knob … B
+```
+
+- **frame:** one LVGL refresh that actually drew something (layout, render and flush to the
+  panel framebuffer), from `LV_EVENT_REFR_START` to `LV_EVENT_RENDER_READY`.
+- **flush:** the copy into the panel framebuffer alone (`n` = flushes in the period).
+- **min:** the lowest free memory seen since boot. **largest:** the biggest free block.
+- **stack free:** the least stack each task has had spare (its high-water mark).
+
+To measure the worst case for a smoothly rotating map, build the stress variant, which
+re-projects and redraws the route on every refresh:
+
+```bash
+PLATFORMIO_BUILD_FLAGS=-DSARATHI_NAV_STRESS pio run -e crowpanel21 -t upload
+```
+
 ### Pinned versions
 
 The ESP32 Arduino core, LVGL and the board libraries are pinned to Elecrow's tested versions

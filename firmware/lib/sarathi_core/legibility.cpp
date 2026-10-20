@@ -42,6 +42,17 @@ float ContrastRatio(Rgb a, Rgb b) {
   return (std::max(la, lb) + 0.05F) / (std::min(la, lb) + 0.05F);
 }
 
+Rgb Blend(Rgb top, Rgb bottom, uint8_t top_percent) {
+  const uint32_t a = std::min<uint32_t>(top_percent, 100U);
+  Rgb out = 0;
+  for (uint32_t shift = 0; shift <= 16; shift += 8) {
+    const uint32_t t = (top >> shift) & 0xFFU;
+    const uint32_t b = (bottom >> shift) & 0xFFU;
+    out |= (((t * a) + (b * (100U - a)) + 50U) / 100U) << shift;
+  }
+  return out;
+}
+
 LegibilityReport CheckLegibility(const ThemeDescriptor& theme) {
   LegibilityReport report;
   Checker check(report);
@@ -63,6 +74,15 @@ LegibilityReport CheckLegibility(const ThemeDescriptor& theme) {
   check.Contrast("focus ring on background", p.accent, p.background, kMinContrastNonText);
   check.Contrast("gauge indicator on surface", p.accent, p.surface, kMinContrastNonText);
   check.Contrast("danger cue on background", p.danger, p.background, kMinContrastNonText);
+
+  // Text on a map card, where the route line shows through (worst case).
+  const Rgb card_over_route = Blend(p.background, p.route_line, kCardOpacityPercent);
+  check.Contrast("primary text on card over route", p.text_primary, card_over_route,
+                 kMinContrastEssential);
+  check.Contrast("supporting text on card over route", p.text_supporting, card_over_route,
+                 kMinContrastSupporting);
+  check.Contrast("warning text on card over route", p.warning, card_over_route,
+                 kMinContrastSupporting);
 
   for (size_t role = 0; role < kFontRoleCount; ++role) {
     const uint8_t px = theme.fonts.px.at(role);

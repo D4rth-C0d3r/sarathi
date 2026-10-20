@@ -17,7 +17,9 @@ class RingGauge {
   void Set(float fraction);
 
  private:
-  static constexpr int32_t kRange = 1000;
+  // 50 steps is plenty for a glance and keeps redraws rare: every change repaints the whole
+  // ring (on Nav: one step per 10 m, like the distance label's rounding).
+  static constexpr int32_t kRange = 50;
   lv_obj_t* arc_ = nullptr;
   int32_t shown_ = -1;
 };

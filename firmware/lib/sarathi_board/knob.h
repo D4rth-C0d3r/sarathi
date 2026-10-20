@@ -20,6 +20,9 @@ class Knob {
 
   // Raw (undebounced) button level, true = pressed. Reads the PCF8574 over I2C.
   bool ReadButtonRaw();
+
+  // Smallest amount of the sampling task's stack that has stayed unused, for the perf log.
+  [[nodiscard]] uint32_t StackFreeBytes() const;
 };
 
 }  // namespace sarathi::board

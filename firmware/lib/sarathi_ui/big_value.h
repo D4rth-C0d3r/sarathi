@@ -14,9 +14,11 @@ namespace sarathi::ui {
 
 class BigValue {
  public:
-  void Create(lv_obj_t* parent, int32_t y_offset, int32_t width = layout::kContentWidth) {
-    value_.Create(parent, theme::Text::kPrimary, y_offset, width);
-    caption_.Create(parent, theme::Text::kSupporting, y_offset + kCaptionGap, width);
+  // Offsets are from the parent's centre; the caption is centred under the value.
+  void Create(lv_obj_t* parent, int32_t y_offset, int32_t width = layout::kContentWidth,
+              int32_t x_offset = 0) {
+    value_.Create(parent, theme::Text::kPrimary, y_offset, width, x_offset);
+    caption_.Create(parent, theme::Text::kSupporting, y_offset + kCaptionGap, width, x_offset);
   }
 
   void SetValue(const char* text) { value_.Set("%s", text); }

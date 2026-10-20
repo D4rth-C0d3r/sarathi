@@ -76,6 +76,22 @@ void Update(uint32_t now_ms) {
   screen_manager::Update(*app, test->State(), now_ms);
 }
 
+const char* CurrentScreenName() {
+  switch (screen_manager::Current()) {
+    case screen_manager::ScreenId::kNav:
+      return "nav";
+    case screen_manager::ScreenId::kMusic:
+      return "music";
+    case screen_manager::ScreenId::kSettings:
+      return "settings";
+    case screen_manager::ScreenId::kCall:
+      return "call";
+    case screen_manager::ScreenId::kInputTest:
+      return "input-test";
+  }
+  return "?";
+}
+
 int BacklightPercent() {
   return InputTestOpen() ? test->State().backlight_percent
                          : app->State().settings.brightness_percent;

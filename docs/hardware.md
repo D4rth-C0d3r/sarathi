@@ -168,6 +168,37 @@ Measured after the input bring-up (step D):
 Elecrow's image-heavy demo is about 6 MB, so keep image assets small and prefer vector
 shapes and fonts.
 
+## Performance (measured)
+
+Measured on the device on 2026-10-20 with the Phase 1 Nav screen (full-circle route map,
+auto-zoom, Classic theme) driven by the demo ride, from the `perf` serial log
+(`docs/building.md`). Commit: Phase 1 step E.
+
+| | Normal build | Stress build (`-DSARATHI_NAV_STRESS`) |
+|---|---|---|
+| What redraws | map once a second (new route window), labels as they change | whole map every refresh, heading +2° per frame |
+| Frames rendered | 2-3.6 per second on Nav; 0 on a static screen (ringing call) | 9.4-10.8 per second (the ceiling) |
+| Frame time, average | 35-45 ms | 87-103 ms |
+| Frame time, worst | 87-102 ms (a full-screen map redraw) | 104 ms |
+| Flush (copy to panel framebuffer), worst | 43 ms | 43 ms per frame |
+
+- A full-screen redraw costs about 100 ms: roughly 45-60 ms of rendering and 42 ms of flush.
+  The flush is the R/B swap plus `draw16bitRGBBitmap()` copying 460 KB into the panel
+  framebuffer, both in PSRAM.
+- So the map can redraw at most about 10 times a second, with the UI task fully busy. The
+  normal build uses about 12 % of it on Nav.
+
+Memory, steady over the runs (no growth, no fragmentation):
+
+| | Value |
+|---|---|
+| Internal heap free | 216 KB (lowest seen 208 KB; largest free block 203-207 KB) |
+| PSRAM free | 6,825 KB of 8,192 KB, unchanged (panel framebuffer and two LVGL buffers use about 1.35 MB) |
+| Static internal RAM | 30.5 KB (9.3 %) |
+| Firmware image | 915 KB (14.6 % of a 6 MB slot) |
+| UI (Arduino loop) task stack | at least 3.6 KB never used |
+| Knob task stack | at least 1.36 KB of 2 KB never used |
+
 ## Boot log
 
 With `pio device monitor`, a healthy boot prints, in order:

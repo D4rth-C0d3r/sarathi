@@ -23,10 +23,13 @@ void RouteView::Create(lv_obj_t* parent, int32_t top, const core::ProjectionPara
   lv_obj_add_event_cb(obj_, OnDraw, LV_EVENT_DRAW_MAIN, this);
 }
 
-void RouteView::Set(const core::RouteWindow& window, bool stale) {
-  if (has_route_ && window.sequence == sequence_ && stale == stale_) {
+void RouteView::Set(const core::RouteWindow& window, bool stale, float metres_per_px, bool force) {
+  // The zoom only takes effect with a new window (about once a second). Applying it on every
+  // update would redraw the whole map whenever the distance changes by a metre.
+  if (!force && has_route_ && window.sequence == sequence_ && stale == stale_) {
     return;
   }
+  params_.metres_per_px = metres_per_px;
   core::ProjectRoute(window, params_, projected_);
   sequence_ = window.sequence;
   stale_ = stale;

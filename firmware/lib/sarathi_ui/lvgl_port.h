@@ -7,6 +7,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <lvgl.h>
+
+#include "frame_stats.h"
+
 namespace sarathi::ui::lvgl_port {
 
 // Copies an RGB565 block to the panel. May modify `pixels`.
@@ -28,5 +32,15 @@ size_t BufferBytes(int16_t width, int16_t height);
 
 // Runs LVGL timers, input and rendering. Call often from the UI task only.
 void Run();
+
+// ---- Frame timing (device and simulator) ----
+// Microseconds from any monotonic clock; wrap-around is fine.
+using TimeUsFn = uint32_t (*)();
+
+// Times every refresh that actually renders (layout + render + flush) on `display`.
+void AttachFrameTimer(lv_display_t* display, TimeUsFn time_us);
+
+// Frames since the last call: count, average and worst duration.
+core::FrameStats::Summary TakeFrameStats();
 
 }  // namespace sarathi::ui::lvgl_port

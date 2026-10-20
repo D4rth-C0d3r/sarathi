@@ -119,6 +119,15 @@ or ADR-0001.
 Phase 1 implements the device side against the demo ride: `core::route_projection`
 (heading-up rotation, scale, clipping to the circle, splitting at the rider; native tests)
 and the `RouteView` component on the Nav screen. The window is redrawn when a new one
-arrives (about once a second), so rotation currently updates at that rate. Rendering cost on
-the device is measured with `-DSARATHI_PERF_OVERLAY` (see `docs/building.md`) before deciding
-on smoother rotation and before the `route` message format is fixed.
+arrives (about once a second), so rotation currently updates at that rate.
+
+**Measured on the device** (Phase 1 step E; details in `docs/hardware.md`, "Performance"):
+a full-screen map redraw takes about 100 ms (about 45-60 ms rendering, 42 ms flushing into
+the panel framebuffer). The normal build renders 2-3.6 frames a second on Nav; redrawing
+the map on every refresh tops out at about 10 frames a second with the UI task fully busy.
+
+**Decision:** keep rotation at the window rate (about 1 Hz) for now. Smooth rotation would
+need most of the UI task at well under 10 Hz. Before revisiting it, make redraws cheaper:
+render straight into the panel framebuffer (removing the 42 ms copy and R/B swap), and
+invalidate only the area the route actually covers instead of the whole circle. The window
+format itself (about 1 KB per second) is not a bottleneck.

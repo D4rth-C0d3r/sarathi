@@ -20,7 +20,10 @@ namespace p = pins;
 
 constexpr const char* kTag = "knob";
 
-QueueHandle_t step_queue = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+QueueHandle_t step_queue = nullptr;
+TaskHandle_t sample_task = nullptr;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void SampleTask(void* /*unused*/) {
   core::KnobDecoder decoder(p::kKnobTransitionsPerDetent);
@@ -47,7 +50,7 @@ bool Knob::Begin() {
     return false;
   }
   if (xTaskCreatePinnedToCore(SampleTask, "knob", p::kKnobTaskStack, nullptr, p::kKnobTaskPriority,
-                              nullptr, p::kKnobTaskCore) != pdPASS) {
+                              &sample_task, p::kKnobTaskCore) != pdPASS) {
     ESP_LOGE(kTag, "task create failed");
     return false;
   }
@@ -61,6 +64,11 @@ bool Knob::TakeStep(int8_t& step) {
 
 bool Knob::ReadButtonRaw() {
   return !expander::Read(p::kPcfKnobButton);  // active low
+}
+
+uint32_t Knob::StackFreeBytes() const {
+  // ESP-IDF counts stack in bytes, so the high-water mark is bytes never used.
+  return sample_task != nullptr ? uxTaskGetStackHighWaterMark(sample_task) : 0;
 }
 
 }  // namespace sarathi::board

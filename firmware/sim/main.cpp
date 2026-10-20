@@ -27,6 +27,7 @@
 #include "board_pins.h"
 #include "demo_ride.h"
 #include "input_test_model.h"
+#include "lvgl_port.h"
 
 namespace {
 
@@ -38,6 +39,7 @@ constexpr int32_t kSize = pins::kScreenWidth;
 constexpr int32_t kCenter = kSize / 2;
 constexpr int32_t kRadius = kSize / 2;
 constexpr uint32_t kLoopDelayMs = 5;
+constexpr uint32_t kPerfPeriodMs = 5000;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 core::AppModel app;
@@ -124,6 +126,19 @@ void CreateRoundMask() {
   lv_canvas_set_buffer(canvas, mask_pixels.data(), kSize, kSize, LV_COLOR_FORMAT_ARGB8888);
   lv_obj_set_pos(canvas, 0, 0);
   lv_obj_remove_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+}
+
+uint32_t TimeUs() {
+  return static_cast<uint32_t>(SDL_GetPerformanceCounter() * 1000000ULL /
+                               SDL_GetPerformanceFrequency());
+}
+
+// Desktop frame times say nothing about the ESP32-S3; this keeps the code path exercised.
+void LogPerf() {
+  const core::FrameStats::Summary f = ui::lvgl_port::TakeFrameStats();
+  std::printf("sim: perf | frames %u/%us | frame avg %.1f ms max %.1f ms\n",
+              static_cast<unsigned>(f.count), static_cast<unsigned>(kPerfPeriodMs / 1000),
+              static_cast<double>(f.avg_us) / 1000.0, static_cast<double>(f.max_us) / 1000.0);
 }
 
 uint32_t ParseSpeed(int argc, char** argv) {
@@ -296,6 +311,7 @@ int main(int argc, char** argv) {
   lv_indev_set_display(touch, display);
 
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
+  ui::lvgl_port::AttachFrameTimer(display, TimeUs);
   CreateRoundMask();
 
   std::printf(
@@ -304,6 +320,7 @@ int main(int argc, char** argv) {
       "quit.\n",
       static_cast<unsigned>(speed));
   tour.start_ms = SDL_GetTicks();
+  uint32_t last_perf_ms = tour.start_ms;
 
   for (;;) {
     const uint32_t now = SDL_GetTicks();
@@ -335,6 +352,10 @@ int main(int argc, char** argv) {
       demo_ride.OnCommand(command, now, app);
     }
 
+    if (tour.dir == nullptr && now - last_perf_ms >= kPerfPeriodMs) {
+      last_perf_ms = now;
+      LogPerf();
+    }
     SDL_Delay(kLoopDelayMs);
   }
 }

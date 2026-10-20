@@ -38,6 +38,9 @@ lv_style_t* ListRowStyle();         // list menu rows
 lv_style_t* GaugeTrackStyle();      // ring gauge, LV_PART_MAIN
 lv_style_t* GaugeIndicatorStyle();  // ring gauge, LV_PART_INDICATOR
 lv_style_t* AccentDotStyle();       // small accent markers
+// Background-coloured card at core::kCardOpacityPercent, for text drawn over the map. On a
+// label it becomes a padded bubble sized to the text.
+lv_style_t* CardStyle();
 
 // A theme-styled, non-scrolling screen.
 lv_obj_t* MakeScreen();

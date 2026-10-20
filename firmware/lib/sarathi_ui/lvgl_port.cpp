@@ -12,7 +12,15 @@ namespace {
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 FlushFn flush_fn = nullptr;
 TouchFn touch_fn = nullptr;
+TimeUsFn time_us_fn = nullptr;
+uint32_t refresh_start_us = 0;
+core::FrameStats frame_stats;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// REFR_START fires on every refresh tick; RENDER_READY only when something was drawn. So
+// the pair measures real frames only (lv_refr.c, LVGL 9.1).
+void OnRefreshStart(lv_event_t* /*event*/) { refresh_start_us = time_us_fn(); }
+void OnRenderReady(lv_event_t* /*event*/) { frame_stats.Add(time_us_fn() - refresh_start_us); }
 
 void FlushCb(lv_display_t* display, const lv_area_t* area, uint8_t* px_map) {
   flush_fn(static_cast<int16_t>(area->x1), static_cast<int16_t>(area->y1),
@@ -67,5 +75,13 @@ bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn ti
 }
 
 void Run() { lv_timer_handler(); }
+
+void AttachFrameTimer(lv_display_t* display, TimeUsFn time_us) {
+  time_us_fn = time_us;
+  lv_display_add_event_cb(display, OnRefreshStart, LV_EVENT_REFR_START, nullptr);
+  lv_display_add_event_cb(display, OnRenderReady, LV_EVENT_RENDER_READY, nullptr);
+}
+
+core::FrameStats::Summary TakeFrameStats() { return frame_stats.TakeSummary(); }
 
 }  // namespace sarathi::ui::lvgl_port

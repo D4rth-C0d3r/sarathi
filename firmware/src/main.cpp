@@ -10,6 +10,9 @@
 #include <esp_flash.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "app_model.h"
 #include "app_shell.h"
@@ -17,6 +20,7 @@
 #include "board_pins.h"
 #include "demo_ride.h"
 #include "display.h"
+#include "frame_stats.h"
 #include "input_test_model.h"
 #include "knob.h"
 #include "lvgl_port.h"
@@ -32,6 +36,7 @@ namespace pins = sarathi::board::pins;
 
 constexpr const char* kTag = "main";
 constexpr uint32_t kLogPeriodMs = 1000;
+constexpr uint32_t kPerfPeriodMs = 5000;
 constexpr uint32_t kSerialWaitMs = 2000;
 constexpr uint32_t kLoopDelayMs = 5;
 constexpr uint32_t kKiB = 1024;
@@ -51,10 +56,16 @@ core::InputTestModel input_test(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
 bool ui_ready = false;
 bool touch_ready = false;
 uint32_t last_log_ms = 0;
+uint32_t last_perf_ms = 0;
+core::FrameStats flush_stats;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
+
 void FlushToDisplay(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
+  const uint32_t start = TimeUs();
   display.DrawBitmap(x, y, w, h, pixels);
+  flush_stats.Add(TimeUs() - start);
 }
 
 bool ReadTouch(int16_t& x, int16_t& y) {
@@ -90,6 +101,36 @@ void LogHello() {
            ESP.getChipModel(), rev / 100, rev % 100, ESP.getChipCores(), ESP.getCpuFreqMHz(),
            ESP.getFlashChipSize() / kMiB, flash_physical / kMiB, ESP.getPsramSize() / kKiB,
            ESP.getFreePsram() / kKiB, ESP.getFreeHeap() / kKiB, millis() / 1000);
+}
+
+// Frame time and memory, every kPerfPeriodMs (ADR-0002 rendering measurement).
+void LogPerf() {
+  const core::FrameStats::Summary frames = ui::lvgl_port::TakeFrameStats();
+  const core::FrameStats::Summary flushes = flush_stats.TakeSummary();
+  constexpr float kMs = 1000.0F;
+#ifdef SARATHI_NAV_STRESS
+  constexpr const char* kBuild = "stress";
+#else
+  constexpr const char* kBuild = "normal";
+#endif
+  ESP_LOGI(kTag,
+           "perf %s %s | frames %u/%us | frame avg %.1f ms max %.1f ms | flush avg %.1f ms max "
+           "%.1f ms (%u) | heap int %u KB free (min %u, largest %u) | psram %u KB free (min "
+           "%u) | stack free ui %u B, knob %u B",
+           kBuild, ui::app_shell::CurrentScreenName(), static_cast<unsigned>(frames.count),
+           static_cast<unsigned>(kPerfPeriodMs / 1000),
+           static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
+           static_cast<double>(static_cast<float>(frames.max_us) / kMs),
+           static_cast<double>(static_cast<float>(flushes.avg_us) / kMs),
+           static_cast<double>(static_cast<float>(flushes.max_us) / kMs),
+           static_cast<unsigned>(flushes.count),
+           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / kKiB),
+           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / kKiB),
+           static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / kKiB),
+           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / kKiB),
+           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
+           static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+           static_cast<unsigned>(knob.StackFreeBytes()));
 }
 
 void RunUi(uint32_t now) {
@@ -137,6 +178,7 @@ void setup() {
     return;
   }
   ESP_LOGI(kTag, "LVGL ready (2 x %u B buffers in PSRAM)", buffer_bytes);
+  ui::lvgl_port::AttachFrameTimer(lv_display_get_default(), TimeUs);
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
   ui_ready = true;
 }
@@ -149,6 +191,10 @@ void loop() {
   if (now - last_log_ms >= kLogPeriodMs) {
     last_log_ms = now;
     LogHello();
+  }
+  if (ui_ready && now - last_perf_ms >= kPerfPeriodMs) {
+    last_perf_ms = now;
+    LogPerf();
   }
   delay(kLoopDelayMs);
 }

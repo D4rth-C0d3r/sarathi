@@ -58,6 +58,11 @@ struct ThemeComponentStyle {
   uint8_t list_row_height_px;
 };
 
+// Text over the map sits on cards of the background colour at this opacity, so the route
+// stays faintly visible underneath. The legibility rules check text against the worst-case
+// blend of card and route line.
+constexpr uint8_t kCardOpacityPercent = 80;
+
 // Decorative layer drawn behind primary content. Only kNone is implemented so far.
 enum class Ornament : uint8_t { kNone, kHudReticle, kRacingArcs };
 

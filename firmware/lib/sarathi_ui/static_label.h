@@ -18,8 +18,10 @@ namespace sarathi::ui {
 template <size_t N>
 class StaticLabel {
  public:
-  // `width` > 0 gives a fixed-width, centred line that ends in "..." when too long.
-  void Create(lv_obj_t* parent, theme::Text role, int32_t y_offset, int32_t width = 0) {
+  // `width` > 0 gives a fixed-width, centred line that ends in "..." when too long. Offsets
+  // are from the parent's centre.
+  void Create(lv_obj_t* parent, theme::Text role, int32_t y_offset, int32_t width = 0,
+              int32_t x_offset = 0) {
     label_ = lv_label_create(parent);
     lv_obj_add_style(label_, theme::TextStyle(role), 0);
     lv_obj_set_style_text_align(label_, LV_TEXT_ALIGN_CENTER, 0);
@@ -29,7 +31,7 @@ class StaticLabel {
     }
     text_[0] = '\0';
     lv_label_set_text_static(label_, text_.data());
-    lv_obj_align(label_, LV_ALIGN_CENTER, 0, y_offset);
+    lv_obj_align(label_, LV_ALIGN_CENTER, x_offset, y_offset);
   }
 
   // printf-style. Always pass a literal format and at least one argument ("%s", text).
