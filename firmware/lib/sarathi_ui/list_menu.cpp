@@ -127,6 +127,9 @@ void ListMenu::Hide() {
   lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
   for (size_t i = 0; i < count_; ++i) {
     lv_group_remove_obj(rows_.at(i).button);
+    // Leaving the group doesn't clear the state, so without this the row focused last would
+    // still show a focus ring the next time the menu is shown.
+    lv_obj_remove_state(rows_.at(i).button, LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
   }
   group_ = nullptr;
 }
