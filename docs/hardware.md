@@ -69,6 +69,22 @@ The GPIOs are the same.
 | P5 | `ENCODER_SW` | Knob button, active low, pull-up |
 | P6 | `ENCODER_A` | Stray label, connected to nothing else; unused |
 
+## Panel optics
+
+From the panel datasheet, `vendor/crowpanel-2.1/Datasheet/2.1Inches Circular_P021B002-IPS(3.3V).pdf`:
+
+| Item | Value |
+|---|---|
+| Size | 2.1" round IPS, 480 × 480 |
+| Display area | 53.28 × 53.28 mm |
+| Pixel pitch | 111 µm (9.0 px/mm) |
+| Luminance | 300 cd/m² typical |
+| Contrast ratio | 1000:1 typical (800 min) |
+| Viewing angle | 85° all directions (CR ≥ 10) |
+
+The theme legibility rules (ADR-0003) derive minimum font sizes from this pitch. 300 nit
+is modest for direct sunlight, which is why those rules ask for high contrast.
+
 ## Panel timing and colour
 
 - **PCLK** 12 MHz. **HSYNC and VSYNC:** polarity 1, front porch 10, pulse width 4,

@@ -22,7 +22,9 @@ In Sanskrit, a *sārathi* is a charioteer, as Krishna was Arjuna's.
 
 ## What it does
 
-- Turn-by-turn navigation prompts
+- Turn-by-turn navigation with a heading-up map of the road ahead
+- Swappable visual themes (Classic, Fighter jet HUD, Racing game), all held to the same
+  legibility rules
 - Caller ID with accept/reject
 - Music control with track info
 - Settings, operable with the knob alone (gloves on)
@@ -42,18 +44,20 @@ GATT service. iOS is out of scope.
 
 ## Status
 
-**Phase 0: bring-up.** Nothing is usable on a bike yet.
+**Phase 0 (bring-up) is done** (`v0.1.0`). Phase 1 is next. Nothing is usable on a bike yet.
 
 | Phase | Scope |
 |---|---|
-| 0 | Bring-up |
-| 1 | UI shell, settings, simulator |
+| 0 | Bring-up (done) |
+| 1 | UI shell: components, themes, settings, nav screen with a simulated route map, simulator |
 | 2 | Wi-Fi OTA with rollback |
-| 3 | ChronosESP32 quick win |
-| 4 | Own Android app and protocol |
+| 3 | ChronosESP32 quick win (navigation arrows only) |
+| 4 | Own Android app and protocol, with a routing source for the map |
 | 5 | BLE OTA |
 | 6 | Bike integration |
-| 7 | Extras: map snapshots, GPS, trip stats |
+| 7 | Extras: more themes, GPS, trip stats |
+
+Design decisions are recorded in [docs/adr/](docs/adr/).
 
 ## Repository layout
 

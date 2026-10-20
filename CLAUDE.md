@@ -10,8 +10,9 @@ In Sanskrit, a sārathi is a charioteer, as Krishna was Arjuna's.
 
 - **Device:** Elecrow CrowPanel 2.1" Rotary Display (DHE03921D).
 - **Phone:** Android companion app (Kotlin). iOS is out of scope.
-- **Features:** turn-by-turn navigation, caller ID with accept/reject, music control with
-  track info, settings, and OTA updates over Wi-Fi and BLE.
+- **Features:** turn-by-turn navigation with a heading-up map of the route ahead, caller ID
+  with accept/reject, music control with track info, swappable visual themes, settings, and
+  OTA updates over Wi-Fi and BLE.
 
 ### Core architecture (ADR-0001: `docs/adr/0001-ble-only-phone-as-brain.md`)
 The ESP32-S3 has **BLE only**: no Classic Bluetooth, so no HFP or A2DP.
@@ -19,21 +20,32 @@ The ESP32-S3 has **BLE only**: no Classic Bluetooth, so no HFP or A2DP.
 Call and music audio stay on the helmet intercom. Never propose designs that need
 Classic Bluetooth audio on the device.
 
+### Map and themes (ADR-0002 `docs/adr/0002-vector-route-map.md`, ADR-0003 `docs/adr/0003-theme-system.md`)
+- **Map:** the phone sends a vector route window (polyline in local metres relative to the
+  rider, heading, next maneuver and distance); the device draws it heading-up with LVGL.
+  No map images over the link. Without geometry, the nav screen falls back to arrows.
+- **Themes:** screens are built from semantic components; a theme is data (palette, fonts,
+  component styles, vector ornaments), selected in settings and persisted. Every theme must
+  pass the legibility rules and the flash budget.
+
 ## Current status
 
-- **Phase 0 (bring-up).** The repo skeleton exists; most trees are still empty.
-- Some commands below won't work until their tree is scaffolded. Say so instead of
-  inventing workarounds.
+- **Phase 0 (bring-up) is done** (`v0.1.0`): display, knob, button, touch, backlight and
+  LVGL verified on hardware; Android skeleton and CI in place.
+- **Phase 1 (UI shell) is next.**
 
 Roadmap:
-0. Bring-up
-1. UI shell + settings + simulator
+0. Bring-up (done, v0.1.0)
+1. UI shell: semantic components, theme system (Classic, Fighter jet HUD, Racing game),
+   settings (incl. theme, persisted), nav screen with map renderer fed by **simulated**
+   route windows, simulator
 2. Wi-Fi OTA + rollback
-3. ChronosESP32 quick win
-4. Own Android app + protocol
+3. ChronosESP32 quick win (nav is **arrows-only**: notifications carry no route geometry)
+4. Own Android app + protocol, including a routing source that provides route geometry
+   (Google Maps' notification has none) and the vector route window
 5. BLE OTA
 6. Bike integration
-7. Extras: map snapshots, GPS, trip stats
+7. Extras: more themes, GPS, trip stats
 
 ## Repo map
 
@@ -159,6 +171,8 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   (`MALLOC_CAP_SPIRAM`) once at init, using `LV_DISPLAY_RENDER_MODE_PARTIAL`.
 - **Image size:** Elecrow's image-heavy demo is about 6 MB, which barely fits our 6 MB OTA
   slots. Keep image assets small; prefer vector shapes and fonts over full-screen bitmaps.
+  Theme budget (ADR-0003): no image asset over 16 KB, ≤ 256 KB of images across all themes,
+  subset fonts.
 - **Power:** 5V/1A in, operating range −20 to 65°C. Dim the backlight on high chip temperature.
 
 ## Engineering rules
@@ -168,6 +182,11 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   headers. They must build and test under `pio test -e native`.
 - Dependencies flow inward: `ui/link/ota/settings/board → core/proto`. Never the reverse.
 - `main.cpp` only constructs and wires modules together.
+- Theme descriptors (palette, font roles and sizes, style parameters) are plain data in
+  `sarathi_core`, so legibility rules run as native tests. `sarathi_ui` binds them to LVGL
+  styles once, at init or on theme change.
+- Route-window geometry (transform to heading-up, clipping, simplification checks) is pure
+  logic in `sarathi_core`; `sarathi_ui` only draws the result.
 
 ### Concurrency and memory (firmware)
 - LVGL is called **only** from the UI task. Other tasks (encoder, BLE) post to queues.
@@ -189,8 +208,10 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 ### Protocol (phone ↔ device)
 - One custom GATT service: a write characteristic (phone→device) and a notify
   characteristic (device→phone). MTU ≥ 247. JSON messages.
-- Message types: `hello`, `nav`, `nav_end`, `call`, `call_action`, `media`, `media_cmd`,
-  `time`, `phone_batt`, `ota_begin`, `ota_chunk`, `ota_end`.
+- Message types: `hello`, `nav`, `route`, `nav_end`, `call`, `call_action`, `media`,
+  `media_cmd`, `time`, `phone_batt`, `ota_begin`, `ota_chunk`, `ota_end`.
+  `route` is the vector route window (ADR-0002); its format is defined in
+  `docs/protocol/` before any code. Never send map images over the link.
 - The protocol version is separate from the firmware version and is sent in `hello`.
 - **Any protocol change: update `docs/protocol/protocol.md`, `schema/` and `vectors/`
   FIRST.** Firmware and Android tests both run against the same golden vectors.
@@ -199,8 +220,26 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - Everything must be operable with the knob alone (gloves). Touch is optional.
 - One-second-glance UI: large type, high contrast, at most one primary item per screen.
 - Content stays inside the 480 px circle. Keep a safe margin from the edge.
-- Settings menus are locked while moving.
+- Settings menus are locked while moving. That includes changing the theme.
 - Don't add features that encourage interacting with the device while riding.
+- On the nav screen the next maneuver and its distance are the primary item; the map is
+  supporting context. Stale or missing route data must be shown, never silently frozen.
+
+### Themes (ADR-0003)
+- Screens use semantic components only. Never hard-code colours, fonts or sizes in a
+  screen; take them from the active theme.
+- A theme changes appearance only: never layout semantics, input mapping or screen order.
+- Every theme passes the legibility rules, enforced by native tests. Text size comes from
+  visual angle at 75 cm on this panel (111 µm pitch, Montserrat cap height 0.70):
+  primary values ≥ 48 px now (17′; target 56 px = 20′ once larger fonts exist), other
+  ride-time text needed to act ≥ 46 px (16′), supporting ride-time text ≥ 34 px (12′),
+  stopped-only screens ≥ 28 px (10′). Contrast ≥ 7:1 for primary and essential text,
+  ≥ 4.5:1 for supporting text and the route line. Warnings never signalled by colour
+  alone, one primary item per screen, no ornament motion while moving, nothing flashing.
+- Phase 1 uses LVGL's built-in Montserrat only. Custom fonts and font tooling wait until
+  the product is functional.
+- Ornaments are vector-drawn and never overlap primary content. No large bitmaps.
+- Classic is the default and the fallback for an unknown saved theme.
 
 ### Security
 - Control and OTA writes require a bonded BLE link. Bonding is confirmed by a knob press.
