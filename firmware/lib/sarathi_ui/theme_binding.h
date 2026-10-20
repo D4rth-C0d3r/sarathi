@@ -42,7 +42,8 @@ lv_style_t* AccentDotStyle();       // small accent markers
 // label it becomes a padded bubble sized to the text.
 lv_style_t* CardStyle();
 
-// A theme-styled, non-scrolling screen.
+// A theme-styled, non-scrolling screen. Its first child is the theme's ornament layer
+// (core/ornament.h), drawn behind everything the screen adds.
 lv_obj_t* MakeScreen();
 
 // A themed button with a centred label (the button's first child).

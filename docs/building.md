@@ -139,6 +139,11 @@ saves a BMP of each stop in `DIR`, then exits. It always starts from default set
 keeps its own settings file in `DIR`. It runs headless too:
 `SDL_VIDEODRIVER=dummy .pio/build/sim/program --tour /tmp/tour`.
 
+**Theme gallery.** `.pio/build/sim/program --gallery DIR` saves every screen in every
+registered theme as `DIR/<theme>_<n>_<screen>.bmp` (Nav, call ringing, call active, Music,
+Settings, the theme list, the input test), then exits. Use it to review a new or changed
+theme against the ADR-0003 checklist. It also starts from defaults and runs headless.
+
 ### Performance overlay (device)
 
 To see LVGL's frame rate, CPU load and render time on the board (for example while the Nav

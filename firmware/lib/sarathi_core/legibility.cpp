@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "ornament.h"
+
 namespace sarathi::core {
 namespace {
 
@@ -64,7 +66,8 @@ LegibilityReport CheckLegibility(const ThemeDescriptor& theme) {
                  kMinContrastSupporting);
   check.Contrast("supporting text on surface", p.text_supporting, p.surface,
                  kMinContrastSupporting);
-  check.Contrast("warning text on background", p.warning, p.background, kMinContrastSupporting);
+  // Warnings are text needed to act (ADR-0003), so they need the essential contrast.
+  check.Contrast("warning text on background", p.warning, p.background, kMinContrastEssential);
   check.Contrast("route line on background", p.route_line, p.background, kMinContrastSupporting);
   check.Contrast("maneuver arrow on background", p.maneuver, p.background, kMinContrastSupporting);
   check.Contrast("rider marker on background", p.rider, p.background, kMinContrastSupporting);
@@ -82,7 +85,7 @@ LegibilityReport CheckLegibility(const ThemeDescriptor& theme) {
   check.Contrast("supporting text on card over route", p.text_supporting, card_over_route,
                  kMinContrastSupporting);
   check.Contrast("warning text on card over route", p.warning, card_over_route,
-                 kMinContrastSupporting);
+                 kMinContrastEssential);
 
   for (size_t role = 0; role < kFontRoleCount; ++role) {
     const uint8_t px = theme.fonts.px.at(role);
@@ -96,6 +99,20 @@ LegibilityReport CheckLegibility(const ThemeDescriptor& theme) {
   check.Require("focus outline width", theme.components.focus_outline_px, 2.0F);
   check.Require("route line width", theme.components.route_line_px, 3.0F);
   check.Require("ring gauge width", theme.components.ring_width_px, 3.0F);
+
+  // Ornaments stay in their zone, clear of all content (ornament.h), and the ring gauge leaves
+  // room for them.
+  const OrnamentShapes shapes = BuildOrnament(theme.ornament);
+  for (size_t i = 0; i < shapes.line_count; ++i) {
+    check.Require("ornament line inside the ornament zone",
+                  InOrnamentZone(shapes.lines.at(i)) ? 1.0F : 0.0F, 1.0F);
+  }
+  for (size_t i = 0; i < shapes.rect_count; ++i) {
+    check.Require("ornament rect inside the ornament zone",
+                  InOrnamentZone(shapes.rects.at(i)) ? 1.0F : 0.0F, 1.0F);
+  }
+  check.Require("ring gauge width headroom before the ornament zone",
+                static_cast<float>(kOrnamentMaxRingWidthPx - theme.components.ring_width_px), 0.0F);
   return report;
 }
 

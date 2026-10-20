@@ -8,6 +8,8 @@
 //   Mouse button inside circle   -> touch at that point
 //   S                            -> pause/resume the demo ride (the bike stops; settings unlock)
 // Usage: program [--speed N]   replay the ride N times faster. Close the window to quit.
+//        program --tour DIR     scripted walk through the UI, screenshots in DIR
+//        program --gallery DIR  every screen in every theme, screenshots in DIR
 //
 // Simulator wiring only: no backlight, panel timing or ESP32-S3 performance limits.
 
@@ -29,8 +31,10 @@
 #include "demo_ride.h"
 #include "input_test_model.h"
 #include "lvgl_port.h"
+#include "screen_manager.h"
 #include "settings_codec.h"
 #include "settings_saver.h"
+#include "theme_registry.h"
 
 namespace {
 
@@ -340,25 +344,164 @@ bool RunTour(Tour& tour, lv_display_t* display, uint32_t now) {
   return true;
 }
 
-const char* ParseTourDir(int argc, char** argv) {
+const char* ParseDirOption(int argc, char** argv, const char* option) {
   for (int i = 1; i + 1 < argc; ++i) {
-    if (std::strcmp(argv[i], "--tour") == 0) {  // NOLINT(*-pointer-arithmetic)
-      return argv[i + 1];                       // NOLINT(*-pointer-arithmetic)
+    if (std::strcmp(argv[i], option) == 0) {  // NOLINT(*-pointer-arithmetic)
+      return argv[i + 1];                     // NOLINT(*-pointer-arithmetic)
     }
   }
   return nullptr;
+}
+
+// ---- --gallery DIR: every screen in every registered theme ----
+// The ride runs for a moment so Nav has a route, then stops (so Settings is offered). For
+// each theme the gallery loads it as a saved setting, visits each screen and saves
+// "<theme>_<n>_<screen>.bmp". The call is injected over the demo ride's own call state.
+
+enum class GalleryAction : uint8_t {
+  kLoadTheme,
+  kNav,
+  kCallRinging,
+  kCallActive,
+  kCallEnd,
+  kMusic,
+  kSettings,
+  kThemeList,
+  kLeaveThemeList,
+  kInputTest,
+  kLeaveInputTest,
+};
+
+struct GalleryStep {
+  GalleryAction action;
+  const char* name;  // screenshot taken once the step has settled; nullptr = none
+  uint32_t settle_ms;
+};
+
+constexpr uint32_t kGalleryWarmupMs = 2500;  // at 10x: the route window is in
+constexpr std::array<GalleryStep, 11> kGallerySteps = {{
+    {GalleryAction::kLoadTheme, nullptr, 400},
+    {GalleryAction::kNav, "1_nav", 600},
+    {GalleryAction::kCallRinging, "2_call_ringing", 600},
+    {GalleryAction::kCallActive, "3_call_active", 600},
+    {GalleryAction::kCallEnd, nullptr, 400},
+    {GalleryAction::kMusic, "4_music", 600},
+    {GalleryAction::kSettings, "5_settings", 600},
+    {GalleryAction::kThemeList, "6_theme_list", 900},  // a knob click on the focused Theme row
+    {GalleryAction::kLeaveThemeList, nullptr, 900},    // re-select the current theme
+    {GalleryAction::kInputTest, "7_input_test", 600},
+    {GalleryAction::kLeaveInputTest, nullptr, 300},
+}};
+
+struct Gallery {
+  const char* dir = nullptr;
+  bool started = false;
+  size_t theme = 0;
+  size_t step = 0;
+  uint32_t step_start_ms = 0;
+  core::CallPhase call = core::CallPhase::kIdle;
+};
+
+void ShowScreen(ui::screen_manager::ScreenId target) {
+  for (int i = 0; i < 3 && ui::screen_manager::Current() != target; ++i) {
+    ui::screen_manager::NextScreen(app);
+  }
+}
+
+void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
+  namespace sm = ui::screen_manager;
+  switch (kGallerySteps.at(gallery.step).action) {
+    case GalleryAction::kLoadTheme: {
+      core::Settings settings = app.State().settings;
+      settings.theme = core::ThemeAt(gallery.theme).id;
+      app.LoadSettings(settings);
+      break;
+    }
+    case GalleryAction::kNav:
+      ShowScreen(sm::ScreenId::kNav);
+      break;
+    case GalleryAction::kCallRinging:
+      gallery.call = core::CallPhase::kRinging;
+      break;
+    case GalleryAction::kCallActive:
+      gallery.call = core::CallPhase::kActive;
+      break;
+    case GalleryAction::kCallEnd:
+      gallery.call = core::CallPhase::kIdle;
+      break;
+    case GalleryAction::kMusic:
+      ShowScreen(sm::ScreenId::kMusic);
+      break;
+    case GalleryAction::kSettings:
+      ShowScreen(sm::ScreenId::kSettings);
+      break;
+    case GalleryAction::kThemeList:
+      tour.Press(now);
+      break;
+    case GalleryAction::kLeaveThemeList:
+      for (size_t i = 0; i < gallery.theme; ++i) {  // the list opens focused on its first row
+        ui::app_shell::OnKnobStep(1);
+      }
+      tour.Press(now);
+      break;
+    case GalleryAction::kInputTest:
+      sm::OpenInputTest();
+      break;
+    case GalleryAction::kLeaveInputTest:
+      sm::CloseInputTest();
+      break;
+  }
+}
+
+// Runs after the demo ride's Poll each loop. Returns false when every theme is done.
+bool RunGallery(Gallery& gallery, Tour& tour, lv_display_t* display, uint32_t now) {
+  if (!gallery.started) {
+    if (now - tour.start_ms < kGalleryWarmupMs) {
+      return true;
+    }
+    demo_ride.SetPaused(true);  // stopped: Settings is offered
+    gallery.started = true;
+    StartGalleryStep(gallery, tour, now);
+    gallery.step_start_ms = now;
+  }
+  if (gallery.call != core::CallPhase::kIdle) {
+    app.SetCall(gallery.call, "Demo Caller", now);  // over the demo ride's idle call state
+  }
+
+  const GalleryStep& step = kGallerySteps.at(gallery.step);
+  if (now - gallery.step_start_ms < step.settle_ms) {
+    return true;
+  }
+  if (step.name != nullptr) {
+    std::array<char, 64> name{};
+    std::snprintf(name.data(), name.size(), "%s_%s", core::ThemeAt(gallery.theme).short_name,
+                  step.name);
+    SaveScreenshot(display, gallery.dir, name.data());
+  }
+  if (++gallery.step == kGallerySteps.size()) {
+    gallery.step = 0;
+    if (++gallery.theme == core::ThemeCount()) {
+      return false;
+    }
+  }
+  StartGalleryStep(gallery, tour, now);
+  gallery.step_start_ms = now;
+  return true;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
   Tour tour;
-  tour.dir = ParseTourDir(argc, argv);
-  if (tour.dir != nullptr) {
-    settings_path = std::string(tour.dir) + "/settings.bin";  // never touch the user's file
-    std::remove(settings_path.c_str());                       // every tour starts from defaults
+  Gallery gallery;
+  tour.dir = ParseDirOption(argc, argv, "--tour");
+  gallery.dir = ParseDirOption(argc, argv, "--gallery");
+  const char* shot_dir = tour.dir != nullptr ? tour.dir : gallery.dir;
+  if (shot_dir != nullptr) {
+    settings_path = std::string(shot_dir) + "/settings.bin";  // never touch the user's file
+    std::remove(settings_path.c_str());                       // always start from defaults
   }
-  const uint32_t speed = tour.dir != nullptr ? kTourSpeed : ParseSpeed(argc, argv);
+  const uint32_t speed = shot_dir != nullptr ? kTourSpeed : ParseSpeed(argc, argv);
   demo_ride.SetSpeedFactor(speed);
 
   lv_init();
@@ -400,6 +543,9 @@ int main(int argc, char** argv) {
     if (tour.dir != nullptr && !RunTour(tour, display, now)) {
       return 0;
     }
+    if (gallery.dir != nullptr && !RunGallery(gallery, tour, display, now)) {
+      return 0;
+    }
     if (pause_toggle_requested) {
       pause_toggle_requested = false;
       demo_ride.SetPaused(!demo_ride.Paused());
@@ -425,7 +571,7 @@ int main(int argc, char** argv) {
       SaveSettingsFile();
     }
 
-    if (tour.dir == nullptr && now - last_perf_ms >= kPerfPeriodMs) {
+    if (shot_dir == nullptr && now - last_perf_ms >= kPerfPeriodMs) {
       last_perf_ms = now;
       LogPerf();
     }

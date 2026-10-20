@@ -6,7 +6,8 @@ namespace sarathi::core {
 namespace {
 
 // Settings lists themes in this order. Classic first: it is the default.
-const std::array<const ThemeDescriptor*, 2> kThemes = {&kClassicTheme, &kFighterHudTheme};
+const std::array<const ThemeDescriptor*, 3> kThemes = {&kClassicTheme, &kFighterHudTheme,
+                                                       &kRacingTheme};
 
 }  // namespace
 

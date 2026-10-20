@@ -63,8 +63,8 @@ struct ThemeComponentStyle {
 // blend of card and route line.
 constexpr uint8_t kCardOpacityPercent = 80;
 
-// Decorative layer drawn behind primary content. Only kNone is implemented so far.
-enum class Ornament : uint8_t { kNone, kHudReticle, kRacingArcs };
+// Decorative layer drawn behind everything, inside the ornament zone (ornament.h).
+enum class Ornament : uint8_t { kNone, kHudReticle, kRacingTach };
 
 struct ThemeDescriptor {
   ThemeId id;

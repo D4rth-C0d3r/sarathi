@@ -3,13 +3,21 @@
 #include <unity.h>
 
 #include "legibility.h"
+#include "ornament.h"
 #include "theme_registry.h"
 
+using sarathi::core::BuildOrnament;
 using sarathi::core::CheckLegibility;
 using sarathi::core::ContrastRatio;
+using sarathi::core::InOrnamentZone;
 using sarathi::core::IsRegistered;
 using sarathi::core::kClassicTheme;
 using sarathi::core::LegibilityReport;
+using sarathi::core::Ornament;
+using sarathi::core::OrnamentColor;
+using sarathi::core::OrnamentLine;
+using sarathi::core::OrnamentRect;
+using sarathi::core::OrnamentShapes;
 using sarathi::core::ThemeAt;
 using sarathi::core::ThemeCount;
 using sarathi::core::ThemeDescriptor;
@@ -57,10 +65,75 @@ void TestRegistry() {
   TEST_ASSERT_EQUAL(ThemeId::kClassic, ThemeAt(0).id);  // default first
   TEST_ASSERT_TRUE(IsRegistered(ThemeId::kClassic));
   TEST_ASSERT_TRUE(IsRegistered(ThemeId::kFighterHud));
-  TEST_ASSERT_FALSE(IsRegistered(ThemeId::kRacing));                    // not yet
-  TEST_ASSERT_EQUAL(ThemeId::kClassic, ThemeFor(ThemeId::kRacing).id);  // falls back
+  TEST_ASSERT_TRUE(IsRegistered(ThemeId::kRacing));
+  TEST_ASSERT_EQUAL(3, ThemeCount());
+  const auto unknown = static_cast<ThemeId>(200);
+  TEST_ASSERT_FALSE(IsRegistered(unknown));
+  TEST_ASSERT_EQUAL(ThemeId::kClassic, ThemeFor(unknown).id);  // falls back
   TEST_ASSERT_EQUAL(ThemeId::kFighterHud, ThemeFor(ThemeId::kFighterHud).id);
+  TEST_ASSERT_EQUAL(ThemeId::kRacing, ThemeFor(ThemeId::kRacing).id);
   TEST_ASSERT_EQUAL(ThemeId::kClassic, ThemeAt(99).id);
+}
+
+void TestThemesHaveTheirOrnaments() {
+  TEST_ASSERT_EQUAL(Ornament::kNone, ThemeFor(ThemeId::kClassic).ornament);
+  TEST_ASSERT_EQUAL(Ornament::kHudReticle, ThemeFor(ThemeId::kFighterHud).ornament);
+  TEST_ASSERT_EQUAL(Ornament::kRacingTach, ThemeFor(ThemeId::kRacing).ornament);
+  const OrnamentShapes none = BuildOrnament(Ornament::kNone);
+  TEST_ASSERT_EQUAL(0, none.line_count + none.rect_count);
+  TEST_ASSERT_TRUE(BuildOrnament(Ornament::kHudReticle).line_count > 0);
+  TEST_ASSERT_TRUE(BuildOrnament(Ornament::kRacingTach).rect_count > 0);
+}
+
+void TestOrnamentZone() {
+  // Inside: the right strip at the horizon, and its mirror image.
+  TEST_ASSERT_TRUE(InOrnamentZone(OrnamentLine{197, 0, 212, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_TRUE(InOrnamentZone(OrnamentLine{-197, 0, -212, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_TRUE(InOrnamentZone(OrnamentRect{198, -3, 10, 6, OrnamentColor::kPrimary}));
+  // Into the text column, past the ring, across the middle, too far up, or empty.
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentLine{190, 0, 205, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentLine{200, 0, 214, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentLine{-200, 0, 200, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentLine{197, -90, 197, 0, 2, OrnamentColor::kAccent}));
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentRect{205, 0, 12, 6, OrnamentColor::kPrimary}));
+  TEST_ASSERT_FALSE(InOrnamentZone(OrnamentRect{198, 0, 0, 6, OrnamentColor::kPrimary}));
+}
+
+void TestCheckerCatchesThickRing() {
+  ThemeDescriptor bad = kClassicTheme;
+  bad.components.ring_width_px = 24;  // would reach into the ornament zone
+  TEST_ASSERT_FALSE(CheckLegibility(bad).Passed());
+}
+
+// Prints each theme's contrast pairs, for the step report (pio test -v).
+void PrintContrastTable() {
+  for (size_t i = 0; i < ThemeCount(); ++i) {
+    const ThemeDescriptor& t = ThemeAt(i);
+    const auto& p = t.palette;
+    const auto card =
+        sarathi::core::Blend(p.background, p.route_line, sarathi::core::kCardOpacityPercent);
+    std::printf(
+        "%s | primary/bg %.1f | primary/surface %.1f | supporting/bg %.1f | "
+        "supporting/surface %.1f | warning/bg %.1f | primary/card %.1f | supporting/card "
+        "%.1f | warning/card %.1f | route/bg %.1f | arrow/bg %.1f | accept %.1f | reject "
+        "%.1f | neutral %.1f | focus/bg %.1f | gauge/surface %.1f | danger/bg %.1f\n",
+        t.name, static_cast<double>(ContrastRatio(p.text_primary, p.background)),
+        static_cast<double>(ContrastRatio(p.text_primary, p.surface)),
+        static_cast<double>(ContrastRatio(p.text_supporting, p.background)),
+        static_cast<double>(ContrastRatio(p.text_supporting, p.surface)),
+        static_cast<double>(ContrastRatio(p.warning, p.background)),
+        static_cast<double>(ContrastRatio(p.text_primary, card)),
+        static_cast<double>(ContrastRatio(p.text_supporting, card)),
+        static_cast<double>(ContrastRatio(p.warning, card)),
+        static_cast<double>(ContrastRatio(p.route_line, p.background)),
+        static_cast<double>(ContrastRatio(p.maneuver, p.background)),
+        static_cast<double>(ContrastRatio(p.button_text, p.fill_accept)),
+        static_cast<double>(ContrastRatio(p.button_text, p.fill_reject)),
+        static_cast<double>(ContrastRatio(p.button_text, p.fill_neutral)),
+        static_cast<double>(ContrastRatio(p.accent, p.background)),
+        static_cast<double>(ContrastRatio(p.accent, p.surface)),
+        static_cast<double>(ContrastRatio(p.danger, p.background)));
+  }
 }
 
 }  // namespace
@@ -71,5 +144,9 @@ int main() {
   RUN_TEST(TestEveryRegisteredThemeIsLegible);
   RUN_TEST(TestCheckerCatchesProblems);
   RUN_TEST(TestRegistry);
+  RUN_TEST(TestThemesHaveTheirOrnaments);
+  RUN_TEST(TestOrnamentZone);
+  RUN_TEST(TestCheckerCatchesThickRing);
+  PrintContrastTable();
   return UNITY_END();
 }

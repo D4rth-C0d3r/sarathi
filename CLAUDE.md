@@ -256,7 +256,9 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   alone, one primary item per screen, no ornament motion while moving, nothing flashing.
 - Phase 1 uses LVGL's built-in Montserrat only. Custom fonts and font tooling wait until
   the product is functional.
-- Ornaments are vector-drawn and never overlap primary content. No large bitmaps.
+- Ornaments are vector-drawn and stay inside the ornament zone (`core/ornament.h`: side
+  strips outside the text column, inside the ring gauge), checked by `test_theme_legibility`.
+  They are drawn behind every screen by `theme::MakeScreen()`. No large bitmaps.
 - Classic is the default and the fallback for an unknown saved theme.
 
 ### Security

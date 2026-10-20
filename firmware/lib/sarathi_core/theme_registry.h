@@ -10,6 +10,7 @@ namespace sarathi::core {
 
 extern const ThemeDescriptor kClassicTheme;
 extern const ThemeDescriptor kFighterHudTheme;
+extern const ThemeDescriptor kRacingTheme;
 
 [[nodiscard]] size_t ThemeCount();
 [[nodiscard]] const ThemeDescriptor& ThemeAt(size_t index);  // 0 <= index < ThemeCount()

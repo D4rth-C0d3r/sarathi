@@ -144,8 +144,8 @@ The other rules:
 ## Implementation (Phase 1)
 
 - **Theme data** (`sarathi_core`): `theme.h` (palette roles, font roles in px, component
-  parameters, ornament id), `theme_registry` (Classic, Fighter jet HUD), `theme_classic.cpp`,
-  `theme_hud.cpp`. `legibility` implements the rules above; `test_theme_legibility` checks
+  parameters, ornament id), `theme_registry` (Classic, Fighter jet HUD, Racing game),
+  `theme_classic.cpp`, `theme_hud.cpp`, `theme_racing.cpp`. `legibility` implements the rules above; `test_theme_legibility` checks
   every registered theme, so a theme that breaks a rule fails CI.
 - **Binding** (`sarathi_ui/theme_binding`): one shared `lv_style_t` per role. `Apply()`
   rewrites them in place and calls `lv_obj_report_style_change(nullptr)`, so a theme chosen
@@ -155,5 +155,15 @@ The other rules:
   `core::maneuver_glyph`), `RingGauge`, `RouteView` (geometry from `core::route_projection`,
   ADR-0002) and `ListMenu`. Screens use only these, `StaticLabel` with a text role, and
   `theme::MakeButton`.
-- **Not yet:** ornaments (the HUD theme is palette and parameters only), the Racing game
-  theme, and saving the chosen theme across reboots (`sarathi_settings`).
+- **Ornaments** (`core::ornament`): vector lines and rectangles as data, drawn by a
+  transparent layer that `theme::MakeScreen()` puts behind everything on every screen, so
+  screens don't change. They are confined to the **ornament zone**: two side strips outside
+  the widest text column (|x| ≥ 195 px from the centre) and inside the ring gauge
+  (r ≤ 214 px), which no screen uses. `test_theme_legibility` checks every shape against
+  the zone, and a theme's ring gauge may be at most 16 px wide so it leaves the zone free.
+  Ornaments are static, so the motion and flashing rules hold by construction.
+  - Fighter jet HUD: a pitch-ladder scale on each side (thin spine, rungs, accent horizon).
+  - Racing game: a segmented rev bar on the right, with the top segments in the danger
+    colour as a redline, and a chequered strip on the left.
+- **Warning text** must reach 7:1 like other text needed to act (it was 4.5:1 at first).
+- The chosen theme is saved with the other settings (`sarathi_settings`, NVS).

@@ -3,6 +3,8 @@
 #include <array>
 #include <cstddef>
 
+#include "layout.h"
+#include "ornament.h"
 #include "theme_registry.h"
 
 namespace sarathi::ui::theme {
@@ -10,6 +12,7 @@ namespace {
 
 constexpr size_t kTextCount = 5;
 constexpr size_t kFillCount = 3;
+constexpr size_t kMaxScreens = 8;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 bool initialised = false;
@@ -25,6 +28,9 @@ lv_style_t gauge_track_style;
 lv_style_t gauge_indicator_style;
 lv_style_t accent_dot_style;
 lv_style_t card_style;
+core::OrnamentShapes ornament;  // the current theme's, rebuilt by Apply()
+std::array<lv_obj_t*, kMaxScreens> ornament_layers{};
+size_t ornament_layer_count = 0;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr int32_t kCardRadius = 24;
@@ -131,6 +137,52 @@ void WriteStyles(const core::ThemeDescriptor& t) {
   lv_style_set_border_width(&accent_dot_style, 0);
 }
 
+lv_value_precise_t ScreenCoord(int16_t centred) {
+  return static_cast<lv_value_precise_t>(centred + layout::kCenter);
+}
+
+void DrawOrnament(lv_event_t* event) {
+  lv_layer_t* layer = lv_event_get_layer(event);
+  const core::ThemePalette& p = current->palette;
+
+  lv_draw_line_dsc_t line;
+  lv_draw_line_dsc_init(&line);
+  for (size_t i = 0; i < ornament.line_count; ++i) {
+    const core::OrnamentLine& l = ornament.lines.at(i);
+    line.color = Color(core::OrnamentRgb(p, l.color));
+    line.width = l.width;
+    line.p1 = {ScreenCoord(l.x1), ScreenCoord(l.y1)};
+    line.p2 = {ScreenCoord(l.x2), ScreenCoord(l.y2)};
+    lv_draw_line(layer, &line);
+  }
+
+  lv_draw_rect_dsc_t rect;
+  lv_draw_rect_dsc_init(&rect);
+  rect.bg_opa = LV_OPA_COVER;
+  for (size_t i = 0; i < ornament.rect_count; ++i) {
+    const core::OrnamentRect& r = ornament.rects.at(i);
+    rect.bg_color = Color(core::OrnamentRgb(p, r.color));
+    const int32_t x = r.x + layout::kCenter;
+    const int32_t y = r.y + layout::kCenter;
+    const lv_area_t area{x, y, x + r.w - 1, y + r.h - 1};
+    lv_draw_rect(layer, &rect, &area);
+  }
+}
+
+// A full-screen, transparent layer behind everything else on the screen. It only draws the
+// ornament (static: it redraws only when something above it does, or the theme changes).
+void AddOrnamentLayer(lv_obj_t* screen) {
+  lv_obj_t* layer = lv_obj_create(screen);
+  lv_obj_remove_style_all(layer);
+  lv_obj_set_size(layer, layout::kScreenSize, layout::kScreenSize);
+  lv_obj_remove_flag(layer, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_remove_flag(layer, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(layer, DrawOrnament, LV_EVENT_DRAW_MAIN, nullptr);
+  if (ornament_layer_count < ornament_layers.size()) {
+    ornament_layers.at(ornament_layer_count++) = layer;
+  }
+}
+
 }  // namespace
 
 void Apply(const core::ThemeDescriptor& theme) {
@@ -140,6 +192,10 @@ void Apply(const core::ThemeDescriptor& theme) {
   }
   current = &theme;
   WriteStyles(theme);
+  ornament = core::BuildOrnament(theme.ornament);
+  for (size_t i = 0; i < ornament_layer_count; ++i) {
+    lv_obj_invalidate(ornament_layers.at(i));
+  }
 
   // LVGL's default theme (dark) supplies widget basics such as scrollbars; re-seed its
   // colours from ours so nothing keeps the previous theme's accent.
@@ -191,6 +247,7 @@ lv_obj_t* MakeScreen() {
   lv_obj_t* screen = lv_obj_create(nullptr);
   lv_obj_add_style(screen, ScreenStyle(), 0);
   lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+  AddOrnamentLayer(screen);  // first child, so it draws first
   return screen;
 }
 

@@ -1,5 +1,5 @@
-// Fighter jet HUD: phosphor green on black, thin lines, square corners. Palette and component
-// parameters only for now; its reticle and ladder ornaments come later (ADR-0003).
+// Fighter jet HUD: phosphor green on black, thin lines, square corners, and a pitch-ladder
+// ornament at each side.
 
 #include "theme_registry.h"
 
@@ -37,7 +37,7 @@ const ThemeDescriptor kFighterHudTheme = {
         3,   // route_behind_px
         60,  // list_row_height_px
     },
-    Ornament::kNone,  // kHudReticle once ornaments are implemented
+    Ornament::kHudReticle,
 };
 
 }  // namespace sarathi::core
