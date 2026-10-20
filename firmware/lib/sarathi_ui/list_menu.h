@@ -18,9 +18,10 @@ class ListMenu {
   using GetFn = int (*)(void* context);
   using SetFn = void (*)(void* context, int value);
 
-  static constexpr size_t kMaxRows = 6;
+  static constexpr size_t kMaxRows = 8;
 
-  void Create(lv_obj_t* parent, int32_t y_offset, int32_t width);
+  // `max_height` > 0 makes a longer list scroll, keeping the focused row centred.
+  void Create(lv_obj_t* parent, int32_t y_offset, int32_t width, int32_t max_height = 0);
 
   // Both return the row index.
   size_t AddAction(const char* text, ActionFn on_click, void* context);

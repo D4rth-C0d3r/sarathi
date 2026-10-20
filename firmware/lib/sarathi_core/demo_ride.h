@@ -51,6 +51,9 @@ constexpr float kWindowAheadM = 1500.0F;
 constexpr float kWindowToleranceM = 3.0F;
 constexpr uint32_t kWindowPeriodMs = 1000;
 
+// The demo clock starts at 18:55, so auto day/night switches to night five minutes in.
+constexpr uint32_t kDemoClockStartMs = ((18U * 60U) + 55U) * 60U * 1000U;
+
 class DemoRide final : public DataSource {
  public:
   explicit DemoRide(const DemoScript& script = DefaultDemoScript());
@@ -103,6 +106,9 @@ class DemoRide final : public DataSource {
   size_t track_ = 0;
   bool playing_ = true;
   uint32_t track_position_ms_ = 0;
+
+  // Time of day, ms since midnight. Runs (at the replay speed) even while paused.
+  uint32_t clock_ms_ = kDemoClockStartMs;
 };
 
 }  // namespace sarathi::core

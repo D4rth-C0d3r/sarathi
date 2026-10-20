@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include <SDL2/SDL.h>
@@ -28,6 +29,8 @@
 #include "demo_ride.h"
 #include "input_test_model.h"
 #include "lvgl_port.h"
+#include "settings_codec.h"
+#include "settings_saver.h"
 
 namespace {
 
@@ -48,7 +51,11 @@ core::InputTestModel input_test(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
                                 pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
 int pending_steps = 0;  // written by the SDL event watch, drained by the loop
 bool pause_toggle_requested = false;
-std::vector<uint8_t> mask_pixels;  // ARGB8888, allocated once at startup
+std::vector<uint8_t> mask_pixels;     // ARGB8888, allocated once at startup
+lv_obj_t* backlight_shade = nullptr;  // darkens the window like the real backlight
+int shown_backlight = -1;
+core::SettingsSaver settings_saver;
+std::string settings_path = "sim_settings.bin";
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool InsideCircle(int32_t x, int32_t y) {
@@ -97,8 +104,10 @@ void ReadTouch(lv_indev_t* /*indev*/, lv_indev_data_t* data) {
   const Uint32 buttons = SDL_GetMouseState(&x, &y);
   const bool pressed = SDL_GetMouseFocus() != nullptr &&
                        (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0 && InsideCircle(x, y);
-  ui::app_shell::OnTouch(pressed, static_cast<int16_t>(x), static_cast<int16_t>(y));
-  if (pressed) {
+  // false while the touch that woke the screen is held.
+  const bool pass =
+      ui::app_shell::OnTouch(pressed, static_cast<int16_t>(x), static_cast<int16_t>(y));
+  if (pass) {
     data->point.x = x;
     data->point.y = y;
     data->state = LV_INDEV_STATE_PRESSED;
@@ -126,6 +135,54 @@ void CreateRoundMask() {
   lv_canvas_set_buffer(canvas, mask_pixels.data(), kSize, kSize, LV_COLOR_FORMAT_ARGB8888);
   lv_obj_set_pos(canvas, 0, 0);
   lv_obj_remove_flag(canvas, LV_OBJ_FLAG_CLICKABLE);
+}
+
+// ---- Settings persistence: a file instead of NVS ----
+
+void LoadSettingsFile() {
+  core::SettingsBlob blob{};
+  size_t read = 0;
+  if (std::FILE* f = std::fopen(settings_path.c_str(), "rb")) {
+    read = std::fread(blob.data(), 1, blob.size() + 1, f);  // +1: detect an over-long file
+    std::fclose(f);
+  }
+  const bool found = read == blob.size();
+  app.LoadSettings(found ? core::DecodeSettings(blob.data(), read) : core::Settings{});
+  settings_saver.MarkSaved(app.SettingsRevision());
+  std::printf("sim: settings %s (%s)\n", found ? "loaded" : "defaults", settings_path.c_str());
+}
+
+void SaveSettingsFile() {
+  const core::SettingsBlob blob = core::EncodeSettings(app.State().settings);
+  std::FILE* f = std::fopen(settings_path.c_str(), "wb");
+  const bool ok = f != nullptr && std::fwrite(blob.data(), 1, blob.size(), f) == blob.size();
+  if (f != nullptr) {
+    std::fclose(f);
+  }
+  if (ok) {
+    std::printf("sim: settings saved\n");
+  } else {
+    std::fprintf(stderr, "sim: could not save %s\n", settings_path.c_str());
+    settings_saver.SaveFailed(SDL_GetTicks());
+  }
+}
+
+// The simulator has no backlight; a black layer of matching opacity stands in for it (0 % is
+// fully black, like the screen timeout).
+void CreateBacklightShade() {
+  backlight_shade = lv_obj_create(lv_layer_sys());
+  lv_obj_remove_style_all(backlight_shade);
+  lv_obj_set_size(backlight_shade, kSize, kSize);
+  lv_obj_set_style_bg_color(backlight_shade, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(backlight_shade, LV_OPA_TRANSP, 0);
+  lv_obj_remove_flag(backlight_shade, LV_OBJ_FLAG_CLICKABLE);
+}
+
+void ShowBacklight(int percent) {
+  if (percent != shown_backlight) {
+    shown_backlight = percent;
+    lv_obj_set_style_bg_opa(backlight_shade, static_cast<lv_opa_t>(255 - (percent * 255 / 100)), 0);
+  }
 }
 
 uint32_t TimeUs() {
@@ -169,7 +226,7 @@ constexpr uint32_t kTourSpeed = 10;
 constexpr uint32_t kPressMs = 100;
 constexpr uint32_t kDoubleGapMs = 200;
 
-constexpr std::array<TourStep, 28> kTour = {{
+constexpr std::array<TourStep, 34> kTour = {{
     {1000, TourAction::kShot, "01_nav_classic"},
     {6400, TourAction::kShot, "02_call_ringing"},
     {6500, TourAction::kStepUp, nullptr},  // focus Reject
@@ -189,15 +246,21 @@ constexpr std::array<TourStep, 28> kTour = {{
     {13400, TourAction::kStepDown, nullptr},
     {13450, TourAction::kStepDown, nullptr},
     {13800, TourAction::kShot, "07_brightness_editing"},
-    {13900, TourAction::kClick, nullptr},  // confirm
-    {14800, TourAction::kDoubleClick, nullptr},
-    {15700, TourAction::kShot, "08_nav_hud"},
-    {15900, TourAction::kDoubleClick, nullptr},
-    {16700, TourAction::kShot, "09_music_hud"},
-    {16900, TourAction::kPause, nullptr},        // resume riding
-    {17000, TourAction::kDoubleClick, nullptr},  // Music -> Nav (Settings skipped while moving)
-    {18000, TourAction::kShot, "10_nav_hud_moving"},
-    {18300, TourAction::kQuit, nullptr},
+    {13900, TourAction::kClick, nullptr},   // confirm
+    {14500, TourAction::kStepUp, nullptr},  // focus Day/night
+    {14700, TourAction::kClick, nullptr},   // Auto
+    {15300, TourAction::kStepUp, nullptr},  // focus Units
+    {15500, TourAction::kClick, nullptr},   // Imperial: Nav distances in mi/ft
+    {16100, TourAction::kStepUp, nullptr},  // focus Screen off: the list scrolls
+    {16600, TourAction::kShot, "08_settings_scrolled"},
+    {16800, TourAction::kDoubleClick, nullptr},
+    {17700, TourAction::kShot, "09_nav_hud"},
+    {17900, TourAction::kDoubleClick, nullptr},
+    {18700, TourAction::kShot, "10_music_hud"},
+    {18900, TourAction::kPause, nullptr},        // resume riding
+    {19000, TourAction::kDoubleClick, nullptr},  // Music -> Nav (Settings skipped while moving)
+    {20000, TourAction::kShot, "11_nav_hud_moving"},
+    {20300, TourAction::kQuit, nullptr},
 }};
 
 struct PressWindow {
@@ -291,6 +354,10 @@ const char* ParseTourDir(int argc, char** argv) {
 int main(int argc, char** argv) {
   Tour tour;
   tour.dir = ParseTourDir(argc, argv);
+  if (tour.dir != nullptr) {
+    settings_path = std::string(tour.dir) + "/settings.bin";  // never touch the user's file
+    std::remove(settings_path.c_str());                       // every tour starts from defaults
+  }
   const uint32_t speed = tour.dir != nullptr ? kTourSpeed : ParseSpeed(argc, argv);
   demo_ride.SetSpeedFactor(speed);
 
@@ -310,8 +377,10 @@ int main(int argc, char** argv) {
   lv_indev_set_read_cb(touch, ReadTouch);
   lv_indev_set_display(touch, display);
 
+  LoadSettingsFile();  // before the shell, so the saved theme applies from the first frame
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
   ui::lvgl_port::AttachFrameTimer(display, TimeUs);
+  CreateBacklightShade();  // under the round mask
   CreateRoundMask();
 
   std::printf(
@@ -346,10 +415,14 @@ int main(int argc, char** argv) {
     }
     ui::app_shell::OnButtonSample(EnterHeld() || tour.ButtonDown(now), now);
     ui::app_shell::Update(now);
+    ShowBacklight(ui::app_shell::BacklightPercent());
 
     core::Command command;
     while (app.TakeCommand(command)) {
       demo_ride.OnCommand(command, now, app);
+    }
+    if (settings_saver.ShouldSave(app.SettingsRevision(), now)) {
+      SaveSettingsFile();
     }
 
     if (tour.dir == nullptr && now - last_perf_ms >= kPerfPeriodMs) {

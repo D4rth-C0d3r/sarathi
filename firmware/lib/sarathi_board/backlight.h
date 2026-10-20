@@ -1,4 +1,5 @@
-// Backlight PWM on GPIO 6. Brightness is in percent, clamped to 5-100 %.
+// Backlight PWM on GPIO 6. Brightness is in percent: 0 turns it off (screen timeout); anything
+// else is clamped to 5-100 % (at 0 % the screen is unreadable, so users can't set it).
 
 #pragma once
 
@@ -15,7 +16,7 @@ class Backlight {
   [[nodiscard]] int Percent() const { return percent_; }
 
  private:
-  int percent_ = 0;
+  int percent_ = -1;  // nothing written yet
 };
 
 }  // namespace sarathi::board

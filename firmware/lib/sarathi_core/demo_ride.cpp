@@ -169,6 +169,9 @@ void DemoRide::Poll(uint32_t now_ms, AppModel& model) {
     Advance(dt_ms);
     AdvanceMedia(dt_ms);
   }
+  constexpr uint32_t kDayMs = 24U * 60U * 60U * 1000U;
+  clock_ms_ = (clock_ms_ + dt_ms) % kDayMs;
+  model.SetClock(static_cast<uint16_t>(clock_ms_ / 60000U));
   model.SetSpeed(CurrentSpeedKmh());
   PublishNav(now_ms, model);
   PublishCall(now_ms, model);

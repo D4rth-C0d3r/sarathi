@@ -152,6 +152,18 @@ void TestPauseStopsTheBike() {
   TEST_ASSERT_TRUE(ride.PositionM() > before);
 }
 
+void TestClockStartsAt1855AndRuns() {
+  DemoRide ride;
+  AppModel model;
+  uint32_t now = 0;
+  Run(ride, model, now, kTickMs);
+  TEST_ASSERT_TRUE(model.State().clock.valid);
+  TEST_ASSERT_EQUAL_UINT16((18 * 60) + 55, model.State().clock.minutes_of_day);
+  ride.SetPaused(true);  // the clock keeps running while the bike is stopped
+  Run(ride, model, now, 61000);
+  TEST_ASSERT_EQUAL_UINT16((18 * 60) + 56, model.State().clock.minutes_of_day);
+}
+
 void TestArrivesAndLoops() {
   DemoRide ride;
   ride.SetSpeedFactor(10);
@@ -184,6 +196,7 @@ int main() {
   RUN_TEST(TestRejectedCallEnds);
   RUN_TEST(TestMediaControls);
   RUN_TEST(TestPauseStopsTheBike);
+  RUN_TEST(TestClockStartsAt1855AndRuns);
   RUN_TEST(TestArrivesAndLoops);
   return UNITY_END();
 }

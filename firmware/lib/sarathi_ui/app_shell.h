@@ -8,6 +8,10 @@
 //   Long press    leave the input test screen
 //
 // On the input test screen, rotation, clicks and touch go to the input test model instead.
+//
+// Settings applied here: knob direction (not on the input test, which shows the raw
+// hardware), and the screen timeout: after it, the first knob step, press or touch only
+// wakes the screen and is not acted on.
 
 #pragma once
 
@@ -28,13 +32,15 @@ void Init(core::AppModel& model, core::InputTestModel& input_test, uint32_t debo
 
 void OnKnobStep(int8_t step);
 void OnButtonSample(bool raw_pressed, uint32_t now_ms);
-void OnTouch(bool touching, int16_t x, int16_t y);
+// Returns whether LVGL should see this touch (false while the touch that woke the screen is
+// held).
+bool OnTouch(bool touching, int16_t x, int16_t y);
 
 // Refreshes the screens from the model. Call after lv_timer_handler().
 void Update(uint32_t now_ms);
 
-// The backlight to apply now: the input test's own level while it is open, otherwise the
-// brightness setting.
+// The backlight to apply now: the input test's own level while it is open, 0 after the screen
+// timeout, otherwise the brightness setting with auto day/night (core::display_policy).
 [[nodiscard]] int BacklightPercent();
 
 // Name of the screen shown now ("nav", "music", ...), for logs.

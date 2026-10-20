@@ -13,7 +13,7 @@ constexpr int32_t kRowGap = 12;
 
 }  // namespace
 
-void ListMenu::Create(lv_obj_t* parent, int32_t y_offset, int32_t width) {
+void ListMenu::Create(lv_obj_t* parent, int32_t y_offset, int32_t width, int32_t max_height) {
   container_ = lv_obj_create(parent);
   lv_obj_remove_style_all(container_);
   lv_obj_set_width(container_, width);
@@ -21,7 +21,16 @@ void ListMenu::Create(lv_obj_t* parent, int32_t y_offset, int32_t width) {
   lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_style_pad_row(container_, kRowGap, 0);
   lv_obj_set_style_pad_all(container_, 8, 0);  // room for the focus ring
-  lv_obj_remove_flag(container_, LV_OBJ_FLAG_SCROLLABLE);
+  if (max_height > 0) {
+    // Taller than this, the list scrolls; the focused row snaps to the middle, which suits a
+    // round screen. LVGL scrolls a newly focused row into view by itself.
+    lv_obj_set_style_max_height(container_, max_height, 0);
+    lv_obj_set_scroll_dir(container_, LV_DIR_VER);
+    lv_obj_set_scroll_snap_y(container_, LV_SCROLL_SNAP_CENTER);
+    lv_obj_set_scrollbar_mode(container_, LV_SCROLLBAR_MODE_OFF);
+  } else {
+    lv_obj_remove_flag(container_, LV_OBJ_FLAG_SCROLLABLE);
+  }
   lv_obj_align(container_, LV_ALIGN_CENTER, 0, y_offset);
 }
 
@@ -34,6 +43,8 @@ ListMenu::Row& ListMenu::NewRow(Kind kind) {
   row.kind = kind;
   row.button = lv_button_create(container_);
   lv_obj_set_width(row.button, LV_PCT(100));
+  lv_obj_add_flag(row.button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+  lv_obj_add_flag(row.button, LV_OBJ_FLAG_SNAPPABLE);
   lv_obj_add_style(row.button, theme::ListRowStyle(), 0);
   lv_obj_add_style(row.button, theme::FocusStyle(), LV_STATE_FOCUSED);
   lv_obj_add_style(row.button, theme::EditStyle(), LV_STATE_EDITED);

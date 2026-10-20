@@ -56,6 +56,29 @@ void FormatDistance(uint32_t metres, char* out, size_t size) {
   }
 }
 
+void FormatDistance(uint32_t metres, Units units, char* out, size_t size) {
+  if (units == Units::kMetric) {
+    FormatDistance(metres, out, size);
+    return;
+  }
+  constexpr double kFeetPerMetre = 3.28084;
+  constexpr double kMetresPerMile = 1609.344;
+  constexpr double kTenthMileM = kMetresPerMile / 10.0;
+  const double m = static_cast<double>(metres);
+  if (m < kTenthMileM - 0.5) {
+    const auto feet = static_cast<unsigned>((m * kFeetPerMetre + 5.0) / 10.0) * 10U;
+    std::snprintf(out, size, "%u ft", feet);
+    return;
+  }
+  const double miles = m / kMetresPerMile;
+  const auto tenths = static_cast<unsigned>(miles * 10.0 + 0.5);
+  if (tenths < 100) {
+    std::snprintf(out, size, "%u.%u mi", tenths / 10, tenths % 10);
+  } else {
+    std::snprintf(out, size, "%u mi", static_cast<unsigned>(miles + 0.5));
+  }
+}
+
 void FormatDuration(uint32_t seconds, char* out, size_t size) {
   if (seconds < kSecondsPerMinute) {
     std::snprintf(out, size, "%s", "< 1 min");

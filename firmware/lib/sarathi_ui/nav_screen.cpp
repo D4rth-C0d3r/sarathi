@@ -126,7 +126,7 @@ void Update(const core::AppState& state, uint32_t now_ms) {
   if (nav.next.type == core::ManeuverType::kArrive && nav.distance_m == 0) {
     distance.SetValue("Arrived");
   } else {
-    core::FormatDistance(nav.distance_m, text.data(), text.size());
+    core::FormatDistance(nav.distance_m, state.settings.units, text.data(), text.size());
     distance.SetValue(text.data());
   }
   street.Set("%s", nav.street.CStr());

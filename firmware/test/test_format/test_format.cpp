@@ -53,6 +53,23 @@ void TestDistanceKilometres() {
   TEST_ASSERT_EQUAL_STRING("123 km", Distance(123456));
 }
 
+const char* Imperial(uint32_t m) {
+  FormatDistance(m, sarathi::core::Units::kImperial, buf.data(), buf.size());
+  return buf.data();
+}
+
+void TestDistanceImperial() {
+  TEST_ASSERT_EQUAL_STRING("0 ft", Imperial(0));
+  TEST_ASSERT_EQUAL_STRING("330 ft", Imperial(100));  // 328 ft, rounded to 10
+  TEST_ASSERT_EQUAL_STRING("520 ft", Imperial(160));  // just under 0.1 mi
+  TEST_ASSERT_EQUAL_STRING("0.1 mi", Imperial(161));
+  TEST_ASSERT_EQUAL_STRING("1.0 mi", Imperial(1609));
+  TEST_ASSERT_EQUAL_STRING("10 mi", Imperial(16093));
+  TEST_ASSERT_EQUAL_STRING("77 mi", Imperial(123456));
+  FormatDistance(1234, sarathi::core::Units::kMetric, buf.data(), buf.size());
+  TEST_ASSERT_EQUAL_STRING("1.2 km", buf.data());
+}
+
 void TestDuration() {
   TEST_ASSERT_EQUAL_STRING("< 1 min", Duration(59));
   TEST_ASSERT_EQUAL_STRING("1 min", Duration(60));
@@ -81,6 +98,7 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(TestDistanceMetres);
   RUN_TEST(TestDistanceKilometres);
+  RUN_TEST(TestDistanceImperial);
   RUN_TEST(TestDuration);
   RUN_TEST(TestClock);
   RUN_TEST(TestManeuvers);

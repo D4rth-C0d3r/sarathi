@@ -93,9 +93,48 @@ struct MediaState {
 enum class ThemeId : uint8_t { kClassic, kFighterHud, kRacing };
 constexpr size_t kThemeCount = 3;
 
+enum class Units : uint8_t { kMetric, kImperial };
+
+// Backlight off after this long without input; never while navigating or in a call.
+enum class ScreenTimeout : uint8_t { kNever, k30s, k1min, k5min };
+constexpr size_t kScreenTimeoutCount = 4;
+
+constexpr uint32_t ScreenTimeoutMs(ScreenTimeout t) {
+  switch (t) {
+    case ScreenTimeout::k30s:
+      return 30U * 1000U;
+    case ScreenTimeout::k1min:
+      return 60U * 1000U;
+    case ScreenTimeout::k5min:
+      return 5U * 60U * 1000U;
+    case ScreenTimeout::kNever:
+      break;
+  }
+  return 0;
+}
+
 struct Settings {
   ThemeId theme = ThemeId::kClassic;
   int brightness_percent = 80;
+  bool auto_day_night = false;  // dim the backlight at night (display_policy)
+  Units units = Units::kMetric;
+  ScreenTimeout screen_timeout = ScreenTimeout::kNever;
+  bool knob_reversed = false;  // reverses rotation everywhere except the input test
+
+  bool operator==(const Settings& o) const {
+    return theme == o.theme && brightness_percent == o.brightness_percent &&
+           auto_day_night == o.auto_day_night && units == o.units &&
+           screen_timeout == o.screen_timeout && knob_reversed == o.knob_reversed;
+  }
+  bool operator!=(const Settings& o) const { return !(*this == o); }
+};
+
+// ---- Clock ----
+
+// Local time of day from the phone (the demo ride's clock for now).
+struct ClockState {
+  bool valid = false;
+  uint16_t minutes_of_day = 0;  // 0-1439
 };
 
 // ---- Ride ----
@@ -114,6 +153,7 @@ struct AppState {
   MediaState media;
   Settings settings;
   RideState ride;
+  ClockState clock;
 };
 
 }  // namespace sarathi::core

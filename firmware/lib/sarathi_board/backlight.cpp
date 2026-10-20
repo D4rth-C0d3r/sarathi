@@ -23,8 +23,18 @@ bool Backlight::Begin(int percent) {
 }
 
 void Backlight::SetPercent(int percent) {
-  percent_ = core::ClampBacklightPercent(percent);
-  ledcWrite(pins::kBacklight, core::BacklightDuty(percent_, pins::kBacklightPwmBits));
+  if (percent <= 0) {  // screen timeout: fully off
+    if (percent_ != 0) {
+      percent_ = 0;
+      ledcWrite(pins::kBacklight, 0);
+    }
+    return;
+  }
+  const int clamped = core::ClampBacklightPercent(percent);
+  if (clamped != percent_) {
+    percent_ = clamped;
+    ledcWrite(pins::kBacklight, core::BacklightDuty(percent_, pins::kBacklightPwmBits));
+  }
 }
 
 }  // namespace sarathi::board

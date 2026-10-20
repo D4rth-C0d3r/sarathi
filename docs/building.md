@@ -127,10 +127,17 @@ directly: `.pio/build/sim/program --speed 10`. Close the window to quit. The sim
 performance limits: check speed, flicker and colours on the device. Colours are authored as
 true RGB; only the device flush swaps red and blue.
 
+Settings persist like on the device: changes are written to `sim_settings.bin` in the
+working directory (git-ignored) 2 s after the last change and loaded at start. Delete the
+file to go back to defaults. The backlight (brightness, night dimming, screen timeout) is
+shown as a black overlay.
+
 **Screenshot tour.** `.pio/build/sim/program --tour DIR` walks every screen with scripted
 knob input (Nav, an incoming call, Music, Settings, the theme list, switching to the HUD
-theme, adjusting brightness) and saves a BMP of each stop in `DIR`, then exits. It runs
-headless too: `SDL_VIDEODRIVER=dummy .pio/build/sim/program --tour /tmp/tour`.
+theme, adjusting brightness, day/night, imperial units, the scrolling settings list) and
+saves a BMP of each stop in `DIR`, then exits. It always starts from default settings and
+keeps its own settings file in `DIR`. It runs headless too:
+`SDL_VIDEODRIVER=dummy .pio/build/sim/program --tour /tmp/tour`.
 
 ### Performance overlay (device)
 

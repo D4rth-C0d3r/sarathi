@@ -158,6 +158,13 @@ allocations to the C heap.
 | `littlefs` | data/littlefs | 0xC10000 | ~3.9 MB | Fonts and small assets |
 | `coredump` | data/coredump | 0xFF0000 | 64 KB | Crash dumps |
 
+**Settings** are one 8-byte versioned blob (`sarathi_core/settings_codec.h`) under NVS
+namespace `sarathi`, key `cfg`, written through `Preferences`. Saves are debounced: the
+blob is written 2 s after the last change, so turning the brightness knob costs one flash
+write, not one per detent (flash writes can disturb the RGB panel). An unknown version or
+an out-of-range field falls back to the default. The boot log repeats
+`settings loaded|defaults: …` for the first 10 s; each write logs `settings saved`.
+
 Measured after the input bring-up (step D):
 
 - **Firmware image:** 655,673 B, 10.4 % of a 6 MB slot.

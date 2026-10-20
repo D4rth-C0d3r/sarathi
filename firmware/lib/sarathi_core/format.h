@@ -12,6 +12,10 @@ namespace sarathi::core {
 // "0 m" ... "950 m" (rounded to 10 m), "1.2 km" ... "9.9 km", then "10 km", "123 km".
 void FormatDistance(uint32_t metres, char* out, size_t size);
 
+// Metric as above, or imperial: "0 ft" ... "520 ft" (rounded to 10 ft) below 0.1 mi, then
+// "0.1 mi" ... "9.9 mi", then "10 mi", "77 mi".
+void FormatDistance(uint32_t metres, Units units, char* out, size_t size);
+
 // "< 1 min", "4 min", "1 h 05".
 void FormatDuration(uint32_t seconds, char* out, size_t size);
 

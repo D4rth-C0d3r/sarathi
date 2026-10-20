@@ -37,6 +37,12 @@ class AppModel {
   void SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms);
   void SetMedia(const MediaState& media);
   void SetSpeed(uint16_t speed_kmh);
+  void SetClock(uint16_t minutes_of_day);  // 0-1439, wraps
+
+  // ---- Settings from storage ----
+  // Applies saved settings at boot (not subject to the moving lock; brightness clamped). Does
+  // not count as a change to save.
+  void LoadSettings(const Settings& settings);
 
   // ---- Rider actions ----
   // Return false (and do nothing) when the action doesn't apply right now.
@@ -45,11 +51,18 @@ class AppModel {
   bool MediaPlayPause();  // only when media is available
   bool MediaNext();
   bool MediaPrev();
-  bool SetTheme(ThemeId theme);     // refused while moving
-  bool SetBrightness(int percent);  // refused while moving; clamped to 5-100 %
+  // Settings: all refused while moving (CLAUDE.md).
+  bool SetTheme(ThemeId theme);
+  bool SetBrightness(int percent);  // clamped to 5-100 %
+  bool SetAutoDayNight(bool on);
+  bool SetUnits(Units units);
+  bool SetScreenTimeout(ScreenTimeout timeout);
+  bool SetKnobReversed(bool reversed);
 
-  // Brightness and theme changes are settings, locked while moving (CLAUDE.md).
   [[nodiscard]] bool SettingsLocked() const { return state_.ride.moving; }
+
+  // Increases with every rider change to the settings, so the saver knows when to write.
+  [[nodiscard]] uint32_t SettingsRevision() const { return settings_revision_; }
 
   [[nodiscard]] const AppState& State() const { return state_; }
 
@@ -59,7 +72,11 @@ class AppModel {
  private:
   bool Queue(CommandType type);
 
+  // Applies `next` unless locked; counts a revision only if something changed.
+  bool ChangeSettings(const Settings& next);
+
   AppState state_;
+  uint32_t settings_revision_ = 0;
   std::array<Command, kCommandQueueLength> queue_{};
   size_t queue_head_ = 0;
   size_t queue_count_ = 0;

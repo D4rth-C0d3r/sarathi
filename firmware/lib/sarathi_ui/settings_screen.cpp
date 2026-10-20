@@ -15,6 +15,7 @@ namespace {
 constexpr int32_t kTitleY = -175;
 constexpr int32_t kMenuY = 10;
 constexpr int32_t kMenuWidth = 340;
+constexpr int32_t kMenuMaxHeight = 300;  // longer lists scroll, focused row centred
 constexpr int kBrightnessStep = 5;
 
 enum class Page : uint8_t { kMain, kThemes };
@@ -28,6 +29,10 @@ StaticLabel<40> lock_message;
 ListMenu main_menu;
 ListMenu theme_menu;
 size_t theme_row = 0;  // "Theme: ..." in the main menu
+size_t day_night_row = 0;
+size_t units_row = 0;
+size_t timeout_row = 0;
+size_t knob_row = 0;
 std::array<size_t, ListMenu::kMaxRows> theme_indices{};
 Page page = Page::kMain;
 bool shown_locked = true;
@@ -59,6 +64,48 @@ void SelectTheme(void* context) {
 
 int GetBrightness(void* /*context*/) { return app->State().settings.brightness_percent; }
 void SetBrightness(void* /*context*/, int value) { app->SetBrightness(value); }
+
+// Toggle and cycle rows: a click changes the setting; Update() shows the new value.
+void ToggleDayNight(void* /*context*/) {
+  app->SetAutoDayNight(!app->State().settings.auto_day_night);
+}
+void ToggleUnits(void* /*context*/) {
+  app->SetUnits(app->State().settings.units == core::Units::kMetric ? core::Units::kImperial
+                                                                    : core::Units::kMetric);
+}
+void CycleTimeout(void* /*context*/) {
+  const auto next =
+      (static_cast<size_t>(app->State().settings.screen_timeout) + 1) % core::kScreenTimeoutCount;
+  app->SetScreenTimeout(static_cast<core::ScreenTimeout>(next));
+}
+void ToggleKnob(void* /*context*/) { app->SetKnobReversed(!app->State().settings.knob_reversed); }
+
+const char* TimeoutName(core::ScreenTimeout t) {
+  switch (t) {
+    case core::ScreenTimeout::k30s:
+      return "30 s";
+    case core::ScreenTimeout::k1min:
+      return "1 min";
+    case core::ScreenTimeout::k5min:
+      return "5 min";
+    case core::ScreenTimeout::kNever:
+      break;
+  }
+  return "Never";
+}
+
+void RefreshSettingTexts(const core::Settings& s) {
+  std::array<char, 40> text{};
+  std::snprintf(text.data(), text.size(), "Day/night: %s", s.auto_day_night ? "Auto" : "Off");
+  main_menu.SetText(day_night_row, text.data());
+  std::snprintf(text.data(), text.size(), "Units: %s",
+                s.units == core::Units::kMetric ? "Metric" : "Imperial");
+  main_menu.SetText(units_row, text.data());
+  std::snprintf(text.data(), text.size(), "Screen off: %s", TimeoutName(s.screen_timeout));
+  main_menu.SetText(timeout_row, text.data());
+  std::snprintf(text.data(), text.size(), "Knob: %s", s.knob_reversed ? "Reversed" : "Normal");
+  main_menu.SetText(knob_row, text.data());
+}
 
 void RefreshThemeTexts(core::ThemeId current) {
   std::array<char, 40> text{};
@@ -96,13 +143,17 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, OpenInputTestFn open_
 
   title.Create(screen, theme::Text::kStoppedOnly, kTitleY);
 
-  main_menu.Create(screen, kMenuY, kMenuWidth);
+  main_menu.Create(screen, kMenuY, kMenuWidth, kMenuMaxHeight);
   theme_row = main_menu.AddAction("Theme", OpenThemes, nullptr);
   main_menu.AddValue("Brightness", "%", 5, 100, kBrightnessStep, GetBrightness, SetBrightness,
                      nullptr);
+  day_night_row = main_menu.AddAction("Day/night", ToggleDayNight, nullptr);
+  units_row = main_menu.AddAction("Units", ToggleUnits, nullptr);
+  timeout_row = main_menu.AddAction("Screen off", CycleTimeout, nullptr);
+  knob_row = main_menu.AddAction("Knob", ToggleKnob, nullptr);
   main_menu.AddAction("Input test", OpenInputTest, nullptr);
 
-  theme_menu.Create(screen, kMenuY, kMenuWidth);
+  theme_menu.Create(screen, kMenuY, kMenuWidth, kMenuMaxHeight);
   for (size_t i = 0; i < core::ThemeCount() && i + 1 < ListMenu::kMaxRows; ++i) {
     theme_indices.at(i) = i;
     theme_menu.AddAction(core::ThemeAt(i).name, SelectTheme, &theme_indices.at(i));
@@ -126,6 +177,7 @@ void Update(const core::AppState& state, bool locked) {
   if (state.settings.theme != shown_theme) {
     RefreshThemeTexts(state.settings.theme);
   }
+  RefreshSettingTexts(state.settings);  // SetText skips unchanged text
   main_menu.Refresh();
 }
 

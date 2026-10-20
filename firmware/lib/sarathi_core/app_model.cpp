@@ -52,20 +52,61 @@ bool AppModel::MediaNext() { return state_.media.available && Queue(CommandType:
 
 bool AppModel::MediaPrev() { return state_.media.available && Queue(CommandType::kMediaPrev); }
 
-bool AppModel::SetTheme(ThemeId theme) {
+void AppModel::SetClock(uint16_t minutes_of_day) {
+  state_.clock.valid = true;
+  state_.clock.minutes_of_day = static_cast<uint16_t>(minutes_of_day % (24U * 60U));
+}
+
+void AppModel::LoadSettings(const Settings& settings) {
+  state_.settings = settings;
+  state_.settings.brightness_percent = ClampBacklightPercent(settings.brightness_percent);
+}
+
+bool AppModel::ChangeSettings(const Settings& next) {
   if (SettingsLocked()) {
     return false;
   }
-  state_.settings.theme = theme;
+  if (next != state_.settings) {
+    state_.settings = next;
+    ++settings_revision_;
+  }
   return true;
 }
 
+bool AppModel::SetTheme(ThemeId theme) {
+  Settings next = state_.settings;
+  next.theme = theme;
+  return ChangeSettings(next);
+}
+
 bool AppModel::SetBrightness(int percent) {
-  if (SettingsLocked()) {
-    return false;
-  }
-  state_.settings.brightness_percent = ClampBacklightPercent(percent);
-  return true;
+  Settings next = state_.settings;
+  next.brightness_percent = ClampBacklightPercent(percent);
+  return ChangeSettings(next);
+}
+
+bool AppModel::SetAutoDayNight(bool on) {
+  Settings next = state_.settings;
+  next.auto_day_night = on;
+  return ChangeSettings(next);
+}
+
+bool AppModel::SetUnits(Units units) {
+  Settings next = state_.settings;
+  next.units = units;
+  return ChangeSettings(next);
+}
+
+bool AppModel::SetScreenTimeout(ScreenTimeout timeout) {
+  Settings next = state_.settings;
+  next.screen_timeout = timeout;
+  return ChangeSettings(next);
+}
+
+bool AppModel::SetKnobReversed(bool reversed) {
+  Settings next = state_.settings;
+  next.knob_reversed = reversed;
+  return ChangeSettings(next);
 }
 
 bool AppModel::TakeCommand(Command& out) {

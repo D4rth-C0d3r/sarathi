@@ -24,6 +24,8 @@
 #include "input_test_model.h"
 #include "knob.h"
 #include "lvgl_port.h"
+#include "nvs_settings.h"
+#include "settings_saver.h"
 #include "touch.h"
 #include "touch_filter.h"
 
@@ -36,6 +38,7 @@ namespace pins = sarathi::board::pins;
 
 constexpr const char* kTag = "main";
 constexpr uint32_t kLogPeriodMs = 1000;
+constexpr uint32_t kBootLogWindowMs = 10000;
 constexpr uint32_t kPerfPeriodMs = 5000;
 constexpr uint32_t kSerialWaitMs = 2000;
 constexpr uint32_t kLoopDelayMs = 5;
@@ -58,6 +61,9 @@ bool touch_ready = false;
 uint32_t last_log_ms = 0;
 uint32_t last_perf_ms = 0;
 core::FrameStats flush_stats;
+sarathi::settings::NvsSettings nvs;
+core::SettingsSaver settings_saver;
+bool settings_found = false;  // the boot load found saved settings
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
@@ -79,8 +85,26 @@ bool ReadTouch(int16_t& x, int16_t& y) {
   const core::TouchPoint p = touch_filter.Apply(raw_x, raw_y);
   x = p.x;
   y = p.y;
-  ui::app_shell::OnTouch(true, p.x, p.y);
-  return true;
+  return ui::app_shell::OnTouch(true, p.x, p.y);  // false: this touch only wakes the screen
+}
+
+void LoadSettings() {
+  if (nvs.Begin()) {
+    app.LoadSettings(nvs.Load(&settings_found));
+  }
+  settings_saver.MarkSaved(app.SettingsRevision());
+}
+
+// Repeated with the hello line for the first seconds: native USB CDC comes up after setup(),
+// so a line logged only once at boot never reaches the monitor.
+void LogBootSettings() {
+  const core::Settings& s = app.State().settings;
+  ESP_LOGI(kTag,
+           "settings %s: theme %u, brightness %d%%, day/night %s, units %s, screen off %u, knob %s",
+           settings_found ? "loaded" : "defaults", static_cast<unsigned>(s.theme),
+           s.brightness_percent, s.auto_day_night ? "auto" : "off",
+           s.units == core::Units::kMetric ? "metric" : "imperial",
+           static_cast<unsigned>(s.screen_timeout), s.knob_reversed ? "reversed" : "normal");
 }
 
 uint32_t TickMs() { return millis(); }
@@ -149,6 +173,10 @@ void RunUi(uint32_t now) {
   while (app.TakeCommand(command)) {
     demo_ride.OnCommand(command, now, app);
   }
+  // Debounced: one write once the settings have been still for 2 s.
+  if (settings_saver.ShouldSave(app.SettingsRevision(), now) && !nvs.Save(app.State().settings)) {
+    settings_saver.SaveFailed(now);
+  }
   backlight.SetPercent(ui::app_shell::BacklightPercent());
 }
 
@@ -162,7 +190,8 @@ void setup() {
     delay(10);
   }
 
-  if (!display.Begin(backlight, pins::kBacklightDefaultPercent)) {
+  LoadSettings();  // before the display, so the saved brightness and theme apply from the start
+  if (!display.Begin(backlight, app.State().settings.brightness_percent)) {
     ESP_LOGE(kTag, "display init failed; UI disabled");
     return;
   }
@@ -191,6 +220,9 @@ void loop() {
   if (now - last_log_ms >= kLogPeriodMs) {
     last_log_ms = now;
     LogHello();
+    if (now < kBootLogWindowMs) {
+      LogBootSettings();
+    }
   }
   if (ui_ready && now - last_perf_ms >= kPerfPeriodMs) {
     last_perf_ms = now;
