@@ -1,0 +1,83 @@
+name: firmware
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PLATFORMIO_VERSION: "6.2.0"  # same as local; see docs/building.md
+  PYTHON_VERSION: "3.12"
+
+defaults:
+  run:
+    working-directory: firmware
+
+jobs:
+  test:
+    name: native tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+
+      - name: Run native tests
+        run: pio test -e native
+
+  build:
+    name: build crowpanel21
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PlatformIO
+        run: pip install "platformio==${PLATFORMIO_VERSION}"
+
+      # The pinned pioarduino platform and toolchain are large; a change to platformio.ini
+      # (for example a version bump) gets a fresh cache.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: platformio-${{ runner.os }}-
+
+      # No -v: the platform's verbose output crashes while printing the elf2image step.
+      - name: Build
+        run: pio run -e crowpanel21
+
+      - name: Short commit SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: firmware-${{ steps.sha.outputs.short }}
+          path: |
+            firmware/.pio/build/crowpanel21/firmware.bin
+            firmware/.pio/build/crowpanel21/firmware.elf
+          if-no-files-found: error
+          retention-days: 30

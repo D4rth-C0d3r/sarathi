@@ -1,0 +1,3 @@
+# Repo Python tools. Install into the project venv only:
+#   source .venv/bin/activate && pip install -r tools/requirements.txt
+pre-commit==4.7.0

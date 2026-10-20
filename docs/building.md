@@ -109,6 +109,23 @@ pre-commit run --all-files    # whitespace, YAML/JSON, private keys, clang-forma
 `pre-commit run --files <paths>` or stage them first. `.clang-tidy` is configured but needs
 `compile_commands.json` (see above).
 
+## CI
+
+GitHub Actions runs on every pull request and every push to `main`:
+
+| Workflow | Jobs | Same as running locally |
+|---|---|---|
+| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`) | `pio test -e native`; `pio run -e crowpanel21` |
+| `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
+
+Each `firmware` run uploads an artifact `firmware-<short sha>` with `firmware.bin` (to flash)
+and `firmware.elf` (to decode crash backtraces), kept for 30 days. Find it on the run's
+summary page under **Artifacts**.
+
+CI uses PlatformIO 6.2.0 and the pre-commit version in `tools/requirements.txt`, matching
+the local setup. Actions are pinned to commit SHAs. The `actionlint` hook checks workflow
+files before you push.
+
 ## Android
 
 Not started; the companion app arrives in Phase 4. This section will cover
