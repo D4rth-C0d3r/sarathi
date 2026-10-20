@@ -1,8 +1,9 @@
 // sārathi firmware entry point.
 //
-// Phase 0 bring-up: logs chip, flash and PSRAM info once a second, to confirm the board
-// configuration (16 MB flash, OPI PSRAM, 240 MHz) on real hardware. This is a temporary
-// exception to the "main.cpp only wires modules" rule and is replaced in Phase 1.
+// Phase 0 bring-up: starts the display and runs the colour/ring check, then logs chip, flash
+// and PSRAM info once a second, to confirm the board configuration (16 MB flash, OPI PSRAM,
+// 240 MHz) on real hardware. This is a temporary exception to the "main.cpp only wires
+// modules" rule and is replaced in Phase 1.
 
 #include <cinttypes>
 #include <cstdint>
@@ -11,9 +12,12 @@
 #include <esp_flash.h>
 #include <esp_log.h>
 
+#include "bringup_pattern.h"
+#include "display.h"
+
 namespace {
 
-constexpr char kTag[] = "main";
+constexpr const char* kTag = "main";
 constexpr uint32_t kLogPeriodMs = 1000;
 constexpr uint32_t kSerialWaitMs = 2000;
 constexpr uint32_t kKiB = 1024;
@@ -43,6 +47,13 @@ void setup() {
   const uint32_t start = millis();
   while (!Serial && millis() - start < kSerialWaitMs) {
     delay(10);
+  }
+
+  sarathi::board::Display display;
+  if (display.Begin()) {
+    sarathi::board::RunBringUpPattern(display);
+  } else {
+    ESP_LOGE(kTag, "display init failed; skipping bring-up pattern");
   }
 }
 

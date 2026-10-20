@@ -137,20 +137,23 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   |---|---|
   | P0 | Touch reset |
   | P2 | Touch INT |
-  | P3 | LCD power |
+  | P3 | `LED-ON`: gate of P-MOSFET Q1 switching `VDD_LCD`, **active low** (schematic) |
   | P4 | LCD reset |
   | P5 | Encoder button (active low, pull-up) |
+  | P6 | Net `ENCODER_A` in the schematic; unused by Elecrow's code (see `docs/hardware.md`) |
 
 - **Encoder:** A on GPIO 42, B on GPIO 4.
   - Elecrow polls it every 2 ms in a task on core 0 and pushes events to a queue.
   - Button handling: 50 ms debounce; a second press within 300 ms is a double-click.
 - **Backlight:** GPIO 6 PWM. At 0% the screen is invisible. Clamp the user minimum to
   about 5%.
-- **GPIO 43** drives the ambient/indicator LED in Elecrow's demo. Elecrow's UART lesson
-  also uses 43/44 as TX/RX. Check the schematic in `vendor/crowpanel-2.1/Eagle_SCH&PCB/` before
-  using either.
-- **Power-up order:** `Wire.begin(38,39)` → PCF8574 begin → P3 HIGH (LCD power) → LCD reset
-  → `gfx->begin()` → touch begin → `lv_init()`.
+- **GPIO 43** drives the ambient/indicator LED in Elecrow's demo, but the schematic names it
+  `U0TXD` (net `ESP_TXD`); Elecrow's UART lesson uses 43/44 as TX/RX. Don't use either until
+  this is resolved.
+- **Power-up order** (Elecrow's demo, implemented in `sarathi_board/display.cpp`):
+  `Wire.begin(38,39)` → PCF8574 begin → P3 HIGH → LCD reset (P4) → touch reset (P0, P2 HIGH)
+  → `gfx->begin()` → MADCTL → backlight on → **P3 LOW** (`VDD_LCD` on) → touch begin
+  → `lv_init()`. The wiki and lessons only set P3 HIGH; see `docs/hardware.md`.
 - **LVGL buffers:** 480×480×2 B = 460,800 B each. Allocate two in PSRAM
   (`MALLOC_CAP_SPIRAM`) once at init, using `LV_DISPLAY_RENDER_MODE_PARTIAL`.
 - **Image size:** Elecrow's image-heavy demo is about 6 MB, which barely fits our 6 MB OTA
