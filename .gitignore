@@ -24,6 +24,8 @@ __pycache__/
 .venv/
 # Secrets
 *.pem
+# Public OTA keys are meant to be committed (ADR-0004); private keys stay ignored.
+!docs/ota/keys/*.pub.pem
 *.key
 secrets/
 .env
