@@ -5,7 +5,7 @@
     "running_seq": 200,
     "slot_size": 6291456,
     "kid": "test-only",
-    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/dszDtS/jHHzM8uhUpBBtKHWIbMt\nM3IYCj12U+BKLrw6xXmaqSxO3imyMCQEeI+2AKAqSZciC2vTX0kvNF7hJg==\n-----END PUBLIC KEY-----\n"
+    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERBYb0imwDpjyIHOQxPyE1HDwbKHf\nFMHrQYBtVXuSfZqQStynxBebf/WsQ/SfTZNiwB+rP/1zS7e1hmaKuUJ1UQ==\n-----END PUBLIC KEY-----\n"
   },
   "cases": [
     {
@@ -13,129 +13,188 @@
       "manifest": "valid.jws",
       "expect": "ok",
       "note": "Signed by the test key; image matches.",
-      "image": "image.bin"
+      "image": "image.bin",
+      "image_sha256": "5ab775379b00e0ca28b6ee8c0b71b2e54307875de77c156356740d946a181be6",
+      "signature_valid": true
     },
     {
       "name": "tampered_payload",
       "manifest": "tampered_payload.jws",
       "expect": "bad_signature",
-      "note": "Payload changed after signing."
+      "note": "Payload changed after signing.",
+      "signature_valid": false
     },
     {
       "name": "tampered_signature",
       "manifest": "tampered_signature.jws",
       "expect": "bad_signature",
-      "note": "One bit of the signature flipped."
+      "note": "One bit of the signature flipped.",
+      "signature_valid": false
     },
     {
       "name": "alg_none",
       "manifest": "alg_none.jws",
       "expect": "unsupported_alg",
-      "note": "Unsigned token claiming alg none."
+      "note": "Unsigned token claiming alg none.",
+      "signature_valid": null
     },
     {
       "name": "alg_hs256",
       "manifest": "alg_hs256.jws",
       "expect": "unsupported_alg",
-      "note": "HMAC keyed with the public key (algorithm confusion)."
+      "note": "HMAC keyed with the public key (algorithm confusion).",
+      "signature_valid": null
     },
     {
       "name": "unknown_kid",
       "manifest": "unknown_kid.jws",
       "expect": "unknown_kid",
-      "note": "Validly signed, but names a key the device doesn't trust."
+      "note": "Validly signed, but names a key the device doesn't trust.",
+      "signature_valid": null
     },
     {
       "name": "wrong_typ",
       "manifest": "wrong_typ.jws",
       "expect": "unsupported_type",
-      "note": "A JWS that isn't a s\u0101rathi manifest."
+      "note": "A JWS that isn't a s\u0101rathi manifest.",
+      "signature_valid": null
     },
     {
       "name": "wrong_board",
       "manifest": "wrong_board.jws",
       "expect": "wrong_board",
-      "note": "Signed manifest for a different board."
+      "note": "Signed manifest for a different board.",
+      "signature_valid": true
     },
     {
       "name": "not_newer",
       "manifest": "not_newer.jws",
       "expect": "not_newer",
-      "note": "Replay of the running version (downgrade protection)."
+      "note": "Replay of the running version (downgrade protection).",
+      "signature_valid": true
     },
     {
       "name": "too_large",
       "manifest": "too_large.jws",
       "expect": "too_large",
-      "note": "Image larger than the OTA slot."
+      "note": "Image larger than the OTA slot.",
+      "signature_valid": true
     },
     {
       "name": "insecure_url",
       "manifest": "insecure_url.jws",
       "expect": "insecure_url",
-      "note": "Plain-HTTP download URL."
+      "note": "Plain-HTTP download URL.",
+      "signature_valid": true
     },
     {
       "name": "seq_mismatch",
       "manifest": "seq_mismatch.jws",
       "expect": "bad_schema",
-      "note": "seq disagrees with version."
+      "note": "seq disagrees with version.",
+      "signature_valid": true
     },
     {
       "name": "missing_sha256",
       "manifest": "missing_sha256.jws",
       "expect": "bad_schema",
-      "note": "Required field missing."
+      "note": "Required field missing.",
+      "signature_valid": true
     },
     {
       "name": "schema_2",
       "manifest": "schema_2.jws",
       "expect": "bad_schema",
-      "note": "Unknown schema version."
+      "note": "Unknown schema version.",
+      "signature_valid": true
     },
     {
       "name": "prerelease_version",
       "manifest": "prerelease_version.jws",
       "expect": "bad_schema",
-      "note": "Pre-release versions are never published as manifests."
+      "note": "Pre-release versions are never published as manifests.",
+      "signature_valid": true
     },
     {
       "name": "duplicate_member",
       "manifest": "duplicate_member.jws",
       "expect": "malformed",
-      "note": "Payload JSON with a duplicate member."
+      "note": "Payload JSON with a duplicate member.",
+      "signature_valid": true
     },
     {
       "name": "two_parts",
       "manifest": "two_parts.jws",
       "expect": "malformed",
-      "note": "Not three parts."
+      "note": "Not three parts.",
+      "signature_valid": null
     },
     {
       "name": "bad_base64",
       "manifest": "bad_base64.jws",
       "expect": "malformed",
-      "note": "Padding is not allowed in base64url."
+      "note": "Padding is not allowed in base64url.",
+      "signature_valid": null
     },
     {
       "name": "too_long",
       "manifest": "too_long.jws",
       "expect": "malformed",
-      "note": "Token over 2048 bytes."
+      "note": "Token over 2048 bytes.",
+      "signature_valid": null
+    },
+    {
+      "name": "payload_trailing_comma",
+      "manifest": "payload_trailing_comma.jws",
+      "expect": "malformed",
+      "note": "Signed payload with a trailing comma (invalid JSON).",
+      "signature_valid": true
+    },
+    {
+      "name": "non_ascii_board",
+      "manifest": "non_ascii_board.jws",
+      "expect": "bad_schema",
+      "note": "String member with a non-ASCII character (sent as a \\u escape).",
+      "signature_valid": true
+    },
+    {
+      "name": "float_size",
+      "manifest": "float_size.jws",
+      "expect": "bad_schema",
+      "note": "size written as a float.",
+      "signature_valid": true
+    },
+    {
+      "name": "bool_schema",
+      "manifest": "bool_schema.jws",
+      "expect": "bad_schema",
+      "note": "schema written as true.",
+      "signature_valid": true
+    },
+    {
+      "name": "too_many_tokens",
+      "manifest": "too_many_tokens.jws",
+      "expect": "malformed",
+      "note": "Payload with more than 128 JSON tokens.",
+      "signature_valid": true
     },
     {
       "name": "hash_mismatch",
       "manifest": "hash_mismatch.jws",
       "expect": "hash_mismatch",
       "note": "Valid manifest; one bit of the image flipped.",
-      "image": "image_corrupt.bin"
+      "image": "image_corrupt.bin",
+      "image_sha256": "c5950db07d85950bd9378f5ef66e3153925dcf163b831f943f45bb00b17e3883",
+      "signature_valid": true
     },
     {
       "name": "size_mismatch",
       "manifest": "size_mismatch.jws",
       "expect": "size_mismatch",
       "note": "Valid manifest; image truncated.",
-      "image": "image_truncated.bin"
+      "image": "image_truncated.bin",
+      "image_sha256": "4db52139d6ce54ce60b92da8fe595030ef299eef97896058be639f898ecbe581",
+      "signature_valid": true
     }
   ]
 }

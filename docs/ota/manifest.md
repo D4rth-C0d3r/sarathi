@@ -33,6 +33,8 @@ BASE64URL(UTF8(header)) "." BASE64URL(UTF8(payload)) "." BASE64URL(signature)
 - Base64url uses the URL-safe alphabet with **no padding** (RFC 7515 §2).
 - Header and payload are UTF-8 JSON objects. **Duplicate member names are rejected**, since
   parsers disagree on which one wins.
+- Each part holds at most **128 JSON tokens**, counting one per value and one per member
+  name. The device parses into a fixed token table. A release manifest uses 17.
 
 ### Header
 
@@ -81,7 +83,12 @@ ES256 over the ASCII bytes of `header-b64 "." payload-b64`, encoded as the **64-
 | `url` | string | Where to download the image. MUST start with `https://`. |
 
 Unknown payload members are ignored, so schema 1 can gain optional fields without breaking
-older devices. JSON `true` and `false` are not integers.
+older devices.
+
+- **Integers:** JSON `true` and `false` are not integers, and nor is `4096.0`. Integers
+  must be between 0 and 2^53. `NaN` and `Infinity` aren't JSON and are `malformed`.
+- **Strings:** every string member MUST be ASCII after JSON unescaping (`\u00e9` is
+  rejected).
 
 [`manifest.schema.json`](manifest.schema.json) has the same rules as a JSON Schema.
 
@@ -92,13 +99,13 @@ error code. The device MUST NOT act on any payload member before step 3 passes.
 
 | Step | Check | Error code |
 |---|---|---|
-| 1. Parse | ≤ 2048 bytes, ASCII, three parts (header and payload non-empty), strict base64url, JSON objects without duplicate members | `malformed` |
+| 1. Parse | ≤ 2048 bytes, ASCII, three parts (header and payload non-empty), strict base64url, valid JSON objects without duplicate members, ≤ 128 tokens each | `malformed` |
 | 2. Header | no `crit` | `malformed` |
 | | `alg` is `ES256` | `unsupported_alg` |
 | | `typ` is `sarathi-manifest+json` | `unsupported_type` |
-| | `kid` is a trusted key | `unknown_kid` |
+| | `kid` is an ASCII string naming a trusted key | `unknown_kid` |
 | 3. Signature | 64 bytes, verifies with that key | `bad_signature` |
-| 4. Payload | every member present with the right type; `schema` 1; `seq` matches `version`; `sha256` is 64 lowercase hex; `size` > 0; `min_protocol` ≥ 0 | `bad_schema` |
+| 4. Payload | valid JSON (as in step 1); every member present with the right type, strings ASCII; `schema` 1; `seq` matches `version`; `sha256` is 64 lowercase hex; `size` > 0; `min_protocol` ≥ 0 | `bad_schema` |
 | | `board` is the device's board | `wrong_board` |
 | | `seq` > the running firmware's `seq` | `not_newer` |
 | | `size` ≤ the inactive OTA slot | `too_large` |
@@ -131,6 +138,16 @@ plus the context to verify in:
 - the test public key
 
 Each `.jws` file is one manifest. Image cases name an image fixture.
+
+Image cases also record `image_sha256`, the fixture's digest, for tests that can't hash.
+Each case also records `signature_valid`:
+
+- `true` or `false`: the result of step 3.
+- `null`: verification stopped before step 3.
+
+Tests that can't run ECDSA, such as the firmware's native tests, use it to stand in for the
+signature check. Everything else is still tested for real. Real ES256 runs on the device
+against the same vectors.
 
 The vectors are signed with a **throwaway key** that existed only while
 `tools/ota_manifest.py make-vectors` ran. Its private half was never written to disk, and

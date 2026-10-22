@@ -43,6 +43,8 @@ TYP = "sarathi-manifest+json"
 ALG = "ES256"
 SCHEMA = 1
 MAX_TOKEN_BYTES = 2048
+MAX_JSON_TOKENS = 128  # per part; the device parses into a fixed token table
+MAX_JSON_INT = 2**53  # larger integers are rejected (beyond what every JSON parser keeps exact)
 DEFAULT_BOARD = "crowpanel21"
 P256_COORD_BYTES = 32
 
@@ -111,13 +113,30 @@ def _no_duplicates(pairs: list[tuple[str, object]]) -> dict:
     return dict(pairs)
 
 
+def json_token_count(value: object) -> int:
+    """Tokens as the device's tokenizer (jsmn) counts them: one per value and per key."""
+    if isinstance(value, dict):
+        return 1 + sum(1 + json_token_count(v) for v in value.values())
+    if isinstance(value, list):
+        return 1 + sum(json_token_count(v) for v in value)
+    return 1
+
+
+def _reject_constant(name: str) -> None:
+    raise OtaError(MALFORMED, f"{name} is not valid JSON")
+
+
 def parse_json_object(data: bytes) -> dict:
     try:
-        obj = json.loads(data.decode("utf-8"), object_pairs_hook=_no_duplicates)
+        obj = json.loads(
+            data.decode("utf-8"), object_pairs_hook=_no_duplicates, parse_constant=_reject_constant
+        )
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         raise OtaError(MALFORMED, f"invalid JSON: {e}") from None
     if not isinstance(obj, dict):
         raise OtaError(MALFORMED, "JSON value is not an object")
+    if json_token_count(obj) > MAX_JSON_TOKENS:
+        raise OtaError(MALFORMED, f"more than {MAX_JSON_TOKENS} JSON tokens")
     return obj
 
 
@@ -185,8 +204,15 @@ def sign_token(header: dict, payload: dict, key: ec.EllipticCurvePrivateKey) -> 
 # ---- Verification (the rules in docs/ota/manifest.md, in order) ----
 
 
-def verify_manifest(token: bytes, ctx: Context) -> dict:
-    """Returns the payload, or raises OtaError with the first rule that fails."""
+def verify_manifest(token: bytes, ctx: Context, trace: dict | None = None) -> dict:
+    """Returns the payload, or raises OtaError with the first rule that fails.
+
+    If `trace` is given, trace["signature_valid"] records the signature check's result, or
+    None if verification stopped before it (the vectors carry this for native tests, which
+    can't run ECDSA).
+    """
+    if trace is not None:
+        trace["signature_valid"] = None
     token = token.rstrip(b"\r\n")
     # 1. Parse.
     if len(token) > MAX_TOKEN_BYTES:
@@ -210,7 +236,7 @@ def verify_manifest(token: bytes, ctx: Context) -> dict:
     if header.get("typ") != TYP:
         raise OtaError(UNSUPPORTED_TYPE, repr(header.get("typ")))
     kid = header.get("kid")
-    if not isinstance(kid, str) or kid not in ctx.keys:
+    if not isinstance(kid, str) or not kid.isascii() or kid not in ctx.keys:
         raise OtaError(UNKNOWN_KID, repr(kid))
 
     # 3. Signature, over the ASCII bytes of "header.payload". Nothing in the payload is
@@ -224,7 +250,11 @@ def verify_manifest(token: bytes, ctx: Context) -> dict:
             ec.ECDSA(hashes.SHA256()),
         )
     except (InvalidSignature, ValueError):
+        if trace is not None:
+            trace["signature_valid"] = False
         raise OtaError(BAD_SIGNATURE) from None
+    if trace is not None:
+        trace["signature_valid"] = True
 
     # 4. Payload.
     payload = parse_json_object(payload_bytes)
@@ -232,6 +262,10 @@ def verify_manifest(token: bytes, ctx: Context) -> dict:
         value = payload.get(name)
         if not isinstance(value, kind) or isinstance(value, bool):
             raise OtaError(BAD_SCHEMA, f"{name} missing or not {kind.__name__}")
+        if isinstance(value, str) and not value.isascii():
+            raise OtaError(BAD_SCHEMA, f"{name} is not ASCII")
+        if isinstance(value, int) and not 0 <= value <= MAX_JSON_INT:
+            raise OtaError(BAD_SCHEMA, f"{name} out of range")
     if payload["schema"] != SCHEMA:
         raise OtaError(BAD_SCHEMA, f"schema {payload['schema']}")
     if payload["seq"] != seq_for_version(payload["version"]):
@@ -356,6 +390,15 @@ def make_vectors(out: Path) -> None:
         ("bad_base64", f"{h}.{p}=.{s}", None, MALFORMED, "Padding is not allowed in base64url."),
         ("too_long", signed(changed(url=VECTOR_URL + "?" + "x" * 2048)), None, MALFORMED,
          "Token over 2048 bytes."),
+        ("payload_trailing_comma", signed_raw_payload(json.dumps(good, separators=(",", ":"))[:-1].encode() + b",}"),
+         None, MALFORMED, "Signed payload with a trailing comma (invalid JSON)."),
+        ("non_ascii_board", signed(changed(board="crowpanel21\u00e9")), None,
+         BAD_SCHEMA, "String member with a non-ASCII character (sent as a \\u escape)."),
+        ("float_size", signed_raw_payload(json.dumps(good, separators=(",", ":")).replace('"size":4096', '"size":4096.0').encode()),
+         None, BAD_SCHEMA, "size written as a float."),
+        ("bool_schema", signed(changed(schema=True)), None, BAD_SCHEMA, "schema written as true."),
+        ("too_many_tokens", signed(changed(extra=[0] * MAX_JSON_TOKENS)), None, MALFORMED,
+         f"Payload with more than {MAX_JSON_TOKENS} JSON tokens."),
         ("hash_mismatch", valid, "image_corrupt.bin", HASH_MISMATCH,
          "Valid manifest; one bit of the image flipped."),
         ("size_mismatch", valid, "image_truncated.bin", SIZE_MISMATCH,
@@ -378,24 +421,33 @@ def make_vectors(out: Path) -> None:
         },
         "cases": [],
     }
+    ctx = Context(VECTOR_BOARD, VECTOR_RUNNING_SEQ, VECTOR_SLOT_SIZE, {VECTOR_KID: key.public_key()})
     for name, token, image_file, expect, note in cases:
         (out / f"{name}.jws").write_text(token + "\n", encoding="ascii")
         case = {"name": name, "manifest": f"{name}.jws", "expect": expect, "note": note}
         if image_file:
             case["image"] = image_file
+            case["image_sha256"] = hashlib.sha256((out / image_file).read_bytes()).hexdigest()
+        trace: dict = {}
+        try:
+            verify_manifest(token.encode("ascii"), ctx, trace)
+        except OtaError:
+            pass
+        case["signature_valid"] = trace["signature_valid"]
         index["cases"].append(case)
     (out / "vectors.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {len(cases)} vectors to {out}")
 
 
-def run_case(directory: Path, ctx: Context, case: dict) -> str:
+def run_case(directory: Path, ctx: Context, case: dict) -> tuple[str, bool | None]:
+    trace: dict = {}
     try:
-        payload = verify_manifest((directory / case["manifest"]).read_bytes(), ctx)
+        payload = verify_manifest((directory / case["manifest"]).read_bytes(), ctx, trace)
         if "image" in case:
             check_image((directory / case["image"]).read_bytes(), payload)
     except OtaError as e:
-        return e.code
-    return OK
+        return e.code, trace["signature_valid"]
+    return OK, trace["signature_valid"]
 
 
 def check_vectors(directory: Path) -> int:
@@ -409,10 +461,18 @@ def check_vectors(directory: Path) -> int:
     )
     failures = 0
     for case in index["cases"]:
-        got = run_case(directory, ctx, case)
-        ok = got == case["expect"]
+        if "image" in case:
+            digest = hashlib.sha256((directory / case["image"]).read_bytes()).hexdigest()
+            if digest != case["image_sha256"]:
+                print(f"FAIL {case['name']}: image_sha256 does not match {case['image']}")
+                failures += 1
+        got, signature_valid = run_case(directory, ctx, case)
+        ok = got == case["expect"] and signature_valid == case["signature_valid"]
         failures += not ok
-        print(f"{'ok  ' if ok else 'FAIL'} {case['name']}: expected {case['expect']}, got {got}")
+        print(
+            f"{'ok  ' if ok else 'FAIL'} {case['name']}: expected {case['expect']}, got {got}"
+            f" (signature_valid {signature_valid}, recorded {case['signature_valid']})"
+        )
     print(f"{len(index['cases']) - failures}/{len(index['cases'])} vectors as expected")
     return 1 if failures else 0
 
