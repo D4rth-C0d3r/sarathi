@@ -44,12 +44,13 @@ GATT service. iOS is out of scope.
 
 ## Status
 
-**Phase 0 (bring-up) is done** (`v0.1.0`). Phase 1 is next. Nothing is usable on a bike yet.
+**Phase 1 (UI shell) is done** (`v0.2.0`): the device runs the full UI on a scripted demo ride.
+Phase 2 (Wi-Fi OTA) is next. Nothing is usable on a bike yet: there is no phone link.
 
 | Phase | Scope |
 |---|---|
 | 0 | Bring-up (done) |
-| 1 | UI shell: components, themes, settings, nav screen with a simulated route map, simulator |
+| 1 | UI shell (done): components, themes, settings, nav screen with a simulated route map, simulator |
 | 2 | Wi-Fi OTA with rollback |
 | 3 | ChronosESP32 quick win (navigation arrows only) |
 | 4 | Own Android app and protocol, with a routing source for the map |

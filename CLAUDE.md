@@ -32,11 +32,14 @@ Classic Bluetooth audio on the device.
 
 - **Phase 0 (bring-up) is done** (`v0.1.0`): display, knob, button, touch, backlight and
   LVGL verified on hardware; Android skeleton and CI in place.
-- **Phase 1 (UI shell) is next.**
+- **Phase 1 (UI shell) is done** (`v0.2.0`): simulator, knob-driven shell (Nav, Call,
+  Music, Settings), Classic / Fighter jet HUD / Racing game themes, heading-up Nav map fed
+  by the demo ride, settings persisted to NVS. Verified on hardware.
+- **Phase 2 (Wi-Fi OTA + rollback) is next.**
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
-1. UI shell: semantic components, theme system (Classic, Fighter jet HUD, Racing game),
+1. UI shell (done, v0.2.0): semantic components, theme system (Classic, Fighter jet HUD, Racing game),
    settings (incl. theme, persisted), nav screen with map renderer fed by **simulated**
    route windows, simulator
 2. Wi-Fi OTA + rollback
