@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/ota/manifest.schema.json",
+  "title": "sārathi OTA manifest, schema 1",
+  "description": "Header and payload of the JWS described in docs/ota/manifest.md. The rules that depend on the device (board, running seq, slot size) and seq = MAJOR*10000 + MINOR*100 + PATCH are checked in code.",
+  "$defs": {
+    "header": {
+      "type": "object",
+      "required": ["alg", "typ", "kid"],
+      "properties": {
+        "alg": { "const": "ES256" },
+        "typ": { "const": "sarathi-manifest+json" },
+        "kid": { "type": "string", "minLength": 1 }
+      },
+      "not": { "required": ["crit"] }
+    },
+    "payload": {
+      "type": "object",
+      "required": ["schema", "board", "version", "seq", "size", "sha256", "min_protocol", "url"],
+      "properties": {
+        "schema": { "const": 1 },
+        "board": { "type": "string", "minLength": 1 },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]?)\\.(0|[1-9][0-9]?)$"
+        },
+        "seq": { "type": "integer", "minimum": 0, "maximum": 9999999 },
+        "size": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "min_protocol": { "type": "integer", "minimum": 0 },
+        "url": { "type": "string", "pattern": "^https://" }
+      }
+    }
+  }
+}

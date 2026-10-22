@@ -192,8 +192,11 @@ fallback for riders without the app.
    (`esp_ota_*` underneath), hashing each chunk with SHA-256 as it arrives. Abort as soon as
    more bytes than `size` arrive.
 4. **Check the image.** Require exactly `size` bytes and a SHA-256 equal to the manifest's
-   digest. As defence in depth, the new image's own version (`esp_app_desc_t` in the new
-   slot, covered by the digest) must equal `version`.
+   digest. The image's own `esp_app_desc_t` version can't serve as an extra check: with
+   the pinned core it holds the precompiled libraries' build id (`14a0af9`,
+   `arduino-lib-builder`), not ours (verified). The version is authenticated by the signed
+   manifest instead, and the running firmware knows its own from compile-time
+   `SARATHI_VERSION` / `SARATHI_SEQ`.
 5. **Switch.** Only then call `Update.end()`, which validates the image header and sets the
    boot partition, then reboot. On any failure, call `Update.abort()`. The boot partition
    never changes, and the screen says why.
@@ -216,7 +219,7 @@ fallback for riders without the app.
   maintainer wants a backup.
 - **Release workflow:** `release.yml` is triggered by a `v*` tag and is the only job that
   runs in that environment. It builds the image and computes its size and SHA-256, writes
-  the payload, and signs it with `tools/sign_manifest.py` (Python `cryptography` package,
+  the payload, and signs it with `tools/ota_manifest.py sign` (Python `cryptography` package,
   ES256 with the raw 64-byte r‖s signature that JWS requires). It then uploads the image and
   `manifest.jws`.
   - The key goes into a temporary file with `umask 077` and is deleted in an `always()` step.
@@ -374,7 +377,7 @@ kept, or a rider out of range would roll back every time. The boot log reports
    bundle and redirects, streaming download with hash and signature check.
 5. Captive-portal provisioning and Settings rows ("Wi-Fi setup", "Check for update",
    "Forget Wi-Fi"), plus the static update screen.
-6. `release.yml` and `tools/sign_manifest.py`: build, hash, sign, publish. This needs the
+6. `release.yml` using `tools/ota_manifest.py sign`: build, hash, sign, publish. This needs the
    maintainer's `OTA_SIGNING_KEY` secret in the `release` environment.
 7. Device tests: a normal update; a tampered manifest or image (rejected, no partition
    switch); a downgrade (rejected); and a deliberately crashing image (rolled back).

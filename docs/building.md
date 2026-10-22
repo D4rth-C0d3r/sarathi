@@ -198,7 +198,7 @@ GitHub Actions runs on every pull request and every push to `main`:
 
 | Workflow | Jobs | Same as running locally |
 |---|---|---|
-| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`); **build simulator** | `pio test -e native`; `pio run -e crowpanel21`; `pio run -e sim` |
+| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`); **build simulator**; **OTA manifest vectors** | `pio test -e native`; `pio run -e crowpanel21`; `pio run -e sim`; `python tools/ota_manifest.py check-vectors docs/ota/vectors` |
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
 | `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 
