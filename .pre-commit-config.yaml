@@ -1,6 +1,6 @@
 # Run: source .venv/bin/activate && pre-commit run --all-files
 # Kotlin style (ktlint, detekt) runs through Gradle in CI, so committing needs no JVM.
-exclude: ^(vendor/|firmware/\.pio/|\.venv/)
+exclude: ^(vendor/|firmware/\.pio/|\.venv/|firmware/lib/[^/]+/third_party/)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
