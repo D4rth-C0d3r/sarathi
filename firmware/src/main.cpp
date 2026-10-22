@@ -18,6 +18,8 @@
 #include "app_shell.h"
 #include "backlight.h"
 #include "board_pins.h"
+#include "boot_confirm.h"
+#include "boot_health.h"
 #include "demo_ride.h"
 #include "display.h"
 #include "frame_stats.h"
@@ -28,11 +30,13 @@
 #include "settings_saver.h"
 #include "touch.h"
 #include "touch_filter.h"
+#include "version.h"
 
 namespace {
 
 namespace board = sarathi::board;
 namespace core = sarathi::core;
+namespace ota = sarathi::ota;
 namespace ui = sarathi::ui;
 namespace pins = sarathi::board::pins;
 
@@ -64,6 +68,8 @@ core::FrameStats flush_stats;
 sarathi::settings::NvsSettings nvs;
 core::SettingsSaver settings_saver;
 bool settings_found = false;  // the boot load found saved settings
+ota::BootState boot_state;    // read at boot: is this a fresh OTA image awaiting confirmation?
+bool first_frame = false;     // a frame has reached the panel
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
@@ -72,6 +78,7 @@ void FlushToDisplay(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels
   const uint32_t start = TimeUs();
   display.DrawBitmap(x, y, w, h, pixels);
   flush_stats.Add(TimeUs() - start);
+  first_frame = true;
 }
 
 bool ReadTouch(int16_t& x, int16_t& y) {
@@ -105,6 +112,11 @@ void LogBootSettings() {
            s.brightness_percent, s.auto_day_night ? "auto" : "off",
            s.units == core::Units::kMetric ? "metric" : "imperial",
            static_cast<unsigned>(s.screen_timeout), s.knob_reversed ? "reversed" : "normal");
+  ESP_LOGI(kTag, "firmware %.*s (seq %u), image %s%s",
+           static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data(),
+           static_cast<unsigned>(core::kFirmwareSeq),
+           boot_state.pending_verify ? "pending verify" : "not pending",
+           boot_state.rolled_back ? ", an earlier update was rolled back" : "");
 }
 
 uint32_t TickMs() { return millis(); }
@@ -178,6 +190,13 @@ void RunUi(uint32_t now) {
     settings_saver.SaveFailed(now);
   }
   backlight.SetPercent(ui::app_shell::BacklightPercent());
+
+  // A fresh OTA image confirms itself once the UI has run for a while (ADR-0004 §5); a reset
+  // before that rolls back to the previous image.
+  if (boot_state.pending_verify &&
+      core::DecideBoot({true, first_frame, false, now}) == core::BootDecision::kConfirm) {
+    boot_state.pending_verify = !ota::ConfirmBoot();
+  }
 }
 
 }  // namespace
@@ -190,6 +209,7 @@ void setup() {
     delay(10);
   }
 
+  boot_state = ota::ReadBootState();
   LoadSettings();  // before the display, so the saved brightness and theme apply from the start
   if (!display.Begin(backlight, app.State().settings.brightness_percent)) {
     ESP_LOGE(kTag, "display init failed; UI disabled");

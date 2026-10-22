@@ -165,6 +165,33 @@ write, not one per detent (flash writes can disturb the RGB panel). An unknown v
 an out-of-range field falls back to the default. The boot log repeats
 `settings loaded|defaults: …` for the first 10 s; each write logs `settings saved`.
 
+**Wi-Fi credentials** live in their own blob under NVS namespace `wifi`, key `cfg`
+(`sarathi_core/wifi_credentials.h`). It's written once per successful setup and never logged.
+
+**Measured with the OTA plumbing linked** (Phase 2 step 4, 2026-10-22; Wi-Fi not started):
+
+- **Firmware image:** 1,506,080 B, 23.9 % of a 6 MB slot (was 930,848 B). Merely
+  including the Arduino `WiFi` library links the Wi-Fi driver, lwIP and the WPA supplicant,
+  about 575 KB, because PlatformIO links framework libraries as objects, not archives. The
+  CI budget (90 %) leaves plenty of room.
+- **Internal RAM (static):** 54,016 B, 16.5 % (was 31,892 B).
+- **Internal heap at runtime:** 181 KB free (was about 213 KB). The 8 MB of PSRAM is
+  unchanged.
+
+**Measured during OTA network use** (`test_device_ota`, 2026-10-22, RSSI −45 dBm):
+
+| | Internal heap |
+|---|---|
+| Joining Wi-Fi | about 44 KB |
+| One TLS session at its peak (handshake) | about 64 KB more |
+| Returned when Wi-Fi is switched off | all but about 19 KB |
+
+- **Headroom:** the app has 181 KB free before Wi-Fi, so about 70 KB remains at the worst
+  moment of an update.
+- **ES256 verification:** about 240 ms each, in software mbedTLS. An update needs one.
+- **HTTPS:** fetching a 504-byte file through one redirect took 8 s. Nearly all of that is
+  two TLS handshakes; throughput for the image itself is still to be measured.
+
 Measured after the input bring-up (step D):
 
 - **Firmware image:** 655,673 B, 10.4 % of a 6 MB slot.

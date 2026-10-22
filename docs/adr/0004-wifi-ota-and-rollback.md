@@ -112,8 +112,14 @@ payload {
   device shows "Update the phone app" when the connected app reports a lower version. It is
   advisory and never blocks the update.
 
-**Certificate validation (`esp_crt_bundle`).** Connections use `NetworkClientSecure` with
-the root CA bundle compiled into the firmware:
+**HTTP client.** The device uses ESP-IDF's `esp_http_client` (`sarathi_ota/https_get`), not
+Arduino's `HTTPClient`. `HTTPClient`'s API is built on Arduino `String`, which CLAUDE.md keeps
+out of our libraries, and `esp_http_client` is Espressif's standard client, with the
+certificate bundle built in.
+
+**Certificate validation (`esp_crt_bundle`).** Connections set `crt_bundle_attach =
+esp_crt_bundle_attach`, so servers are checked against the root CA bundle compiled into the
+firmware:
 
 - The bundle holds the Mozilla root store, compressed and sorted by subject name.
   `esp_crt_bundle_attach()` installs a verify callback in mbedTLS.
@@ -121,10 +127,10 @@ the root CA bundle compiled into the firmware:
   to its last certificate. The callback then looks up that certificate's issuer in the
   bundle by subject name (binary search) and checks its signature with that root's public
   key. If no root matches, or the signature fails, the handshake fails.
-- mbedTLS also checks that the certificate matches the host name sent in SNI. That host
-  name is set by `NetworkClientSecure` from the URL, again on every redirect hop.
-- We attach the bundle the core already links (`setCACertBundle(_binary_x509_crt_bundle_start,
-  …)`). That adds about 69 KB of flash, and no `setInsecure()` is ever used.
+- mbedTLS also checks that the certificate matches the host name sent in SNI. ESP-TLS sets
+  that host name from the URL, again on every redirect hop.
+- The bundle is the one the core already links (about 69 KB of flash). Certificate checks
+  are never skipped.
 - **Limitation:** the pinned core doesn't check certificate dates (`HAVE_TIME_DATE` off), so
   an expired certificate would still be accepted. That's acceptable because TLS is not
   what decides acceptance: the manifest signature (3) is. TLS gives privacy and makes tampering
@@ -138,11 +144,13 @@ the root CA bundle compiled into the firmware:
 - the asset URL → a short-lived signed URL on GitHub's asset host (currently
   `release-assets.githubusercontent.com`, formerly `objects.githubusercontent.com`)
 
-`HTTPClient` follows them (`setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS)`,
-`setRedirectLimit(3)`), and each hop is a new TLS connection verified against the bundle for
+The device follows them **by hand** (`disable_auto_redirect`), so each `Location` header is
+checked before it's used. Each hop is a new TLS connection, verified against the bundle for
 its own host name. Rules:
 
-- **HTTPS only**: a redirect to `http://` aborts.
+- **HTTPS only**: a redirect to `http://` (or to `//host`) aborts. A relative path stays on
+  the current https host.
+- **At most 3 hops.**
 - **No hard-coded asset host**: GitHub has changed it before.
 - **Download straight after resolving**: the signed URL expires after a few minutes.
 
@@ -188,18 +196,19 @@ fallback for riders without the app.
    Nothing in the payload is read before this passes.
 2. **Check the payload.** Require the expected `schema` and `board`, a `size` that fits the
    inactive slot, a `seq` greater than the running image's, and an `https://` URL.
-3. **Download.** Stream the image into the **inactive** slot with Arduino `Update`
-   (`esp_ota_*` underneath), hashing each chunk with SHA-256 as it arrives. Abort as soon as
-   more bytes than `size` arrive.
+3. **Download.** Stream the image into the **inactive** slot with `esp_ota_begin` /
+   `esp_ota_write`, hashing each chunk with SHA-256 as it arrives. Sequential-write mode
+   erases each sector just before writing it, instead of stalling to erase the whole slot.
+   Abort as soon as more bytes than `size` arrive.
 4. **Check the image.** Require exactly `size` bytes and a SHA-256 equal to the manifest's
    digest. The image's own `esp_app_desc_t` version can't serve as an extra check: with
    the pinned core it holds the precompiled libraries' build id (`14a0af9`,
    `arduino-lib-builder`), not ours (verified). The version is authenticated by the signed
    manifest instead, and the running firmware knows its own from compile-time
    `SARATHI_VERSION` / `SARATHI_SEQ`.
-5. **Switch.** Only then call `Update.end()`, which validates the image header and sets the
-   boot partition, then reboot. On any failure, call `Update.abort()`. The boot partition
-   never changes, and the screen says why.
+5. **Switch.** Only then call `esp_ota_end()`, which validates the image format, then
+   `esp_ota_set_boot_partition()`, then reboot. On any failure, call `esp_ota_abort()`.
+   The boot partition never changes, and the screen says why.
 
 **Why a detached, signed manifest rather than a signature inside the image:**
 
@@ -250,7 +259,8 @@ So it is left as an opt-in hardening step for whoever builds devices, to be docu
 
 The bootloader's rollback flow, already present in the pinned build:
 
-1. `Update.end()` marks the new slot `ESP_OTA_IMG_NEW` in `otadata` and the device reboots.
+1. `esp_ota_set_boot_partition()` marks the new slot `ESP_OTA_IMG_NEW` in `otadata`, and the
+   device reboots.
 2. The bootloader boots it and sets it to `ESP_OTA_IMG_PENDING_VERIFY`.
 3. If the app calls `esp_ota_mark_app_valid_cancel_rollback()`, it becomes `VALID`.
 4. If the device resets **before** that, for any reason (crash, panic, watchdog,
@@ -259,10 +269,14 @@ The bootloader's rollback flow, already present in the pinned build:
 
 **Firmware work:**
 
-- Override `verifyRollbackLater()` to return `true` (in `sarathi_ota`), so `initArduino()`
-  doesn't mark the image valid before our checks.
+- Override `verifyRollbackLater()` to return `true` (in `sarathi_ota/boot_confirm.cpp`), so
+  `initArduino()` doesn't mark the image valid before our checks. The core is C, so the
+  override needs `extern "C"`. It also has to sit in an object file `main.cpp` references, or
+  the linker drops it from the library archive and Arduino's weak default wins. Both were
+  checked in the linked firmware: the symbol comes from `boot_confirm.cpp.o` and returns
+  `true`.
 - The task watchdog stays on, so a hang becomes a reset, and that reset becomes a rollback.
-- After a rollback, the device shows a one-time "Update failed, restored vX.Y.Z" notice:
+- After a rollback, the device shows an "Update failed, previous version restored" notice:
   `esp_ota_get_last_invalid_partition()` reports the aborted slot.
 
 **If rollback had been off** (for reference, since it isn't):
@@ -326,7 +340,7 @@ kept, or a rider out of range would roll back every time. The boot log reports
    leaves version, board and URL unauthenticated, and `UPDATE_SIGN` also changes the image.
 5. **Arduino `HttpsOTAUpdate` / `esp_https_ota`.** Simple, but neither verifies our
    manifest before switching partitions. We'd still need a hook between download and
-   switch, so we use `Update` directly.
+   switch, so we use `esp_http_client` and `esp_ota_*` directly.
 6. **Secure Boot V2 plus flash encryption.** The right hardware root of trust for a closed
    product. Here it is irreversible, needs a rebuilt toolchain and locks riders out of their
    own builds, so it is opt-in later (see 3).

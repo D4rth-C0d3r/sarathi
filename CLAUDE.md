@@ -80,6 +80,7 @@ pio run -e crowpanel21 -t upload    # flash over the USB IN port
 pio device monitor                  # serial log (115200, native USB CDC)
 pio device monitor -f esp32_exception_decoder   # only when decoding a crash
 pio test -e native                  # host unit tests (core + proto)
+pio test -e crowpanel21             # on-device tests (test/test_device_*); then re-flash the app
 pio run -e sim                      # build the desktop simulator (needs libsdl2-dev)
 pio run -e sim -t exec              # build and run it (arrows/wheel = knob, Enter = button)
 ```

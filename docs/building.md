@@ -70,6 +70,7 @@ pio run -t upload                             # build and flash over the USB IN 
 pio device monitor                            # serial log (native USB CDC; Ctrl+C to quit)
 pio device monitor -f esp32_exception_decoder # only when decoding a crash backtrace
 pio test -e native                            # host unit tests for sarathi_core / sarathi_proto
+pio test -e crowpanel21                       # on-device tests (test/test_device_*); replaces the app
 pio run -t compiledb                          # write compile_commands.json for clangd / clang-tidy
 pio run -t clean                              # remove build outputs
 ```
@@ -92,6 +93,36 @@ pio run -t clean                              # remove build outputs
   ```
 
   The first field is milliseconds since boot.
+
+### On-device tests
+
+`test/test_device_*` runs on the board itself (Unity over the serial port). Today that is
+`test_device_ota`:
+
+- every golden OTA vector with real ES256 and SHA-256 (mbedTLS) on the ESP32-S3
+- the production OTA key parses; plain `http://` is refused
+- **with Wi-Fi:** joins your network, then fetches a pinned vector from GitHub over HTTPS,
+  through the github.com → raw.githubusercontent.com redirect. That checks the root CA
+  bundle on both hosts and verifies the manifest. It also reports heap use.
+
+```bash
+pio test -e crowpanel21 -v                 # no network test (it is reported as skipped)
+
+# With the network test. The credentials come from your shell at build time; they are
+# never committed, and the firmware never logs them.
+export SARATHI_WIFI_SSID='your network' SARATHI_WIFI_PASSWORD='its password'
+pio test -e crowpanel21-test -v
+unset SARATHI_WIFI_SSID SARATHI_WIFI_PASSWORD
+pio run -e crowpanel21-test -t clean       # the test build holds the credentials
+
+pio run -e crowpanel21 -t upload           # put the app back afterwards
+```
+
+`-v` shows the measurements the test prints. The test firmware replaces the app, so flash
+the app again when you're done.
+
+Spaces in the network name or password are fine. A `'`, `"` or `\` won't survive the build
+flags, so use a test network if yours has one.
 
 ### Desktop simulator
 

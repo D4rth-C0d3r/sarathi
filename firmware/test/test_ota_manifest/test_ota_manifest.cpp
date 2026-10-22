@@ -13,8 +13,10 @@
 #include <unity.h>
 
 #include "base64url.h"
+#include "ecdsa_der.h"
 #include "json_reader.h"
 #include "ota_manifest.h"
+#include "ota_trusted_keys.h"
 #include "ota_version.h"
 #include "version.h"
 
@@ -24,12 +26,15 @@
 #include "third_party/jsmn/jsmn.h"
 
 using sarathi::core::Base64UrlDecode;
+using sarathi::core::EcdsaRawToDer;
 using sarathi::core::ImageCheck;
 using sarathi::core::JsonGet;
 using sarathi::core::JsonReader;
 using sarathi::core::kFirmwareSeq;
 using sarathi::core::kInvalidSeq;
+using sarathi::core::kMaxEcdsaP256DerBytes;
 using sarathi::core::kMaxJsonInteger;
+using sarathi::core::kTrustedOtaKeys;
 using sarathi::core::Manifest;
 using sarathi::core::ManifestContext;
 using sarathi::core::ManifestScratch;
@@ -314,6 +319,44 @@ void TestImageCheck() {
   TEST_ASSERT_EQUAL(OtaError::kSizeMismatch, short_image.Finish(digest));
 }
 
+std::vector<uint8_t> HexBytes(const std::string& hex) {
+  std::vector<uint8_t> out;
+  for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+    out.push_back(static_cast<uint8_t>(std::stoul(hex.substr(i, 2), nullptr, 16)));
+  }
+  return out;
+}
+
+// Python's cryptography wrote these DER forms (vectors.json "der_cases").
+void TestEcdsaRawToDer() {
+  const Doc doc = LoadDoc(VectorPath("vectors.json"));
+  const std::vector<int> cases = Elements(doc, Member(doc, 0, "der_cases"));
+  TEST_ASSERT_TRUE(cases.size() >= 4);
+  for (const int c : cases) {
+    const std::vector<uint8_t> raw = HexBytes(Text(doc, Member(doc, c, "raw")));
+    const std::vector<uint8_t> want = HexBytes(Text(doc, Member(doc, c, "der")));
+    TEST_ASSERT_EQUAL(64, raw.size());
+    uint8_t der[kMaxEcdsaP256DerBytes];
+    size_t len = 0;
+    TEST_ASSERT_TRUE(EcdsaRawToDer(raw.data(), der, sizeof(der), &len));
+    TEST_ASSERT_EQUAL(want.size(), len);
+    TEST_ASSERT_EQUAL_MEMORY(want.data(), der, len);
+  }
+  uint8_t small[10];
+  size_t len = 0;
+  const uint8_t raw[64] = {};
+  TEST_ASSERT_FALSE(EcdsaRawToDer(raw, small, sizeof(small), &len));
+}
+
+// Each compiled-in key must be the committed public key file, byte for byte.
+void TestTrustedKeysMatchDocs() {
+  for (const auto& key : kTrustedOtaKeys) {
+    const std::string path = VectorPath("../keys/") + key.kid + ".pub.pem";
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(ReadFile(path).c_str(), key.public_key_pem, key.kid);
+    TEST_ASSERT_TRUE(std::string_view(key.kid) != "test-only");  // never trust the test key
+  }
+}
+
 void TestErrorCodes() {
   TEST_ASSERT_EQUAL_STRING("ok", OtaErrorCode(OtaError::kNone));
   TEST_ASSERT_EQUAL_STRING("unsupported_type", OtaErrorCode(OtaError::kUnsupportedType));
@@ -332,5 +375,7 @@ int main() {
   RUN_TEST(TestJsonValues);
   RUN_TEST(TestImageCheck);
   RUN_TEST(TestErrorCodes);
+  RUN_TEST(TestEcdsaRawToDer);
+  RUN_TEST(TestTrustedKeysMatchDocs);
   return UNITY_END();
 }
