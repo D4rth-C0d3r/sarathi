@@ -269,6 +269,12 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - Firmware images are signed. Signing keys exist only in GitHub Actions secrets.
   Never commit keys, and never generate or print real keys.
 - OTA uses rollback. Mark the app valid only after the UI and BLE have started successfully.
+- OTA design (ADR-0004 `docs/adr/0004-wifi-ota-and-rollback.md`): the device pulls a
+  JWS-signed (ES256) manifest from GitHub Releases and accepts an image only if the manifest
+  verifies, the board matches, `seq` is newer and the image SHA-256 matches. The manifest
+  format lives in `docs/ota/` and is updated there first. Rollback comes from the pinned
+  core's bootloader; `verifyRollbackLater()` must return true. CI fails if `firmware.bin`
+  exceeds 90 % of the OTA slot (`tools/check_image_size.py`).
 
 ### Style
 - **C++:** C++17, `.clang-format` (Google base, 100 cols), `.clang-tidy`, and one
