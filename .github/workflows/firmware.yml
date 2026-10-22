@@ -90,6 +90,10 @@ jobs:
       - name: Build
         run: pio run -e crowpanel21
 
+      # ADR-0004: keep the image under 90 % of its OTA slot (size read from partitions.csv).
+      - name: Check image size
+        run: python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin partitions.csv
+
       - name: Short commit SHA
         id: sha
         run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"

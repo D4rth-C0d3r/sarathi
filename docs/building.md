@@ -202,6 +202,11 @@ GitHub Actions runs on every pull request and every push to `main`:
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
 | `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 
+The **build crowpanel21** job also fails if `firmware.bin` exceeds 90 % of its 6 MB OTA
+slot (ADR-0004), and writes the size to the run summary. Check locally after a build, from
+`firmware/`: `python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin
+partitions.csv`.
+
 Each `firmware` run uploads an artifact `firmware-<short sha>` with `firmware.bin` (to flash)
 and `firmware.elf` (to decode crash backtraces), kept for 30 days. Find it on the run's
 summary page under **Artifacts**.
