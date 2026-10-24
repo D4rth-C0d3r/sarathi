@@ -54,7 +54,10 @@
  * - LV_STDLIB_RTTHREAD:    RT-Thread implementation
  * - LV_STDLIB_CUSTOM:      Implement the functions externally
  */
-#define LV_USE_STDLIB_MALLOC    LV_STDLIB_CLIB
+/* sārathi: custom, so the device can keep LVGL's allocations in PSRAM (sarathi_board/
+ * lvgl_memory.cpp). Internal RAM is needed by Wi-Fi and TLS during an update. The simulator
+ * uses plain malloc (sim/lvgl_memory.cpp). */
+#define LV_USE_STDLIB_MALLOC    LV_STDLIB_CUSTOM
 #define LV_USE_STDLIB_STRING    LV_STDLIB_CLIB
 #define LV_USE_STDLIB_SPRINTF   LV_STDLIB_CLIB
 

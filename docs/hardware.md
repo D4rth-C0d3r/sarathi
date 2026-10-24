@@ -188,6 +188,17 @@ an out-of-range field falls back to the default. The boot log repeats
   in PSRAM. mbedTLS only uses internal RAM in this toolchain, so an update should leave about
   45 KB free at its peak. The end-to-end test (step 7) will measure the real figure.
 
+**LVGL allocates from PSRAM** (`lv_conf.h`: `LV_STDLIB_CUSTOM`, `sarathi_board/lvgl_memory.cpp`,
+2026-10-24). With the C library allocator, every `malloc` under 4 KB lands in internal RAM
+(`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096`), so LVGL's objects and draw-time allocations
+competed with Wi-Fi and TLS:
+
+- **Before:** a download left only 55 KB free (42 KB at worst). An incoming call's screen
+  change mid-download then starved Wi-Fi and lwIP: once the connection aborted, once the
+  board hung until the hardware watchdog reset it (`TG1WDT_SYS_RST`).
+- **Now:** 191 KB free at boot (was 155 KB) and 91 KB during a download (lowest 83 KB). A
+  download survives the call screen.
+
 **Measured during OTA network use** (`test_device_ota`, 2026-10-22, RSSI −45 dBm):
 
 | | Internal heap |

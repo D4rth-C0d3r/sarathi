@@ -136,7 +136,8 @@ void setup() {
   delay(2000);  // let the USB serial port come up so the runner sees every line
   UNITY_BEGIN();
   RUN_TEST(TestDisplayOff);
-  // The raw-file rounds above already passed 24/24 (display off, on, and on with app-level RAM).
+  RUN_TEST(TestDisplayOn);
+  RUN_TEST(TestDisplayOnLowMemory);
   UNITY_END();
 }
 
