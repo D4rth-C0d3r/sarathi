@@ -39,7 +39,11 @@ Classic Bluetooth audio on the device.
   portal, signed (ES256 JWS) manifests from GitHub Releases, download to PSRAM and dark
   install, bootloader rollback with a boot self-check, release CI. All nine cases in
   `docs/ota-test-plan.md` pass on the device.
-- **Phase 3 (ChronosESP32 quick win) is next.**
+- **Phase 3 (ChronosESP32 quick win) is in progress** (ADR-0005): the `crowpanel21-chronos`
+  build gets nav (arrow mode, the phone's icon), caller ID with Dismiss, music, time and
+  phone battery from the Chronos app, with pairing confirmed on the dash. Cases 1-16 of
+  `docs/phase3-test-plan.md` pass on the device; still open: an OTA to the first Chronos
+  pre-release (case 17) and a ride (case 18).
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -63,7 +67,7 @@ firmware/        PlatformIO project
   lib/sarathi_core      app state, logic        (pure C++17, no hardware)
   lib/sarathi_proto     message encode/decode   (pure C++17, no hardware)
   lib/sarathi_board     pins, display, touch, knob, backlight, PCF8574 (board_pins.h lives here)
-  lib/sarathi_link      BLE (NimBLE) transport
+  lib/sarathi_link      BLE (NimBLE) transport; Chronos adapter (Phase 3, ADR-0005)
   lib/sarathi_ota       Wi-Fi + BLE OTA, rollback
   lib/sarathi_settings  NVS/Preferences
   lib/sarathi_ui        LVGL screens, semantic components, theme binding
@@ -80,13 +84,15 @@ vendor/crowpanel-2.1/   Elecrow examples (git submodule, shallow), READ-ONLY
 ### Firmware (run from `firmware/`)
 ```bash
 pio run -e crowpanel21              # build for the device
-pio run -e crowpanel21 -t upload    # flash over the USB IN port
+pio run -e crowpanel21 -t upload    # flash over the USB IN port (demo ride)
+pio run -e crowpanel21-chronos -t upload   # the Chronos phone link (ADR-0005); releases ship this
 pio device monitor                  # serial log (115200, native USB CDC)
 pio device monitor -f esp32_exception_decoder   # only when decoding a crash
 pio test -e native                  # host unit tests (core + proto)
 pio test -e crowpanel21             # on-device tests (test/test_device_*); then re-flash the app
 pio run -e sim                      # build the desktop simulator (needs libsdl2-dev)
 pio run -e sim -t exec              # build and run it (arrows/wheel = knob, Enter = button)
+                                    # program --chronos: a pretend Chronos phone instead
 ```
 
 ### Android (run from `android/`)
@@ -207,7 +213,8 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - BLE callbacks copy data and enqueue it. They never block, allocate, log heavily or touch LVGL.
 - No heap allocation in steady state. Allocate at init and use fixed-size buffers or queues.
 - No Arduino `String` in libraries. Use `std::string_view` or fixed char buffers.
-- Log with `ESP_LOGx(TAG, ...)`, one `TAG` per module. Every `.cpp` that logs must include
+- Log with `ESP_LOGx(TAG, ...)`, one `TAG` per module. Logging must never block: native USB
+  CDC has a 1 ms transmit timeout (`src/main.cpp`), so lines nobody reads are dropped. Every `.cpp` that logs must include
   `<esp32-hal-log.h>` (or an Arduino header that does). Without it, `ESP_LOGx` uses ESP-IDF's
   logger, which this toolchain compiles with a maximum level of ERROR, so INFO and WARN lines
   silently disappear.
@@ -241,11 +248,15 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   to the next screen (Nav → Music → Settings; Settings skipped while moving); **long press**
   leaves the input test and cancels Wi-Fi setup or a software update (until installing
   starts). On the Wi-Fi setup and update screens, click confirms or closes and rotation does
-  nothing. An incoming or active call takes over the screen with focus on Accept, then
-  returns. Every focusable control belongs to its screen's LVGL group.
+  nothing. An incoming or active call takes over the screen with focus on Accept (on
+  Dismiss when the source has no call control), then returns. A phone asking to pair takes
+  over the same way, with focus on Cancel: pairing needs a turn to Pair and a click. Screens
+  offer only what the data source supports (`core::Capabilities`). Every focusable control
+  belongs to its screen's LVGL group.
 - One-second-glance UI: large type, high contrast, at most one primary item per screen.
 - Content stays inside the 480 px circle. Keep a safe margin from the edge.
-- Settings menus are locked while moving. That includes changing the theme.
+- Settings menus are locked while moving. That includes changing the theme. Without a
+  speed source (Chronos), they lock while navigating instead (ADR-0005).
 - Don't add features that encourage interacting with the device while riding.
 - On the nav screen the next maneuver and its distance are the primary item; the map is
   supporting context. Stale or missing route data must be shown, never silently frozen.
@@ -276,6 +287,10 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 
 ### Security
 - Control and OTA writes require a bonded BLE link. Bonding is confirmed by a knob press.
+  In the Chronos build, writes are accepted only over an encrypted, bonded and
+  authenticated link; a new phone's 6-digit code is confirmed on the pairing screen
+  (`SECURITY.md`, ADR-0005). Packets from the phone go through our checked receiver
+  (`sarathi_link/chronos_packets`), never the library's parser.
 - Firmware images are signed. Signing keys exist only in GitHub Actions secrets.
   Never commit keys, and never generate or print real keys.
 - OTA uses rollback. Mark the app valid only after the UI and BLE have started successfully.

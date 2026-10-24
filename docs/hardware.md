@@ -120,9 +120,18 @@ LVGL (`lv_init()`), in that order.
   A task pinned to core 0 samples both pins every 2 ms (demo) and decodes them with
   Elecrow's quadrature table, 4 transitions per detent (Lesson02). It posts ±1 per detent
   to a 16-entry queue; the UI task drains it. Contact bounce cancels out in the table.
-- **Button:** PCF8574 P5 (`ENCODER_SW`), active low, 10 kΩ pull-up. Read over I2C from the
-  UI task only (the touch controller shares the bus). 50 ms debounce; a second completed
-  press within 300 ms is a double click (demo).
+- **Button:** PCF8574 P5 (`ENCODER_SW`), active low, 10 kΩ pull-up. 50 ms debounce; a
+  second completed press within 300 ms is a double click (demo).
+  - **Read by the knob task** every 3rd poll (6 ms), over I2C. Wire locks the bus, so these
+    reads and the touch reads on the UI task don't collide; the task's stack grew by 1 KB
+    for the I2C call (1.7 KB still unused).
+  - **Each change is queued with its time,** and the UI replays the changes into the
+    debouncer in order.
+  - **Why it's not read from the UI loop:** Elecrow's demo, and Phase 1–2, read the button
+    once per `loop()`. A frame can take over 100 ms (render plus flush), and a short press
+    that started and ended between two reads was lost, typically a double click's second
+    press. Replaying the timed changes gives the same gestures as continuous sampling, however
+    long a frame takes.
 - Logic lives in `sarathi_core` (`KnobDecoder`, `ButtonDebouncer`) with native tests.
 
 ## Touch
@@ -220,6 +229,20 @@ Measured after the input bring-up (step D):
 - **PSRAM:** 1,367 KB in use of 8,192 KB. That is the panel framebuffer plus two LVGL draw
   buffers, 3 × 460,800 B, all allocated once at init.
 
+**Measured with the Chronos phone link** (`crowpanel21-chronos`, Phase 3, 2026-10-24):
+
+- **Firmware image:** 2,026,864 B, 32.2 % of a slot. ChronosESP32, NimBLE-Arduino and
+  ESP32Time add about 260 KB.
+- **Internal RAM (static):** about 67 KB, 6.9 KB more than the demo build.
+- **Internal heap at runtime:** NimBLE and Chronos take **72 KB** (169 KB free before BLE,
+  97 KB after; about 92 KB in steady use). A Wi-Fi update needs about 100 KB, so the two
+  can't run together. BLE stops while an update or Wi-Fi setup uses Wi-Fi, and restarts 3 s
+  after (ADR-0005). With BLE stopped and Wi-Fi checking for an update, the lowest seen was
+  75 KB.
+- **PSRAM:** the 11.7 KB Chronos object and the 16 KB queue of incoming writes.
+- **Bonds** are stored by NimBLE in the `nvs` partition. Pairing writes flash once per new
+  phone.
+
 Elecrow's image-heavy demo is about 6 MB, so keep image assets small and prefer vector
 shapes and fonts.
 
@@ -295,6 +318,17 @@ The hello line repeats every second. `flash … (chip …)` compares the configu
 the size read from the flash chip; they should match. `PCF8574 not responding`,
 `CST8xx not found` or `RGB panel init failed` instead point at the I2C bus, the touch
 controller or the panel.
+
+**The log port must never hold up the firmware.** The log goes over the ESP32-S3's native
+USB (USB Serial/JTAG). If a host is attached but nothing has the port open, the host
+doesn't read it. With the core's default 100 ms transmit timeout, every log line then
+waited, and the next one waited again. After a power-up on a laptop that starved the UI (a
+black screen for about a minute, then a half-drawn one) and BLE. `src/main.cpp` sets a 1 ms
+timeout and a 2 KB buffer, so lines that can't go out are dropped.
+
+- **Not 0:** the core's retry counter would wrap.
+- **Repeated USB disconnects in the kernel log** (`error -71`) while the board keeps
+  running are the cable or port, not the firmware.
 
 ## Open questions
 

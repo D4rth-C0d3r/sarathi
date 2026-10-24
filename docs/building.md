@@ -67,6 +67,7 @@ All commands run from `firmware/`.
 ```bash
 pio run                                       # build the device image (default env: crowpanel21)
 pio run -t upload                             # build and flash over the USB IN port
+pio run -e crowpanel21-chronos -t upload      # the same with the Chronos phone link (below)
 pio device monitor                            # serial log (native USB CDC; Ctrl+C to quit)
 pio device monitor -f esp32_exception_decoder # only when decoding a crash backtrace
 pio test -e native                            # host unit tests for sarathi_core / sarathi_proto
@@ -75,9 +76,12 @@ pio run -t compiledb                          # write compile_commands.json for 
 pio run -t clean                              # remove build outputs
 ```
 
-- **Environments.** `crowpanel21` is the device and the default, so a plain `pio run`
-  never tries to build the Arduino `main.cpp` on the host. `native` only runs tests; it
-  doesn't build `src/` and ignores the hardware libraries.
+- **Environments:**
+  - `crowpanel21` is the device and the default, so a plain `pio run` never tries to build
+    the Arduino `main.cpp` on the host. It runs the scripted demo ride.
+  - `crowpanel21-chronos` is the same device with the Chronos app as its phone link
+    (ADR-0005). Releases ship this one.
+  - `native` only runs tests; it doesn't build `src/` and ignores the hardware libraries.
 - **First build** downloads the pinned platform and toolchain (about 10 minutes on a
   typical connection). Later builds take seconds.
 - **Flashing** goes through the **USB IN** port, which is the ESP32-S3's native USB, so no
@@ -93,6 +97,55 @@ pio run -t clean                              # remove build outputs
   ```
 
   The first field is milliseconds since boot.
+
+### Phone link: the Chronos app (Phase 3)
+
+Until our own Android app exists (Phase 4), the `crowpanel21-chronos` build gets navigation,
+calls, music, the time and the phone's battery from the free **Chronos** app (ADR-0005).
+Flash it from `firmware/`:
+
+```bash
+pio run -e crowpanel21-chronos -t upload
+```
+
+**Phone setup (Android, once):**
+
+1. Install **Chronos** (by fbiego) from the Play Store, open it and allow what it asks for.
+2. **Notification access:** Android Settings → Apps → Special app access → Notification
+   access → **Chronos** → on. Music and navigation need it: without it, Music shows "No
+   media" and navigation never arrives.
+3. **Phone permission:** Settings → Apps → Chronos → Permissions → **Phone** (and Call logs
+   or Contacts, if listed) → Allow. Caller ID needs it.
+4. **Battery:** Settings → Apps → Chronos → Battery → **Unrestricted**, so Android doesn't
+   stop it in the background.
+5. In Chronos's settings, turn on navigation, music control and phone battery if they're
+   listed.
+
+**Pairing (once per phone):**
+
+1. **Don't** pair "sarathi" from Android's Bluetooth settings. In Chronos: **Watches → Pair
+   New Devices → Search → sarathi**.
+2. The phone and the dash both show a 6-digit code. If they match, turn the knob to
+   **Pair** and click (focus starts on Cancel), and accept on the phone.
+3. From then on, the phone reconnects by itself without asking. Nothing is accepted from a
+   phone that isn't paired.
+
+**Using it:**
+
+- **Navigation:** start navigating in **Google Maps**. The dash shows Google's turn icon,
+  the distance and the instruction, as the phone formats them (its language and units).
+  There's no map in this mode. **Settings is locked while navigating**: there's no speed
+  source, so navigating stands in for "moving".
+- **Calls:** the caller's name, and **Dismiss** to hide the call on the dash. Answer or
+  reject on the helmet intercom or the phone; Chronos can't do it from the dash.
+- **Music:** title and artist, play/pause, next and previous. No track time.
+- **Forget phones:** Settings → Forget phones deletes every pairing (for example before
+  giving the device away). Also forget "sarathi" in the phone's Bluetooth settings, then
+  pair again from Chronos.
+- **Software updates:** BLE pauses while an update or Wi-Fi setup runs, so Chronos shows the
+  watch as disconnected; it reconnects a few seconds after.
+- **Reconnecting after a restart** can take up to about 20 s: Android throttles background
+  scanning. Opening the Chronos app usually makes it connect at once.
 
 ### On-device tests
 
@@ -150,6 +203,12 @@ pio run -e sim -t exec    # build and run (or run .pio/build/sim/program)
 | Enter | knob button: click activates, double-click = next screen, hold 0.8 s = leave the input test |
 | Left mouse button inside the circle | touch |
 | S | pause/resume the demo ride (the bike stops, so Settings unlocks) |
+
+**Chronos mode.** Add `--chronos` to any of these (`--tour`, `--gallery`, or a plain run) to
+replace the demo ride with a pretend phone running the Chronos app. It writes real Chronos
+packets through the same `sarathi_link` receiver and bridge as the device: arrow-mode
+navigation with the phone's icon, a call with only Dismiss, music without time, a pairing
+request, and the phone disconnecting. With `--gallery`, the shots are `<theme>_c<n>_*.bmp`.
 
 Both the device and the simulator replay a scripted demo ride (about 4.5 minutes, looping):
 navigation with a route window, a traffic-light stop, an incoming call at 60 s, and a
@@ -243,12 +302,12 @@ GitHub Actions runs on every pull request and every push to `main`:
 
 | Workflow | Jobs | Same as running locally |
 |---|---|---|
-| `firmware` | **native tests**; **build crowpanel21** (caches `~/.platformio`); **build simulator**; **OTA manifest vectors** | `pio test -e native`; `pio run -e crowpanel21`; `pio run -e sim`; `python tools/ota_manifest.py check-vectors docs/ota/vectors` |
+| `firmware` | **native tests**; **build crowpanel21** (also builds `crowpanel21-chronos`; caches `~/.platformio`); **build simulator**; **OTA manifest vectors** | `pio test -e native`; `pio run -e crowpanel21` and `pio run -e crowpanel21-chronos`; `pio run -e sim`; `python tools/ota_manifest.py check-vectors docs/ota/vectors` |
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
 | `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 
-The **build crowpanel21** job also fails if `firmware.bin` exceeds 90 % of its 6 MB OTA
-slot (ADR-0004), and writes the size to the run summary. Check locally after a build, from
+The **build crowpanel21** job also fails if either env's `firmware.bin` exceeds 90 % of its
+6 MB OTA slot (ADR-0004), and writes the size to the run summary. Check locally after a build, from
 `firmware/`: `python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin
 partitions.csv`.
 
@@ -280,7 +339,9 @@ git push origin v0.3.0
 
 1. **Build job (no secrets):** reads the version and `seq` from the tag. It runs the native
    tests and the OTA vector check, then builds with `SARATHI_VERSION` / `SARATHI_SEQ` set (a
-   mismatch fails the build) and checks the image size.
+   mismatch fails the build) and checks the image size. The published image is the
+   **Chronos build** (`crowpanel21-chronos`, ADR-0005); the demo build is compiled too, as a
+   check, but not published.
 2. **Publish job:** runs in the protected `release` environment, which only `v*` tags can use
    and which is the only place `OTA_SIGNING_KEY` exists. It signs `manifest.jws` with that key,
    then verifies the manifest against the committed public key exactly as a device would. A
@@ -371,6 +432,26 @@ clangd is reading the Xtensa GCC flags from `compile_commands.json`. Harmless: `
 **`pio: command not found`.**
 Add `~/.platformio/penv/bin` to your `PATH` (see First-time setup), or let `setup.sh`
 symlink `pio` into `~/.local/bin`.
+
+**Chronos: Music shows "No media", or navigation never shows.**
+Chronos has no notification access: Android Settings → Apps → Special app access →
+Notification access → Chronos → on. Then play a track, or start navigating, again.
+
+**Chronos: "Phone not connected" for a long time after a restart.**
+Android scans for watches in the background only now and then. Open the Chronos app; it
+reconnects within seconds. If it never does, check the phone's Bluetooth is on and that
+"sarathi" is paired in Chronos (not only in Android's Bluetooth settings).
+
+**Chronos: it keeps asking to pair, or nothing arrives after pairing.**
+Forget the pairing on both sides (Settings → Forget phones on the dash, and Forget "sarathi"
+in Android's Bluetooth settings), then pair again from Chronos and confirm the code with
+Pair on the dash. The log line `write(s) refused from a phone that isn't paired` means the
+phone is connected but not bonded.
+
+**The screen stays black for a long time after power-up, or draws only partly.**
+Fixed in Phase 3: with the board on a laptop's USB port and no serial monitor open, log
+writes used to block. If it comes back, check that `Serial.setTxTimeoutMs` is still set in
+`src/main.cpp`.
 
 **Black screen, scrolling, wrong colours or touch offset.**
 See [`hardware.md`](hardware.md): panel timing, the R/B swap and the touch Y offset are all

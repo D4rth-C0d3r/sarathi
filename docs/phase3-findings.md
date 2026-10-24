@@ -16,7 +16,7 @@ throwaway build of our firmware with the library linked in, run on the CrowPanel
 | Time | Phone sets the ESP32 clock (local wall time) | Supported |
 | Phone battery | Level and charging state | Supported |
 | Speed | Only with OsmAnd (a text field); not with Google Maps | No speed source: need a stand-in for the moving lock |
-| BLE security | None: no pairing, bonding or encryption | Known gap, unless the experiment in "Security" works |
+| BLE security | None: no pairing, bonding or encryption | Added by us: knob-confirmed pairing, bonded links only (tested; see "Security") |
 | Toolchain | Builds on our pinned core 3.3.8 with NimBLE-Arduino 2.5.1 | OK |
 | Size | +260 KB flash; image 2,015,712 B = 32 % of a 6 MB slot | OK (CI limit 90 %) |
 | Internal RAM | NimBLE + Chronos take **72 KB** of internal heap | Too much to run beside a Wi-Fi update: stop BLE during updates |
@@ -179,37 +179,46 @@ theme's maneuver colour. We won't classify it into our `ManeuverType` arrows.
 The Chronos app wouldn't send these, but anyone nearby could. For a device on a motorcycle
 that's a real risk: a crash, or worse, while riding.
 
-- **Mitigation without forking:**
-  - After `begin()`, the adapter replaces the RX characteristic's callbacks with a **guard**.
-  - The guard checks each packet before passing it on:
-    - lengths within 512 B
-    - continuation offsets in range
-    - only the commands we use (time, battery, ringer, music, nav, nav icon with a chunk
-      index ≤ 2, transfer mode, sync)
-    - the icon chunk index
-  - Accepted packets go to the library through its public base-class interface
-    (`NimBLECharacteristicCallbacks::onWrite`). That's legal C++ and needs no edit to the
-    library.
-  - The guard is pure logic over bytes, so it gets native tests, including the malformed
-    packets above.
+- **Mitigation without forking** (as built in step 2):
+  - After `begin()`, the adapter replaces the RX characteristic's callbacks with its own,
+    which only queue each write. **The library's parser never runs.**
+  - Our receiver (`sarathi_link/chronos_packets`, pure C++) reassembles the writes and
+    checks:
+    - the declared length (6 to 512 B)
+    - that a split packet starts with exactly 20 bytes
+    - continuation sequence numbers and offsets
+    - every index (for example the icon chunk ≤ 2)
+    - value ranges (for example the time)
+  - It decodes only the commands we use: time, battery, ringer, music, nav and nav icon.
+  - Native tests feed it the malformed packets above, plus packets recorded from the app.
 - **Reporting upstream:** these are worth reporting to the library. With your agreement, I'd
   draft the report for you to file; I won't post it myself.
 
-### Bonding with knob confirmation: possible, untested
+### Bonding with knob confirmation: works (tested 2026-10-24)
 
-NimBLE supports what we need: bonding, MITM protection, numeric comparison with a yes/no
-display, and starting security from the device. The adapter could also take over the
-server callbacks to show the 6-digit code on the dash and confirm it with a knob press. What
-nobody knows is whether the **Chronos app** copes with a bonded, encrypted link.
+NimBLE supports bonding, MITM protection, numeric comparison and starting security from the
+device. The open question was whether the **Chronos app** copes with a bonded, encrypted
+link. An experiment build that required it showed that it does:
 
-**Proposal:** a time-boxed experiment in step 2 on your phone.
-- **If it works:** require it, so the rule holds.
-- **If the app breaks:** record it as a known Phase 3 gap in `SECURITY.md` and ADR-0005, as
-  you specified, with the guard as the mitigation.
-- **Either way:**
-  - OTA stays on the signed Wi-Fi path only, and nothing in Chronos mode can trigger an
-    update.
-  - The phone link only carries display data and music commands.
+- **Pairing:** the phone showed Android's pairing dialog with the same code the device
+  logged, and bonded (`encrypted 1, bonded 1, authenticated 1`).
+- **After pairing:** navigation, music and calls all worked over the encrypted link.
+- **Reconnecting:** after restarts and Bluetooth off/on, the phone reconnected with its
+  stored keys and no new prompt.
+
+So the rule holds (CLAUDE.md, Security), and Phase 3 has no BLE security gap:
+
+- **Pairing screen:** the dash shows a new phone's code; the rider confirms it with the knob
+  (focus on Cancel).
+- **Writes:** accepted only from an encrypted, bonded and authenticated link.
+- **Forget phones** in Settings.
+- **OTA** stays on the signed Wi-Fi path.
+
+**MTU after bonding.** In some sessions with bonding, the phone left the ATT MTU at 23 for
+minutes instead of raising it within seconds. The app sends only the first 20 bytes of any
+longer packet then, so navigation (always longer) went missing. Either side of a connection
+may start the MTU exchange, so the device now does it on connect; Android answers 517 at
+once, and nothing has been dropped since.
 
 ## Moving lock
 
@@ -242,6 +251,8 @@ With the recorder build and then the step 2 adapter, on Android with the Chronos
   20 bytes **cut short**: it writes the first 20 bytes and never the rest. The receiver drops
   them; about one per connection, usually the music title, which comes again on the next
   change. The app also sends one unused packet (0xCB) cut short even at MTU 517.
+  **Since then** the device starts the MTU exchange itself on connect (see "Security"): the
+  MTU is 517 from the first second, and nothing has been dropped.
 - **BLE pause for Wi-Fi:** "Check for update" stops BLE, internal heap stays at 75 KB or more
   with Wi-Fi on, and BLE restarts about 3 s after Wi-Fi is off. Chronos reconnects by itself.
 
@@ -251,4 +262,3 @@ With the recorder build and then the step 2 adapter, on Android with the Chronos
   synthetic packets built from the library's format until then).
 - What `caller` contains for an unknown number.
 - How often navigation updates arrive (affects how stale data shows while stopped).
-- The bonding experiment above.

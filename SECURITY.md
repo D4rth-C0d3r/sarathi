@@ -92,6 +92,25 @@ release that trusts it, which devices that trust only the lost key can't install
   Until devices install that release, the leaked key can sign updates they would accept, so
   announce it and urge riders to update.
 
+## Phone link (BLE)
+
+From Phase 3, the device's phone link is the Chronos app (ADR-0005). The ChronosESP32 library
+it's built on has no BLE security of its own, so sārathi adds it:
+
+- **Pairing is confirmed on the dash.** When a new phone connects, the device asks it to
+  pair with numeric comparison: the phone and the dash show the same 6-digit code, and the
+  rider confirms with a knob press (focus starts on Cancel). A request times out after 30 s.
+- **Only a paired phone is listened to.** Writes are accepted only over a link that is
+  encrypted, bonded and authenticated (MITM-protected). A "Just Works" bond, which never
+  showed a code, isn't enough.
+- **Paired phones reconnect silently.** Settings → **Forget phones** deletes every bond
+  (stored in NVS). Do that before giving a device away.
+- **Our parser, not the library's.** The library's packet parser trusts lengths and indices
+  sent over the air (it can write past its buffers). It never runs: our receiver checks
+  every length, offset and index, and decodes only the packet types the dash uses. App
+  notifications other than calls are ignored, never shown or stored.
+- **No updates over BLE.** Firmware updates come only through the signed Wi-Fi path above.
+
 ## Known limitations (by design, for now)
 
 - **Wi-Fi password at rest:** the saved Wi-Fi password is stored **unencrypted** in the
@@ -105,3 +124,9 @@ release that trusts it, which devices that trust only the lost key can't install
   flash their own firmware over USB.
 - **No certificate date checks:** the pinned toolchain doesn't check TLS certificate dates.
   Update integrity rests on the manifest signature, not on TLS.
+- **Pairing prompts from strangers:** anyone in range can ask to pair, which shows the
+  pairing screen. They can't pair without a knob press on the device, but they can make the
+  prompt appear again after each Cancel. It's an annoyance, not access.
+- **Data before encryption:** in the second or two before a bonded phone's link is
+  encrypted, the device may send the library's watch-info and battery notifications
+  unencrypted. They carry nothing personal.
