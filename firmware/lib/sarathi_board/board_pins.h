@@ -105,7 +105,11 @@ constexpr int kKnobB = 4;
 // Sampled every 2 ms in a task on core 0, stack 2048, priority 1, queue of 16:
 // [demo] L585, L589, L861.
 constexpr uint32_t kKnobPollMs = 2;
-constexpr uint32_t kKnobTaskStack = 2048;
+// Ours, not Elecrow's: the demo reads the button once per loop(), which misses short presses
+// whenever a frame takes long (a double click's second press). The sampling task reads it
+// every 3rd poll (6 ms, an I2C read each), and its stack grows by 1 KB for the I2C call.
+constexpr uint32_t kKnobButtonPollEvery = 3;
+constexpr uint32_t kKnobTaskStack = 2048 + 1024;
 constexpr uint32_t kKnobTaskPriority = 1;
 constexpr int kKnobTaskCore = 0;
 constexpr uint32_t kKnobQueueLength = 16;

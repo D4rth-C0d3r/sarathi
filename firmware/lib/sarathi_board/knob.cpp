@@ -3,6 +3,8 @@
 
 #include "knob.h"
 
+#include <atomic>
+
 #include <Arduino.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -22,17 +24,32 @@ constexpr const char* kTag = "knob";
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 QueueHandle_t step_queue = nullptr;
+QueueHandle_t button_queue = nullptr;
 TaskHandle_t sample_task = nullptr;
+std::atomic<bool> button_pressed{false};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void SampleTask(void* /*unused*/) {
   core::KnobDecoder decoder(p::kKnobTransitionsPerDetent);
   decoder.Reset(digitalRead(p::kKnobA) == HIGH, digitalRead(p::kKnobB) == HIGH);
+  uint32_t polls = 0;
   for (;;) {
     const int8_t step =
         decoder.Update(digitalRead(p::kKnobA) == HIGH, digitalRead(p::kKnobB) == HIGH);
     if (step != 0) {
       xQueueSend(step_queue, &step, 0);  // drop the step if the UI is far behind
+    }
+    if (++polls % p::kKnobButtonPollEvery == 0) {
+      const bool pressed = !expander::Read(p::kPcfKnobButton);  // active low
+      const bool was = button_pressed.load();
+      if (pressed != was) {
+        const auto now = static_cast<uint32_t>(millis());
+        const Knob::ButtonSample before{was, now};
+        const Knob::ButtonSample after{pressed, now};
+        xQueueSend(button_queue, &before, 0);
+        xQueueSend(button_queue, &after, 0);
+        button_pressed.store(pressed);
+      }
     }
     vTaskDelay(pdMS_TO_TICKS(p::kKnobPollMs));
   }
@@ -45,7 +62,9 @@ bool Knob::Begin() {
   pinMode(p::kKnobB, INPUT);
 
   step_queue = xQueueCreate(p::kKnobQueueLength, sizeof(int8_t));
-  if (step_queue == nullptr) {
+  button_queue = xQueueCreate(p::kKnobQueueLength, sizeof(ButtonSample));
+  button_pressed.store(!expander::Read(p::kPcfKnobButton));  // before the task starts
+  if (step_queue == nullptr || button_queue == nullptr) {
     ESP_LOGE(kTag, "queue alloc failed");
     return false;
   }
@@ -62,9 +81,11 @@ bool Knob::TakeStep(int8_t& step) {
   return step_queue != nullptr && xQueueReceive(step_queue, &step, 0) == pdTRUE;
 }
 
-bool Knob::ReadButtonRaw() {
-  return !expander::Read(p::kPcfKnobButton);  // active low
+bool Knob::TakeButtonSample(ButtonSample& sample) {
+  return button_queue != nullptr && xQueueReceive(button_queue, &sample, 0) == pdTRUE;
 }
+
+bool Knob::ButtonPressed() const { return button_pressed.load(); }
 
 uint32_t Knob::StackFreeBytes() const {
   // ESP-IDF counts stack in bytes, so the high-water mark is bytes never used.

@@ -57,6 +57,12 @@ constexpr uint32_t kLogPeriodMs = 1000;
 constexpr uint32_t kBootLogWindowMs = 10000;
 constexpr uint32_t kPerfPeriodMs = 5000;
 constexpr uint32_t kSerialWaitMs = 2000;
+// Native USB CDC: with a host attached but nobody reading the port, a log write waits up to
+// its timeout (100 ms by default) and the next one waits again, which starved the UI and BLE
+// after a power-up on a laptop. 1 ms drops what can't go out instead (not 0: the core's retry
+// count would wrap). A larger buffer keeps whole lines when a monitor is reading.
+constexpr uint32_t kSerialTxTimeoutMs = 1;
+constexpr size_t kSerialTxBufferBytes = 2048;
 constexpr uint32_t kLoopDelayMs = 5;
 constexpr uint32_t kKiB = 1024;
 constexpr uint32_t kMiB = 1024 * 1024;
@@ -286,7 +292,12 @@ void RunUi(uint32_t now) {
   while (knob.TakeStep(step)) {
     ui::app_shell::OnKnobStep(step);
   }
-  ui::app_shell::OnButtonSample(knob.ReadButtonRaw(), now);
+  // Every change the knob task saw, at the time it saw it, then the current level.
+  board::Knob::ButtonSample sample{};
+  while (knob.TakeButtonSample(sample)) {
+    ui::app_shell::OnButtonSample(sample.pressed, sample.at_ms);
+  }
+  ui::app_shell::OnButtonSample(knob.ButtonPressed(), millis());
 
   ui::lvgl_port::Run();  // reads touch via ReadTouch()
   ui::app_shell::Update(now);
@@ -307,7 +318,7 @@ void RunUi(uint32_t now) {
   // Confirming writes flash, which can leave the RGB panel shifted until the next restart
   // (docs/hardware.md). So do it with the backlight off, then restart once: it happens only on
   // the first boot after an update.
-  held_since_boot = held_since_boot && knob.ReadButtonRaw();
+  held_since_boot = held_since_boot && knob.ButtonPressed();
   if (boot_state.pending_verify) {
     const core::BootDecision decision =
         core::DecideBoot({true, first_frame, BleUp(), held_since_boot, now}, kHasBle);
@@ -337,7 +348,9 @@ void RunUi(uint32_t now) {
 }  // namespace
 
 void setup() {
+  Serial.setTxBufferSize(kSerialTxBufferBytes);  // before begin()
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(kSerialTxTimeoutMs);
   Serial.setDebugOutput(true);  // route ESP_LOGx to the native USB CDC port
   const uint32_t start = millis();
   while (!Serial && millis() - start < kSerialWaitMs) {
@@ -354,7 +367,7 @@ void setup() {
   if (!knob.Begin()) {
     ESP_LOGE(kTag, "knob init failed");
   }
-  held_since_boot = knob.ReadButtonRaw();
+  held_since_boot = knob.ButtonPressed();
   const auto buffer_bytes =
       static_cast<unsigned>(ui::lvgl_port::BufferBytes(pins::kScreenWidth, pins::kScreenHeight));
   if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, ReadTouch,

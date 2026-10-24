@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <initializer_list>
 
 #include <unity.h>
 
@@ -90,6 +91,35 @@ void TestDoubleClick() {
   TEST_ASSERT_EQUAL(ButtonGesture::kNone, Hold(b, false, now, kDoubleClickMs * 2));
 }
 
+// Regression: the UI loop sampled the button once per frame, so a short press between two
+// samples vanished and double clicks were missed. The knob task now reports each change as
+// two samples at the time it saw it (old level, new level); replayed, they give the same
+// gestures as continuous sampling.
+// NOLINTNEXTLINE(*-avoid-c-arrays)
+ButtonGesture Replay(ButtonDebouncer& b, const bool (&levels)[4], const uint32_t (&at)[4]) {
+  ButtonGesture seen = ButtonGesture::kNone;
+  bool was = false;
+  for (int i = 0; i < 4; ++i) {
+    for (const bool level : {was, levels[i]}) {
+      const ButtonUpdate u = b.Update(level, at[i]);
+      seen = u.gesture != ButtonGesture::kNone ? u.gesture : seen;
+    }
+    was = levels[i];
+  }
+  return seen;
+}
+
+void TestReplayedChangesMakeADoubleClick() {
+  ButtonDebouncer b(kDebounceMs, kDoubleClickMs);
+  const bool levels[4] = {true, false, true, false};  // NOLINT(*-avoid-c-arrays)
+  const uint32_t at[4] = {1000, 1070, 1140, 1200};    // NOLINT(*-avoid-c-arrays): 70, 60 ms
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, Replay(b, levels, at));  // last release settling
+  // The UI's own sample, stamped a moment before the last change: no time has passed.
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, b.Update(false, 1199).gesture);
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, b.Update(false, 1249).gesture);
+  TEST_ASSERT_EQUAL(ButtonGesture::kDoubleClick, b.Update(false, 1250).gesture);
+}
+
 void TestTwoSlowPressesAreTwoClicks() {
   ButtonDebouncer b(kDebounceMs, kDoubleClickMs);
   uint32_t now = 1000;
@@ -154,6 +184,7 @@ int main() {
   RUN_TEST(TestBouncyPressStillRegistersOnce);
   RUN_TEST(TestSingleClickFiresAfterWindow);
   RUN_TEST(TestDoubleClick);
+  RUN_TEST(TestReplayedChangesMakeADoubleClick);
   RUN_TEST(TestTwoSlowPressesAreTwoClicks);
   RUN_TEST(TestWorksAcrossMillisWrap);
   RUN_TEST(TestLongPressDisabledByDefault);
