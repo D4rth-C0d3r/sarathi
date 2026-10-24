@@ -14,7 +14,7 @@
 namespace sarathi::ota {
 
 constexpr int kMaxRedirects = 3;
-constexpr uint32_t kHttpTimeoutMs = 15000;
+constexpr uint32_t kHttpTimeoutMs = 10000;  // per connection attempt and per read
 
 enum class FetchResult : uint8_t {
   kOk,

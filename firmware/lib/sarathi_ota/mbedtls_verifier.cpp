@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-#include <esp_log.h>
+#include <esp32-hal-log.h>  // ESP_LOGx through Arduino's logger (CLAUDE.md)
 #include <mbedtls/sha256.h>
 
 #include "ecdsa_der.h"

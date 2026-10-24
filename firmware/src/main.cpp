@@ -315,8 +315,9 @@ void loop() {
   }
   if (now - last_log_ms >= kLogPeriodMs) {
     last_log_ms = now;
-    LogHello();
+    // Only at boot: a line every second for ever garbles lines other tasks log meanwhile.
     if (now < kBootLogWindowMs) {
+      LogHello();
       LogBootSettings();
     }
   }

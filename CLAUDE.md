@@ -203,7 +203,10 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - BLE callbacks copy data and enqueue it. They never block, allocate, log heavily or touch LVGL.
 - No heap allocation in steady state. Allocate at init and use fixed-size buffers or queues.
 - No Arduino `String` in libraries. Use `std::string_view` or fixed char buffers.
-- Log with `ESP_LOGx(TAG, ...)`, one `TAG` per module.
+- Log with `ESP_LOGx(TAG, ...)`, one `TAG` per module. Every `.cpp` that logs must include
+  `<esp32-hal-log.h>` (or an Arduino header that does). Without it, `ESP_LOGx` uses ESP-IDF's
+  logger, which this toolchain compiles with a maximum level of ERROR, so INFO and WARN lines
+  silently disappear.
 - Flash writes (OTA, NVS) can make the RGB panel flicker or shift. Show a static
   "Updating…" screen during OTA and avoid frequent NVS writes; debounce settings saves.
 

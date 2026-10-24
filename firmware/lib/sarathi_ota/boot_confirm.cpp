@@ -1,6 +1,6 @@
 #include "boot_confirm.h"
 
-#include <esp_log.h>
+#include <esp32-hal-log.h>  // ESP_LOGx through Arduino's logger (CLAUDE.md)
 #include <esp_ota_ops.h>
 
 // Overrides the Arduino core's weak default (cores/esp32/esp32-hal-misc.c), which marks a

@@ -17,11 +17,19 @@ bool WifiConnect(const core::WifiCredentials& credentials, uint32_t timeout_ms) 
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
   WiFi.mode(WIFI_STA);
+  // No modem power-save while updating: with some routers a sleeping station misses incoming
+  // packets (here, servers' replies to a connection request), so connections time out.
+  WiFi.setSleep(false);
   WiFi.begin(credentials.ssid.CStr(),
              credentials.password.Empty() ? nullptr : credentials.password.CStr());
   for (uint32_t waited = 0; waited < timeout_ms; waited += kPollMs) {
     if (WiFi.status() == WL_CONNECTED) {
-      ESP_LOGI(kTag, "connected, RSSI %d dBm", static_cast<int>(WiFi.RSSI()));
+      const IPAddress ip = WiFi.localIP();
+      const IPAddress gateway = WiFi.gatewayIP();
+      const IPAddress dns = WiFi.dnsIP();
+      ESP_LOGI(kTag, "connected, RSSI %d dBm, IP %u.%u.%u.%u, gateway %u.%u.%u.%u, DNS %u.%u.%u.%u",
+               static_cast<int>(WiFi.RSSI()), ip[0], ip[1], ip[2], ip[3], gateway[0], gateway[1],
+               gateway[2], gateway[3], dns[0], dns[1], dns[2], dns[3]);
       return true;
     }
     vTaskDelay(pdMS_TO_TICKS(kPollMs));

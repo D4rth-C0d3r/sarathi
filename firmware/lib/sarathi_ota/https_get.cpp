@@ -5,10 +5,13 @@
 #include <cstring>
 #include <new>
 
+#include <esp32-hal-log.h>  // ESP_LOGx through Arduino's logger (CLAUDE.md)
 #include <esp_crt_bundle.h>
 #include <esp_heap_caps.h>
 #include <esp_http_client.h>
-#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <lwip/netdb.h>
 #include <strings.h>
 
 #include "version.h"
@@ -22,6 +25,9 @@ constexpr size_t kMaxUrl = 2048;
 constexpr int kRxBufferBytes = 4096;
 constexpr int kTxBufferBytes = 2560;  // the request line carries the long signed URL
 constexpr size_t kChunkBytes = 4096;
+// A dropped connection on a flaky network shouldn't fail the whole update check.
+constexpr int kConnectAttempts = 3;
+constexpr std::array<uint32_t, kConnectAttempts - 1> kRetryDelayMs = {1000, 3000};
 
 struct RequestState {
   std::array<char, kMaxUrl> location{};
@@ -34,6 +40,7 @@ struct Buffers {
   RequestState state;
   std::array<char, kMaxUrl> url{};
   std::array<uint8_t, kChunkBytes> chunk{};
+  std::array<char, kMaxUrl> current{};  // the URL being opened, for diagnostics
 };
 
 Buffers* buffers = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -66,6 +73,37 @@ bool IsRedirect(int status) {
 bool SafeLocation(const char* location) {
   return std::strncmp(location, "https://", 8) == 0 ||
          (location[0] == '/' && location[1] != '/');  // "//host" would switch hosts
+}
+
+// Logs what the URL's host resolves to (diagnostics for connection failures).
+void LogResolvedHost(const char* url) {
+  const char* host = std::strstr(url, "://");
+  if (host == nullptr) {
+    return;  // relative: same host as before
+  }
+  host += 3;
+  std::array<char, 128> name{};
+  size_t n = 0;
+  while (host[n] != '\0' && host[n] != '/' && host[n] != ':' && n + 1 < name.size()) {
+    name.at(n) = host[n];
+    ++n;
+  }
+  addrinfo hints{};
+  hints.ai_socktype = SOCK_STREAM;
+  addrinfo* found = nullptr;
+  if (lwip_getaddrinfo(name.data(), nullptr, &hints, &found) != 0 || found == nullptr) {
+    ESP_LOGW(kTag, "%s: DNS lookup failed", name.data());
+    return;
+  }
+  std::array<char, 48> address{};
+  if (found->ai_family == AF_INET) {
+    const auto* v4 = reinterpret_cast<const sockaddr_in*>(found->ai_addr);  // NOLINT
+    inet_ntoa_r(v4->sin_addr, address.data(), address.size());
+  } else {
+    std::snprintf(address.data(), address.size(), "IPv6 (family %d)", found->ai_family);
+  }
+  ESP_LOGI(kTag, "%s -> %s", name.data(), address.data());
+  lwip_freeaddrinfo(found);
 }
 
 }  // namespace
@@ -127,7 +165,24 @@ FetchResult HttpsGet(const char* url, uint64_t max_bytes, ChunkFn on_chunk, void
   for (;;) {
     state.location[0] = '\0';
     state.location_too_long = false;
-    if (esp_http_client_open(client, 0) != ESP_OK) {
+    if (esp_http_client_get_url(client, b->current.data(), static_cast<int>(b->current.size())) ==
+        ESP_OK) {
+      LogResolvedHost(b->current.data());
+    }
+    esp_err_t opened = ESP_FAIL;
+    for (int attempt = 1; attempt <= kConnectAttempts; ++attempt) {
+      opened = esp_http_client_open(client, 0);
+      if (opened == ESP_OK) {
+        break;
+      }
+      ESP_LOGW(kTag, "connect attempt %d/%d failed: %s (errno %d)", attempt, kConnectAttempts,
+               esp_err_to_name(opened), esp_http_client_get_errno(client));
+      esp_http_client_close(client);
+      if (attempt < kConnectAttempts) {
+        vTaskDelay(pdMS_TO_TICKS(kRetryDelayMs.at(static_cast<size_t>(attempt - 1))));
+      }
+    }
+    if (opened != ESP_OK) {
       result = FetchResult::kConnectFailed;
       break;
     }

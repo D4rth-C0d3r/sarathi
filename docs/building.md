@@ -82,7 +82,7 @@ pio run -t clean                              # remove build outputs
   typical connection). Later builds take seconds.
 - **Flashing** goes through the **USB IN** port, which is the ESP32-S3's native USB, so no
   driver is needed. Use a data cable, not a charge-only one.
-- **Expected serial output** after boot (one hello line per second):
+- **Expected serial output** after boot (a hello line each second for the first 10 s, then a `perf` line every 5 s):
 
   ```
   [...][I][display.cpp:..] Begin(): [display] ready (480x480)

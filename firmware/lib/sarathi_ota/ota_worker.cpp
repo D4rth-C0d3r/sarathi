@@ -4,7 +4,7 @@
 #include <cstring>
 #include <optional>
 
-#include <esp_log.h>
+#include <esp32-hal-log.h>  // ESP_LOGx through Arduino's logger (CLAUDE.md)
 #include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -28,6 +28,7 @@ constexpr UBaseType_t kPriority = 1;
 constexpr BaseType_t kCore = 0;  // with the Wi-Fi stack; the UI runs on core 1
 constexpr UBaseType_t kQueueLength = 8;
 constexpr uint32_t kRebootDelayMs = 300;
+constexpr int kHttpNotFound = 404;
 
 // Everything the worker owns. Allocated once, statically; only the worker task touches it.
 struct Worker {
@@ -122,6 +123,14 @@ void DoFetchManifest() {
   FetchReport report;
   const FetchResult fetched =
       HttpsGet(SARATHI_OTA_MANIFEST_URL, worker->body.size() - 1, CollectBody, nullptr, &report);
+  if (fetched == FetchResult::kHttpStatus && report.status == kHttpNotFound) {
+    // The latest release has no manifest (or there is no release yet): nothing to install.
+    ESP_LOGI(kTag, "no manifest published (HTTP 404): up to date");
+    r.ok = true;
+    r.error = core::OtaError::kNotNewer;
+    Send(r);
+    return;
+  }
   if (fetched != FetchResult::kOk) {
     ESP_LOGW(kTag, "manifest fetch failed: %s (HTTP %d)", FetchResultName(fetched), report.status);
     Send(r);
