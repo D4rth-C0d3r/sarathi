@@ -31,19 +31,27 @@ OTA code changes.
 |---|---|---|---|---|
 | 1 | Normal update | Test firmware → Check for update → install | Clean progress; "Installing…", then dark; restarts into the new version; about 10 s later, dark and one more restart; Version shows the new one | **Pass**, 2026-10-24 (`rc.2`) |
 | 2 | Power cut before confirmation | As 1, but unplug USB within 5 s of the new version starting | Boots the previous version; notice "Update failed. The previous version was restored." | **Pass**, 2026-10-24 (`rc.1`) |
-| 3 | Power cut mid-download | Unplug USB at about 50 % | Boots the previous version: nothing was written to flash yet (the download goes to PSRAM); a later update works | Pending |
-| 4 | Wi-Fi drop mid-download | Switch off the router (or hotspot) at about 50 % | "Update failed: The download stopped"; click to close; the device works normally | Pending |
-| 5 | Corrupted image | Replace the pre-release's `.bin` with a copy with one byte flipped; the signed manifest is unchanged | "Update failed: The download was damaged"; the boot partition is unchanged; the original `.bin` is put back | Pending |
-| 6 | Wrong signature | Test firmware pointed at `manifest-badsig.jws` (the manifest with one signature byte flipped), uploaded to the pre-release | "Update failed: The update didn't pass its security checks"; nothing downloaded | Pending |
-| 7 | Image fails before marking valid | Install, then hold the knob button from "Installing…" through the restart until the screen goes dark again | Rolls back to the previous version at the confirmation point; the rollback notice shows | Pending |
-| 8 | Same version | Test firmware built as 0.3.0 (seq 300), pointed at a 0.3.0 pre-release | "Up to date"; nothing downloaded | Pending |
-| 9 | Older version (downgrade) | Test firmware built as 0.4.0 (seq 400), pointed at a 0.3.0 pre-release | "Up to date": the older release is refused (`not_newer`) | Pending |
+| 3 | Power cut mid-download | Unplug USB at about 50 % | Boots the previous version: nothing was written to flash yet (the download goes to PSRAM); a later update works | **Pass**, 2026-10-24 (`rc.4`): came back as 0.0.0-dev, not pending |
+| 4 | Wi-Fi drop mid-download | Switch off the router (or hotspot) at about 50 % | "Update failed: The download stopped"; click to close; the device works normally | **Pass**, 2026-10-24 (`rc.4`): "download failed: read failed"; the device kept working |
+| 5 | Corrupted image | Replace the pre-release's `.bin` with a copy with one byte flipped; the signed manifest is unchanged | "Update failed: The download was damaged"; the boot partition is unchanged; the original `.bin` is put back | **Pass**, 2026-10-24 (`rc.4`): `image rejected: hash_mismatch`, no partition switch; original `.bin` restored and checked against `SHA256SUMS` |
+| 6 | Wrong signature | Test firmware pointed at `manifest-badsig.jws` (the manifest with one signature byte flipped), uploaded to the pre-release | "Update failed: The update didn't pass its security checks"; nothing downloaded | **Pass**, 2026-10-24 (`rc.4`): message seen on the dash; the log's verdict line was garbled by a concurrent log line |
+| 7 | Image fails before marking valid | Install, then hold the knob button from "Installing…" through the restart until the screen goes dark again | Rolls back to the previous version at the confirmation point; the rollback notice shows | **Pass**, 2026-10-24 (`rc.4`): "self-check failed: rolling back", then 0.0.0-dev with "an earlier update was rolled back" |
+| 8 | Same version | Test firmware built as 0.3.0 (seq 300), pointed at a 0.3.0 pre-release | "Up to date"; nothing downloaded | **Pass**, 2026-10-24 (`rc.4`): built as 0.3.0; "Up to date" |
+| 9 | Older version (downgrade) | Test firmware built as 0.4.0 (seq 400), pointed at a 0.3.0 pre-release | "Up to date": the older release is refused (`not_newer`) | **Pass**, 2026-10-24 (`rc.4`): built as 0.4.0; "Up to date" (seen on the dash) |
 
 Cases 5, 6, 8 and 9 rely on the same checks the 26 golden vectors cover (`docs/ota/vectors`).
 On the device they also prove that the right message reaches the screen and that nothing is
 written.
 
 ## Results log
+
+- **2026-10-24:** cases 3 to 9 passed on `v0.3.0-rc.4`; all nine cases now pass, and every
+  case ended with a working device. While preparing them:
+  - An incoming call mid-download hung the board once (watchdog reset). The cause was LVGL's
+    small allocations taking internal RAM from Wi-Fi and TLS. LVGL now allocates from PSRAM
+    (`docs/hardware.md`), and a download through the call completes.
+  - The test files on the pre-releases (`manifest-badsig.jws`, the corrupted `.bin`) were
+    temporary. The original image is back on `rc.4`.
 
 - **2026-10-24:** cases 1 and 2 passed during Phase 2 step 7. Along the way:
   - "image confirmed" was invisible (ESP-IDF logging capped at ERROR); fixed.
