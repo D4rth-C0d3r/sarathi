@@ -10,6 +10,7 @@
 // Usage: program [--speed N]   replay the ride N times faster. Close the window to quit.
 //        program --tour DIR     scripted walk through the UI, screenshots in DIR
 //        program --gallery DIR  every screen in every theme, screenshots in DIR
+//        add --chronos          a pretend Chronos phone instead of the demo ride (ADR-0005)
 //
 // Simulator wiring only: no backlight, panel timing or ESP32-S3 performance limits.
 
@@ -30,6 +31,7 @@
 #include "app_shell.h"
 #include "board_pins.h"
 #include "demo_ride.h"
+#include "fake_chronos.h"
 #include "input_test_model.h"
 #include "lvgl_port.h"
 #include "ota_update.h"
@@ -54,6 +56,9 @@ constexpr uint32_t kPerfPeriodMs = 5000;
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 core::AppModel app;
 core::DemoRide demo_ride;
+sarathi::sim::FakeChronos fake_chronos;
+core::DataSource* source = &demo_ride;  // or &fake_chronos with --chronos
+bool chronos_mode = false;
 core::InputTestModel input_test(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
                                 pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
 int pending_steps = 0;  // written by the SDL event watch, drained by the loop
@@ -497,7 +502,9 @@ enum class GalleryAction : uint8_t {
   kKnob,      // `arg` knob steps
   kPress,     // a knob click
   kLongPress,
-  kManifest,  // the next update check finds: 0 a new version, 1 a bad signature
+  kManifest,    // the next update check finds: 0 a new version, 1 a bad signature
+  kDisconnect,  // --chronos: the phone drops the link (shown on Nav)
+  kReconnect,
   kWait,
 };
 
@@ -538,8 +545,22 @@ constexpr std::array<GalleryStep, 25> kGallerySteps = {{
     {GalleryAction::kKnob, nullptr, 300, -7},  // back to the Theme row for the next theme
 }};
 
+// --chronos: the screens that differ, in every theme.
+constexpr std::array<GalleryStep, 8> kChronosGallerySteps = {{
+    {GalleryAction::kLoadTheme, nullptr, 400},
+    {GalleryAction::kNav, "c1_nav", 600},
+    {GalleryAction::kCallRinging, "c2_call", 600},
+    {GalleryAction::kCallEnd, nullptr, 400},
+    {GalleryAction::kMusic, "c3_music", 600},
+    {GalleryAction::kDisconnect, "c4_disconnected", 600},
+    {GalleryAction::kReconnect, nullptr, 400},
+    {GalleryAction::kWait, nullptr, 100},
+}};
+
 struct Gallery {
   const char* dir = nullptr;
+  const GalleryStep* steps = kGallerySteps.data();
+  size_t step_count = kGallerySteps.size();
   bool started = false;
   size_t theme = 0;
   size_t step = 0;
@@ -553,9 +574,13 @@ void ShowScreen(ui::screen_manager::ScreenId target) {
   }
 }
 
+const GalleryStep& CurrentStep(const Gallery& gallery) {
+  return gallery.steps[gallery.step];  // NOLINT(*-pointer-arithmetic)
+}
+
 void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
   namespace sm = ui::screen_manager;
-  switch (kGallerySteps.at(gallery.step).action) {
+  switch (CurrentStep(gallery).action) {
     case GalleryAction::kLoadTheme: {
       core::Settings settings = app.State().settings;
       settings.theme = core::ThemeAt(gallery.theme).id;
@@ -573,6 +598,7 @@ void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
       break;
     case GalleryAction::kCallEnd:
       gallery.call = core::CallPhase::kIdle;
+      app.SetCall(core::CallPhase::kIdle, "", now);  // --chronos: no ride script resets it
       break;
     case GalleryAction::kMusic:
       ShowScreen(sm::ScreenId::kMusic);
@@ -599,7 +625,7 @@ void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
       wifi_setup.SetSaved("Home Wi-Fi");
       break;
     case GalleryAction::kKnob: {
-      const int arg = kGallerySteps.at(gallery.step).arg;
+      const int arg = CurrentStep(gallery).arg;
       for (int i = 0; i < (arg < 0 ? -arg : arg); ++i) {
         ui::app_shell::OnKnobStep(arg < 0 ? -1 : 1);
       }
@@ -612,8 +638,15 @@ void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
       tour.Hold(now, kLongHoldMs);
       break;
     case GalleryAction::kManifest:
-      fake.manifest_error = kGallerySteps.at(gallery.step).arg == 0 ? core::OtaError::kNone
-                                                                    : core::OtaError::kBadSignature;
+      fake.manifest_error =
+          CurrentStep(gallery).arg == 0 ? core::OtaError::kNone : core::OtaError::kBadSignature;
+      break;
+    case GalleryAction::kDisconnect:
+      ShowScreen(sm::ScreenId::kNav);
+      fake_chronos.SetConnected(false, now, app);
+      break;
+    case GalleryAction::kReconnect:
+      fake_chronos.SetConnected(true, now, app);
       break;
     case GalleryAction::kWait:
       break;
@@ -635,7 +668,7 @@ bool RunGallery(Gallery& gallery, Tour& tour, lv_display_t* display, uint32_t no
     app.SetCall(gallery.call, "Demo Caller", now);  // over the demo ride's idle call state
   }
 
-  const GalleryStep& step = kGallerySteps.at(gallery.step);
+  const GalleryStep& step = CurrentStep(gallery);
   if (now - gallery.step_start_ms < step.settle_ms) {
     return true;
   }
@@ -645,7 +678,7 @@ bool RunGallery(Gallery& gallery, Tour& tour, lv_display_t* display, uint32_t no
                   step.name);
     SaveScreenshot(display, gallery.dir, name.data());
   }
-  if (++gallery.step == kGallerySteps.size()) {
+  if (++gallery.step == gallery.step_count) {
     gallery.step = 0;
     if (++gallery.theme == core::ThemeCount()) {
       return false;
@@ -670,6 +703,15 @@ int main(int argc, char** argv) {
   }
   const uint32_t speed = shot_dir != nullptr ? kTourSpeed : ParseSpeed(argc, argv);
   demo_ride.SetSpeedFactor(speed);
+  for (int i = 1; i < argc; ++i) {
+    chronos_mode =
+        chronos_mode || std::strcmp(argv[i], "--chronos") == 0;  // NOLINT(*-pointer-arithmetic)
+  }
+  if (chronos_mode) {
+    source = &fake_chronos;
+    gallery.steps = kChronosGallerySteps.data();
+    gallery.step_count = kChronosGallerySteps.size();
+  }
 
   lv_init();
   lv_tick_set_cb(SDL_GetTicks);
@@ -704,7 +746,7 @@ int main(int argc, char** argv) {
 
   for (;;) {
     const uint32_t now = SDL_GetTicks();
-    demo_ride.Poll(now, app);
+    source->Poll(now, app);
 
     lv_timer_handler();  // renders, reads input, pumps SDL events; exits when the window closes
 
@@ -733,7 +775,7 @@ int main(int argc, char** argv) {
 
     core::Command command;
     while (app.TakeCommand(command)) {
-      demo_ride.OnCommand(command, now, app);
+      source->OnCommand(command, now, app);
     }
     RunFakeOta(now);
     RunFakeWifiSetup(now);

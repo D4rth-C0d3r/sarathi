@@ -2,6 +2,7 @@
 
 #include "layout.h"
 #include "theme_binding.h"
+#include "visibility.h"
 
 namespace sarathi::ui {
 namespace {
@@ -92,5 +93,7 @@ void RouteView::OnDraw(lv_event_t* event) {
   chevron.p[2] = {rx + kChevronHalfWidth, ry + kChevronTail};
   lv_draw_triangle(layer, &chevron);
 }
+
+void RouteView::SetVisible(bool visible) { ui::SetVisible(obj_, visible); }
 
 }  // namespace sarathi::ui

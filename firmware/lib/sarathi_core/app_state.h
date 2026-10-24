@@ -170,6 +170,7 @@ struct Capabilities {
   bool call_accept = true;
   bool call_reject = true;  // false: the call screen can only be dismissed on the dash
   bool media_control = true;
+  bool media_progress = true;  // track position and duration
   bool route_geometry = true;
   bool speed = true;  // false: settings lock while navigating instead (ADR-0005)
 };

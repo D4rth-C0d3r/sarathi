@@ -19,6 +19,7 @@ constexpr core::Capabilities kChronosCapabilities{
     false,  // call_accept
     false,  // call_reject
     true,   // media_control
+    false,  // media_progress
     false,  // route_geometry
     false,  // speed
 };

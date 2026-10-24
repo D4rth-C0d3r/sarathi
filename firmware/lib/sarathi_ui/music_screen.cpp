@@ -40,6 +40,14 @@ lv_obj_t* AddControl(lv_obj_t* screen, lv_group_t* group, const char* symbol, in
   return button;
 }
 
+// The button shows the action it will take.
+void UpdatePlayButton(bool playing) {
+  if (playing != shown_playing) {
+    lv_label_set_text_static(play_label, playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
+    shown_playing = playing;
+  }
+}
+
 }  // namespace
 
 lv_obj_t* Create(lv_group_t* group, core::AppModel& model) {
@@ -61,6 +69,8 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model) {
 
 void Update(const core::AppState& state) {
   const core::MediaState& media = state.media;
+  // Without position and duration (Chronos) there's no time or ring, rather than a frozen 0:00.
+  progress.SetVisible(state.caps.media_progress);
   if (!media.available) {
     title.Set("%s", "No media");
     artist.Set("%s", "");
@@ -70,6 +80,11 @@ void Update(const core::AppState& state) {
   }
   title.Set("%s", media.title.CStr());
   artist.Set("%s", media.artist.CStr());
+  if (!state.caps.media_progress) {
+    position.Set("%s", "");
+    UpdatePlayButton(media.playing);
+    return;
+  }
   std::array<char, 12> pos{};
   std::array<char, 12> dur{};
   core::FormatClock(media.position_s, pos.data(), pos.size());
@@ -79,11 +94,7 @@ void Update(const core::AppState& state) {
                    ? static_cast<float>(media.position_s) / static_cast<float>(media.duration_s)
                    : 0.0F);
 
-  if (media.playing != shown_playing) {
-    // The button shows the action it will take.
-    lv_label_set_text_static(play_label, media.playing ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY);
-    shown_playing = media.playing;
-  }
+  UpdatePlayButton(media.playing);
 }
 
 }  // namespace sarathi::ui::music_screen

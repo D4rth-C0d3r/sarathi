@@ -9,6 +9,7 @@
 
 #include "layout.h"
 #include "static_label.h"
+#include "visibility.h"
 
 namespace sarathi::ui {
 
@@ -23,6 +24,10 @@ class BigValue {
 
   void SetValue(const char* text) { value_.Set("%s", text); }
   void SetCaption(const char* text) { caption_.Set("%s", text); }
+  void SetVisible(bool visible) {
+    ui::SetVisible(value_.Obj(), visible);
+    ui::SetVisible(caption_.Obj(), visible);
+  }
 
  private:
   static constexpr int32_t kCaptionGap = 52;  // below a 48 px value

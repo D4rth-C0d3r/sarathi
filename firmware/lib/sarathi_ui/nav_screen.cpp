@@ -13,6 +13,7 @@
 #include "route_view.h"
 #include "static_label.h"
 #include "theme_binding.h"
+#include "visibility.h"
 
 namespace sarathi::ui::nav_screen {
 namespace {
@@ -41,15 +42,31 @@ constexpr int32_t kRouteStatusY = 60;
 constexpr int32_t kEtaY = 172;
 constexpr int32_t kRingDiameter = 470;
 
+// Arrow mode: a source without route geometry (Chronos, ADR-0005). No map: the phone's icon,
+// its distance text (the primary item), the instruction on up to two lines, and the remaining
+// time. The icon is 48 px scaled 3x; at 4x its top would leave the circle.
+constexpr int32_t kBigArrowSize = 144;
+constexpr int32_t kBigArrowY = -112;
+constexpr int32_t kBigDistanceY = 6;
+constexpr int32_t kInstructionY = 92;
+constexpr int32_t kInstructionWidth = 340;
+constexpr int32_t kInstructionLines = 2;
+constexpr int32_t kArrowEtaY = 165;
+
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 RouteView route;
 RingGauge ring;
 lv_obj_t* card = nullptr;
 ManeuverArrow arrow;
 BigValue distance;
-StaticLabel<40> street;
+StaticLabel<49> street;  // NavState::street plus its terminator
 StaticLabel<32> route_status;
 StaticLabel<24> eta;
+ManeuverArrow big_arrow;
+BigValue big_distance;
+StaticLabel<64> instruction;
+StaticLabel<24> arrow_eta;
+bool arrow_mode = false;
 #ifdef SARATHI_NAV_STRESS
 uint16_t stress_spin = 0;  // extra heading, degrees
 #endif
@@ -70,14 +87,60 @@ core::ProjectionParams MapProjection() {
 template <size_t N>
 void SetBubble(StaticLabel<N>& label, const char* text) {
   label.Set("%s", text);
-  const bool hide = text[0] == '\0';
-  if (hide != lv_obj_has_flag(label.Obj(), LV_OBJ_FLAG_HIDDEN)) {
-    if (hide) {
-      lv_obj_add_flag(label.Obj(), LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_remove_flag(label.Obj(), LV_OBJ_FLAG_HIDDEN);
-    }
+  SetVisible(label.Obj(), text[0] != '\0');
+}
+
+// One layout or the other; the hidden one keeps its state for when it comes back.
+void ShowArrowMode(bool on) {
+  arrow_mode = on;
+  SetVisible(card, !on);
+  ring.SetVisible(!on);
+  arrow.SetVisible(!on);
+  distance.SetVisible(!on);
+  SetVisible(street.Obj(), !on);
+  big_arrow.SetVisible(on);
+  big_distance.SetVisible(on);
+  SetVisible(instruction.Obj(), on);
+  route.SetVisible(!on);
+  if (on) {
+    route.Clear();
+    SetBubble(route_status, "");
+    SetBubble(eta, "");
+  } else {
+    SetBubble(arrow_eta, "");
   }
+}
+
+// Shown when nothing is being navigated, in either layout.
+const char* IdleText(const core::AppState& state) {
+  return state.phone.connected ? "No navigation" : "Phone not connected";
+}
+
+void UpdateArrowMode(const core::AppState& state) {
+  const core::NavState& nav = state.nav;
+  if (!nav.active) {
+    big_arrow.SetIcon(core::ManeuverIcon{});
+    big_arrow.Set(core::Maneuver{});
+    big_distance.SetValue("");
+    instruction.Set("%s", IdleText(state));
+    SetBubble(arrow_eta, "");
+    return;
+  }
+  big_arrow.Set(nav.next);
+  big_arrow.SetIcon(nav.icon);
+  std::array<char, 32> text{};
+  if (!nav.distance_text.Empty()) {
+    big_distance.SetValue(nav.distance_text.CStr());
+  } else {
+    core::FormatDistance(nav.distance_m, state.settings.units, text.data(), text.size());
+    big_distance.SetValue(text.data());
+  }
+  instruction.Set("%s", nav.street.CStr());
+  std::array<char, 24> eta_text{};
+  if (!nav.remaining_text.Empty()) {
+    std::snprintf(eta_text.data(), eta_text.size(), "ETA %s", nav.remaining_text.CStr());
+  }
+  SetBubble(arrow_eta, eta_text.data());
 }
 
 }  // namespace
@@ -105,15 +168,31 @@ lv_obj_t* Create() {
   lv_obj_add_style(route_status.Obj(), theme::CardStyle(), 0);
   eta.Create(screen, theme::Text::kSupporting, kEtaY);
   lv_obj_add_style(eta.Obj(), theme::CardStyle(), 0);
+
+  big_arrow.Create(screen, kBigArrowSize, 0, kBigArrowY);
+  big_distance.Create(screen, kBigDistanceY);
+  instruction.Create(screen, theme::Text::kSupporting, kInstructionY, kInstructionWidth);
+  const lv_font_t* font = lv_obj_get_style_text_font(instruction.Obj(), LV_PART_MAIN);
+  lv_obj_set_height(instruction.Obj(), kInstructionLines * lv_font_get_line_height(font));
+  arrow_eta.Create(screen, theme::Text::kSupporting, kArrowEtaY);
+  lv_obj_add_style(arrow_eta.Obj(), theme::CardStyle(), 0);
+  ShowArrowMode(false);
   return screen;
 }
 
 void Update(const core::AppState& state, uint32_t now_ms) {
+  if (arrow_mode == state.caps.route_geometry) {
+    ShowArrowMode(!state.caps.route_geometry);
+  }
+  if (arrow_mode) {
+    UpdateArrowMode(state);
+    return;
+  }
   const core::NavState& nav = state.nav;
   if (!nav.active) {
     arrow.Set(core::Maneuver{});
     distance.SetValue("");
-    street.Set("%s", "No navigation");
+    street.Set("%s", IdleText(state));
     ring.Set(0.0F);
     route.Clear();
     SetBubble(route_status, "");

@@ -24,6 +24,7 @@ class RouteView {
   // (used by the stress build).
   void Set(const core::RouteWindow& window, bool stale, float metres_per_px, bool force = false);
   void Clear();
+  void SetVisible(bool visible);
 
  private:
   static void OnDraw(lv_event_t* event);

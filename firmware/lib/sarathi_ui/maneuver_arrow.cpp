@@ -1,9 +1,12 @@
 #include "maneuver_arrow.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "maneuver_glyph.h"
+#include "maneuver_icon.h"
 #include "theme_binding.h"
+#include "visibility.h"
 
 namespace sarathi::ui {
 
@@ -24,8 +27,43 @@ void ManeuverArrow::Set(const core::Maneuver& maneuver) {
   }
 }
 
+void ManeuverArrow::SetIcon(const core::ManeuverIcon& icon) {
+  icon_ = &icon;
+  if (icon.valid != has_icon_ || (icon.valid && icon.id != icon_id_)) {
+    has_icon_ = icon.valid;
+    icon_id_ = icon.id;
+    lv_obj_invalidate(obj_);
+  }
+}
+
+void ManeuverArrow::SetVisible(bool visible) { ui::SetVisible(obj_, visible); }
+
+// One filled rectangle per run of set pixels, centred in the object.
+void ManeuverArrow::DrawIcon(lv_layer_t* layer, const lv_area_t& area) const {
+  const int32_t scale = std::max<int32_t>(1, size_ / static_cast<int32_t>(core::kManeuverIconSize));
+  const int32_t inset = (size_ - (scale * static_cast<int32_t>(core::kManeuverIconSize))) / 2;
+  lv_draw_rect_dsc_t rect;
+  lv_draw_rect_dsc_init(&rect);
+  rect.bg_color = theme::Color(theme::Current().palette.maneuver);
+  rect.bg_opa = LV_OPA_COVER;
+  core::ForEachIconRun(*icon_, [&](const core::IconRun& run) {
+    lv_area_t a;
+    a.x1 = area.x1 + inset + (run.x * scale);
+    a.y1 = area.y1 + inset + (run.y * scale);
+    a.x2 = a.x1 + (run.length * scale) - 1;
+    a.y2 = a.y1 + scale - 1;
+    lv_draw_rect(layer, &rect, &a);
+  });
+}
+
 void ManeuverArrow::OnDraw(lv_event_t* event) {
   const auto* self = static_cast<const ManeuverArrow*>(lv_event_get_user_data(event));
+  if (self->has_icon_ && self->icon_ != nullptr) {
+    lv_area_t area;
+    lv_obj_get_coords(self->obj_, &area);
+    self->DrawIcon(lv_event_get_layer(event), area);
+    return;
+  }
   const core::ManeuverGlyph glyph = core::GlyphFor(self->maneuver_);
   if (glyph.stroke_count == 0) {
     return;
