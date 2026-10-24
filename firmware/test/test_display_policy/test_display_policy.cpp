@@ -59,6 +59,19 @@ void TestSleepsAfterTimeoutWhenIdle() {
   TEST_ASSERT_FALSE(power.Awake());
 }
 
+// Regression: a knob step stamped after this loop's `now` (the step reads the LVGL tick) put
+// the screen to sleep at once.
+void TestInputStampedAfterNowDoesNotSleep() {
+  ScreenPower power;
+  const AppState state = Idle(ScreenTimeout::k30s);
+  power.Update(state, 1000);
+  TEST_ASSERT_TRUE(power.OnInput(1003));
+  power.Update(state, 1000);
+  TEST_ASSERT_TRUE(power.Awake());
+  power.Update(state, 1003 + 30000);
+  TEST_ASSERT_FALSE(power.Awake());
+}
+
 void TestNeverSleepsWithNeverTimeout() {
   ScreenPower power;
   const AppState state = Idle(ScreenTimeout::kNever);
@@ -107,6 +120,7 @@ int main() {
   RUN_TEST(TestNightBoundaries);
   RUN_TEST(TestDayNightBrightness);
   RUN_TEST(TestSleepsAfterTimeoutWhenIdle);
+  RUN_TEST(TestInputStampedAfterNowDoesNotSleep);
   RUN_TEST(TestNeverSleepsWithNeverTimeout);
   RUN_TEST(TestNeverSleepsWhileNavigatingOrInCall);
   RUN_TEST(TestWakingInputIsSwallowed);

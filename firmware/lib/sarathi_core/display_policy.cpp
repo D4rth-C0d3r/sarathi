@@ -41,7 +41,10 @@ void ScreenPower::Update(const AppState& state, uint32_t now_ms) {
     awake_ = true;
     return;
   }
-  if (now_ms - last_activity_ms_ >= timeout_ms) {
+  // Signed: input can be stamped a little later than this loop's `now_ms` (the knob reads the
+  // LVGL tick), and an unsigned difference would then wrap to "idle for weeks".
+  const auto idle_ms = static_cast<int32_t>(now_ms - last_activity_ms_);
+  if (idle_ms >= static_cast<int32_t>(timeout_ms)) {
     awake_ = false;
   }
 }
