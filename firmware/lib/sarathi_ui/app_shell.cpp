@@ -21,6 +21,9 @@ bool last_button_raw = false;
 bool swallow_button = false;  // the press that woke the screen, until it is released
 bool last_touching = false;
 bool swallow_touch = false;  // the touch that woke the screen, until it lifts
+core::OtaUpdate* ota = nullptr;
+uint32_t installing_since_ms = 0;
+bool installing = false;
 lv_obj_t* notice = nullptr;
 uint32_t notice_until_ms = 0;
 bool notice_shown = false;
@@ -44,14 +47,15 @@ void CreateNotice() {
 }  // namespace
 
 void Init(core::AppModel& model, core::InputTestModel& input_test, uint32_t debounce_ms,
-          uint32_t double_click_ms, core::OtaUpdate& ota, core::WifiSetup& wifi_setup,
+          uint32_t double_click_ms, core::OtaUpdate& ota_update, core::WifiSetup& wifi_setup,
           uint32_t (*random)()) {
   app = &model;
   test = &input_test;
+  ota = &ota_update;
   button = core::ButtonDebouncer(debounce_ms, double_click_ms, kLongPressMs);
 
   theme::Apply(core::ThemeFor(model.State().settings.theme));  // before any screen exists
-  screen_manager::Init(input::Init(), model, ota, wifi_setup, random);
+  screen_manager::Init(input::Init(), model, ota_update, wifi_setup, random);
   CreateNotice();
 }
 
@@ -138,6 +142,12 @@ void Update(uint32_t now_ms) {
     static_cast<void>(power.OnInput(now_ms));  // no screen timeout during setup or an update
   }
   power.Update(app->State(), now_ms);
+  const bool now_installing =
+      ota->Phase() == core::OtaPhase::kInstalling || ota->Phase() == core::OtaPhase::kRebooting;
+  if (now_installing && !installing) {
+    installing_since_ms = now_ms;
+  }
+  installing = now_installing;
   if (notice_shown && static_cast<int32_t>(now_ms - notice_until_ms) >= 0) {
     lv_obj_add_flag(notice, LV_OBJ_FLAG_HIDDEN);
     notice_shown = false;
@@ -176,6 +186,12 @@ int BacklightPercent() {
   }
   if (!power.Awake()) {
     return 0;  // screen timeout
+  }
+  // Dark while the update is written to flash: the panel shows garbage meanwhile. The worker
+  // waits core::kInstallDarkMs before writing, so switch off a little before that.
+  constexpr uint32_t kDarkMarginMs = 300;
+  if (installing && lv_tick_get() - installing_since_ms >= core::kInstallDarkMs - kDarkMarginMs) {
+    return 0;
   }
   return core::DayNightBrightness(app->State().settings, app->State().clock);
 }

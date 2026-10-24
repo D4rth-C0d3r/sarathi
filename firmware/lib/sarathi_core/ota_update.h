@@ -19,6 +19,11 @@
 
 namespace sarathi::core {
 
+// Flash writes stall the RGB panel's DMA on this board, so the panel shows garbage while they
+// run (docs/hardware.md). When installing starts, the UI shows "Installing..." for this long
+// and then switches the backlight off; the worker waits this long before writing flash.
+constexpr uint32_t kInstallDarkMs = 1500;
+
 enum class OtaPhase : uint8_t {
   kIdle,
   kConnecting,   // joining Wi-Fi

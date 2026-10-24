@@ -212,6 +212,31 @@ Measured after the input bring-up (step D):
 Elecrow's image-heavy demo is about 6 MB, so keep image assets small and prefer vector
 shapes and fonts.
 
+## Flash writes disturb the panel
+
+Found in the Phase 2 OTA device tests (2026-10-24). **Every flash write garbles the RGB
+panel** while it runs, as offset copies and wrapped stripes:
+
+- **Why:** a flash write disables the CPU caches, so PSRAM, where the frame buffer lives,
+  can't be read meanwhile. The interrupt that refills the panel's DMA bounce buffers isn't
+  IRAM-safe in the pinned toolchain (`CONFIG_LCD_RGB_ISR_IRAM_SAFE` is off) and misses its
+  deadline.
+- **Lasting effect:** the shipped `CONFIG_LCD_RGB_RESTART_IN_VSYNC=y` usually recovers the
+  picture afterwards, but a long write can leave it **shifted until the next restart**. One
+  such write is the one an updated image makes to confirm itself.
+- **Small writes are fine:** small NVS writes (a debounced settings save, the saved Wi-Fi
+  network) were not visible in testing.
+- **How the firmware copes** (ADR-0004 §6): it downloads updates into PSRAM, writes them with
+  the backlight off, and confirms a new image in the dark followed by one restart.
+- **The real fix** needs the toolchain's `sdkconfig` rebuilt with
+  `CONFIG_SPIRAM_XIP_FROM_PSRAM` and `CONFIG_LCD_RGB_ISR_IRAM_SAFE` (Espressif's setup for RGB
+  panels that need flash writes). That's a planned follow-up, in its own ADR and PR.
+
+Wi-Fi with the panel running: HTTPS fetches are reliable (`test_device_net`: 8/8 with the
+panel off, 8/8 on, 8/8 on with internal RAM held to the app's level), about 1.6x slower with
+the panel on. The pinned core places Wi-Fi and lwIP buffers in PSRAM
+(`CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y`).
+
 ## Performance (measured)
 
 Measured on the device on 2026-10-20 with the Phase 1 Nav screen (full-circle route map,

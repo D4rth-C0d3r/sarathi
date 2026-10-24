@@ -55,6 +55,7 @@ constexpr uint32_t kLoopDelayMs = 5;
 constexpr uint32_t kKiB = 1024;
 constexpr uint32_t kMiB = 1024 * 1024;
 constexpr uint32_t kNoticeMs = 8000;
+constexpr uint32_t kDarkSettleMs = 100;             // let the backlight go dark, or a log line out
 constexpr const char* kRollbackMarker = "rb_seen";  // slot address of the last notice shown
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -252,11 +253,18 @@ void RunUi(uint32_t now) {
 
   // A fresh OTA image confirms itself once the UI has run for a while (ADR-0004 §5); a reset
   // before that rolls back to the previous image.
+  // Confirming writes flash, which can leave the RGB panel shifted until the next restart
+  // (docs/hardware.md). So do it with the backlight off, then restart once: it happens only on
+  // the first boot after an update.
   if (boot_state.pending_verify &&
       core::DecideBoot({true, first_frame, false, now}) == core::BootDecision::kConfirm) {
-    boot_state.pending_verify = !ota::ConfirmBoot();
-    if (!boot_state.pending_verify) {
+    backlight.SetPercent(0);
+    delay(kDarkSettleMs);
+    if (ota::ConfirmBoot()) {
       nvs.SaveMarker(kRollbackMarker, 0);  // a later rollback deserves a notice again
+      ESP_LOGI(kTag, "restarting once after confirming the update");
+      delay(kDarkSettleMs);
+      esp_restart();
     }
   }
 }

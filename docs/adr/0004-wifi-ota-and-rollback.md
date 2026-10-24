@@ -310,8 +310,20 @@ kept, or a rider out of range would roll back every time. The boot log reports
   only when stopped. There are no automatic background downloads.
 - **Confirm first:** the device shows the new version and size and asks for a knob click.
 - **While updating:** the screen is static ("Updating… keep the bike stopped") with
-  progress redrawn at most once a second. That limits flicker from flash writes, as
-  CLAUDE.md requires.
+  progress redrawn at most once per percent.
+- **Flash writes and the panel** (found in the step 7 device tests). On this board every flash
+  write garbles the RGB panel (see `docs/hardware.md`), so a rider must never watch one:
+  - **Download:** the image goes into PSRAM first, so there are no flash writes while
+    progress shows. An image too big for PSRAM streams to flash as before.
+  - **Install:** the screen says "Installing… the screen goes dark for a few seconds", and the
+    backlight turns off after `kInstallDarkMs`. The worker waits that long, then writes the
+    whole image and restarts.
+  - **Confirmation:** the new image confirms itself with the backlight off, then restarts once,
+    because that write can leave the panel shifted until a restart. This happens only on the
+    first boot after an update.
+  - **Follow-up (not done):** fix the cause with a rebuilt `sdkconfig`
+    (`CONFIG_SPIRAM_XIP_FROM_PSRAM`, `CONFIG_LCD_RGB_ISR_IRAM_SAFE`), in its own ADR and PR,
+    tested on the device.
 - **Cancel:** a long press cancels the download. Nothing changes until step 3.5 above.
 - **Concurrency:** the download runs in its own task, which posts progress to the UI task
   through a queue. LVGL stays on the UI task.

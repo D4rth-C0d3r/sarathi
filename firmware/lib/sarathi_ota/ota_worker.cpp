@@ -1,10 +1,12 @@
 #include "ota_worker.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <optional>
 
 #include <esp32-hal-log.h>  // ESP_LOGx through Arduino's logger (CLAUDE.md)
+#include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -29,6 +31,7 @@ constexpr BaseType_t kCore = 0;  // with the Wi-Fi stack; the UI runs on core 1
 constexpr UBaseType_t kQueueLength = 8;
 constexpr uint32_t kRebootDelayMs = 300;
 constexpr int kHttpNotFound = 404;
+constexpr size_t kFlashChunkBytes = 4096;
 
 // Everything the worker owns. Allocated once, statically; only the worker task touches it.
 struct Worker {
@@ -42,6 +45,7 @@ struct Worker {
   size_t body_size = 0;
   const esp_partition_t* partition = nullptr;
   esp_ota_handle_t handle = 0;
+  uint8_t* image = nullptr;  // the download, in PSRAM, until it is written at install
   std::optional<core::ImageCheck> check;
   Sha256Stream sha;
   bool flash_error = false;
@@ -87,11 +91,13 @@ bool WriteImage(void* /*context*/, const uint8_t* data, size_t size) {
     return false;
   }
   worker->sha.Update(data, size);
-  if (esp_ota_write(worker->handle, data, size) != ESP_OK) {
+  const uint64_t received = worker->check->Received();
+  if (worker->image != nullptr) {
+    std::memcpy(worker->image + (received - size), data, size);  // NOLINT(*-pointer-arithmetic)
+  } else if (esp_ota_write(worker->handle, data, size) != ESP_OK) {
     worker->flash_error = true;
     return false;
   }
-  const uint64_t received = worker->check->Received();
   const auto percent = static_cast<uint8_t>(received * 100 / worker->manifest.size);
   if (percent != worker->last_percent) {  // one message per percent, not per chunk
     worker->last_percent = percent;
@@ -107,7 +113,24 @@ void ReleaseImage() {
     esp_ota_abort(worker->handle);
     worker->handle = 0;
   }
+  heap_caps_free(worker->image);
+  worker->image = nullptr;
   worker->check.reset();
+}
+
+// Writes the PSRAM copy to the inactive slot, all at once while the screen is dark.
+bool WriteBufferedImage() {
+  if (esp_ota_begin(worker->partition, worker->manifest.size, &worker->handle) != ESP_OK) {
+    return false;
+  }
+  for (uint64_t at = 0; at < worker->manifest.size; at += kFlashChunkBytes) {
+    const auto size =
+        static_cast<size_t>(std::min<uint64_t>(kFlashChunkBytes, worker->manifest.size - at));
+    if (esp_ota_write(worker->handle, worker->image + at, size) != ESP_OK) {  // NOLINT
+      return false;
+    }
+  }
+  return true;
 }
 
 void DoConnect() {
@@ -160,13 +183,24 @@ void DoDownload() {
   worker->last_percent = 0;
   worker->sha.Restart();
   worker->check.emplace(worker->manifest.size, worker->manifest.sha256);
-  // Sequential writes erase each sector just before writing it, instead of erasing the whole
-  // slot up front (a multi-second flash stall).
-  if (worker->partition == nullptr ||
-      esp_ota_begin(worker->partition, OTA_WITH_SEQUENTIAL_WRITES, &worker->handle) != ESP_OK) {
-    ESP_LOGE(kTag, "esp_ota_begin failed");
+  if (worker->partition == nullptr) {
     Send(Result(OtaResult::Kind::kDownloaded, false));
     return;
+  }
+  // Download into PSRAM: flash writes would garble the panel for the whole download. The
+  // image is written to flash at install, with the screen dark (docs/hardware.md).
+  worker->image = static_cast<uint8_t*>(
+      heap_caps_malloc(static_cast<size_t>(worker->manifest.size), MALLOC_CAP_SPIRAM));
+  if (worker->image == nullptr) {
+    // Doesn't fit: stream to flash as it arrives (the screen glitches meanwhile). Sequential
+    // writes erase each sector just before writing it, not the whole slot up front.
+    ESP_LOGW(kTag, "no room in PSRAM for %llu B; writing to flash while downloading",
+             static_cast<unsigned long long>(worker->manifest.size));
+    if (esp_ota_begin(worker->partition, OTA_WITH_SEQUENTIAL_WRITES, &worker->handle) != ESP_OK) {
+      ESP_LOGE(kTag, "esp_ota_begin failed");
+      Send(Result(OtaResult::Kind::kDownloaded, false));
+      return;
+    }
   }
   FetchReport report;
   // No size cap here: ImageCheck stops the download as soon as it overruns the manifest's size.
@@ -197,6 +231,16 @@ void DoInstall() {
     Send(r);
     return;
   }
+  // Give the UI time to show "Installing..." and switch the backlight off first.
+  vTaskDelay(pdMS_TO_TICKS(core::kInstallDarkMs));
+  if (worker->image != nullptr && !WriteBufferedImage()) {
+    ESP_LOGE(kTag, "flash write failed");
+    ReleaseImage();
+    Send(r);  // ok = false: a flash failure
+    return;
+  }
+  heap_caps_free(worker->image);
+  worker->image = nullptr;
   // esp_ota_end validates the image format; only then does the boot partition change.
   esp_err_t err = esp_ota_end(worker->handle);
   worker->handle = 0;

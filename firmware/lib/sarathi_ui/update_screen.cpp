@@ -105,7 +105,7 @@ void Update(const core::OtaUpdate& ota, const core::WifiSetup& wifi) {
       break;
     case core::OtaPhase::kInstalling:
       headline.Set("%s", "Installing...");
-      detail.Set("%s", "Checking the download");
+      detail.Set("%s", "The screen goes dark for a few seconds");
       hint.Set("%s", "");
       break;
     case core::OtaPhase::kRebooting:
