@@ -42,8 +42,8 @@ Classic Bluetooth audio on the device.
 - **Phase 3 (ChronosESP32 quick win) is in progress** (ADR-0005): the `crowpanel21-chronos`
   build gets nav (arrow mode, the phone's icon), caller ID with Dismiss, music, time and
   phone battery from the Chronos app, with pairing confirmed on the dash. Cases 1-16 of
-  `docs/phase3-test-plan.md` pass on the device; still open: an OTA to the first Chronos
-  pre-release (case 17) and a ride (case 18).
+  `docs/phase3-test-plan.md` pass on the device, including the OTA from 0.3.0 to
+  `v0.4.0-rc.2` (case 17); still open: a ride (case 18).
 
 Roadmap:
 0. Bring-up (done, v0.1.0)

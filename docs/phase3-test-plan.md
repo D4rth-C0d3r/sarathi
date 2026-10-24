@@ -39,7 +39,7 @@ policy change.
 | 14 | Knob on the music screen | Turn to Prev/Next and click, repeatedly | Screen stays on (no instant sleep) | **Pass**, 2026-10-24 |
 | 15 | Double-click | Quick double-clicks on every screen | Switches screen every time | **Pass**, 2026-10-24 |
 | 16 | Clock | Connect; compare the dash's clock with the phone's | Same time, kept between syncs | **Pass** in the log (recorded time packet decoded to 19:26), 2026-10-24 |
-| 17 | OTA to a Chronos release, boot self-check with BLE | Publish a `v0.4.0-rc.N` pre-release; install it from test firmware (`docs/ota-test-plan.md`) | Installs; the image confirms only after BLE is up; the OTA test plan's cases still pass with BLE stopping and restarting around them | **Not run yet**: needs the first Chronos pre-release |
+| 17 | OTA to a Chronos release, boot self-check with BLE | Publish a `v0.4.0-rc.N` pre-release; install it from test firmware (`docs/ota-test-plan.md`) | Installs; the image confirms only after BLE is up; the OTA test plan's cases still pass with BLE stopping and restarting around them | **Pass**, 2026-10-24 (`v0.4.0-rc.2`): from test firmware built as 0.3.0 (the demo build, as on devices today), "manifest: ok, version 0.4.0"; installed to `app1`, pending verify; BLE advertising at once; the bonded phone reconnected with no new pairing (bonds live in NVS); confirmed 10 s after start, one restart, then "confirmed" |
 | 18 | On the bike | A real ride with navigation, a call and music, phone in a pocket or mount | Readable at a glance; nav keeps up; reconnects after brief drops | **Not run yet** |
 
 ## Results log
@@ -53,4 +53,9 @@ policy change.
   - **USB disconnects in the laptop's kernel log** (`error -71`) during one session were the
     cable; the board kept running.
 
-  Case 17 waits for the first Chronos pre-release, case 18 for a ride.
+  Case 18 waits for a ride.
+
+- **2026-10-24:** case 17 passed on `v0.4.0-rc.2`. `v0.4.0-rc.1` never published: the
+  release job built the demo env after the Chronos env with different build flags, and
+  PlatformIO's clean on changed options deleted the Chronos image. The demo check now builds
+  first.
