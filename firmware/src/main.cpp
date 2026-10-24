@@ -10,6 +10,7 @@
 #include <esp_flash.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_random.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -27,10 +28,15 @@
 #include "knob.h"
 #include "lvgl_port.h"
 #include "nvs_settings.h"
+#include "nvs_wifi.h"
+#include "ota_update.h"
+#include "ota_worker.h"
 #include "settings_saver.h"
 #include "touch.h"
 #include "touch_filter.h"
 #include "version.h"
+#include "wifi_setup.h"
+#include "wifi_setup_server.h"
 
 namespace {
 
@@ -48,6 +54,8 @@ constexpr uint32_t kSerialWaitMs = 2000;
 constexpr uint32_t kLoopDelayMs = 5;
 constexpr uint32_t kKiB = 1024;
 constexpr uint32_t kMiB = 1024 * 1024;
+constexpr uint32_t kNoticeMs = 8000;
+constexpr const char* kRollbackMarker = "rb_seen";  // slot address of the last notice shown
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 board::Backlight backlight;
@@ -70,9 +78,19 @@ core::SettingsSaver settings_saver;
 bool settings_found = false;  // the boot load found saved settings
 ota::BootState boot_state;    // read at boot: is this a fresh OTA image awaiting confirmation?
 bool first_frame = false;     // a frame has reached the panel
+core::OtaUpdate ota_update;   // lives on the UI task; the worker runs its jobs
+ota::OtaWorker ota_worker;
+core::WifiSetup wifi_setup;
+ota::WifiSetupServer setup_server;
+sarathi::settings::NvsWifi nvs_wifi;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
+
+uint32_t Random() { return esp_random(); }
+
+// Runs on the OTA worker task. NVS is safe to read from there.
+bool LoadWifi(core::WifiCredentials* out) { return nvs_wifi.Load(out); }
 
 void FlushToDisplay(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
   const uint32_t start = TimeUs();
@@ -169,6 +187,46 @@ void LogPerf() {
            static_cast<unsigned>(knob.StackFreeBytes()));
 }
 
+// Wi-Fi setup and OTA: hand jobs to the platform, feed results back (ADR-0004).
+void RunOta(uint32_t now) {
+  ota_worker.Post(ota_update.TakeJob());
+  ota::OtaResult result;
+  while (ota_worker.TakeResult(&result)) {
+    ota::ApplyResult(result, ota_update);
+  }
+
+  switch (wifi_setup.TakeJob()) {
+    case core::WifiSetupJob::kStartAccessPoint:
+      if (!setup_server.Start(wifi_setup.Password())) {
+        wifi_setup.OnAccessPointStarted(false);
+      }  // otherwise Poll() reports it once the scan is done and the AP is up
+      break;
+    case core::WifiSetupJob::kStopAccessPoint:
+      setup_server.Stop();
+      break;
+    case core::WifiSetupJob::kForget:
+      nvs_wifi.Erase();
+      wifi_setup.SetSaved("");
+      break;
+    case core::WifiSetupJob::kNone:
+      break;
+  }
+  if (wifi_setup.Active()) {
+    const ota::WifiSetupServer::Events events = setup_server.Poll(now, wifi_setup);
+    if (events.ap_done) {
+      wifi_setup.OnAccessPointStarted(events.ap_ok);
+    }
+    if (events.submitted) {
+      wifi_setup.OnSubmitted(events.credentials.ssid.View());
+    }
+    if (events.join_done) {
+      // Saved only once the network is known to work.
+      wifi_setup.OnJoinResult(events.join_ok && nvs_wifi.Save(events.credentials));
+    }
+  }
+  wifi_setup.Tick(now);
+}
+
 void RunUi(uint32_t now) {
   demo_ride.Poll(now, app);
 
@@ -185,6 +243,7 @@ void RunUi(uint32_t now) {
   while (app.TakeCommand(command)) {
     demo_ride.OnCommand(command, now, app);
   }
+  RunOta(now);
   // Debounced: one write once the settings have been still for 2 s.
   if (settings_saver.ShouldSave(app.SettingsRevision(), now) && !nvs.Save(app.State().settings)) {
     settings_saver.SaveFailed(now);
@@ -196,6 +255,9 @@ void RunUi(uint32_t now) {
   if (boot_state.pending_verify &&
       core::DecideBoot({true, first_frame, false, now}) == core::BootDecision::kConfirm) {
     boot_state.pending_verify = !ota::ConfirmBoot();
+    if (!boot_state.pending_verify) {
+      nvs.SaveMarker(kRollbackMarker, 0);  // a later rollback deserves a notice again
+    }
   }
 }
 
@@ -228,7 +290,21 @@ void setup() {
   }
   ESP_LOGI(kTag, "LVGL ready (2 x %u B buffers in PSRAM)", buffer_bytes);
   ui::lvgl_port::AttachFrameTimer(lv_display_get_default(), TimeUs);
-  ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
+  if (nvs_wifi.Begin()) {
+    core::WifiCredentials saved;
+    if (nvs_wifi.Load(&saved)) {
+      wifi_setup.SetSaved(saved.ssid.View());
+    }
+  }
+  if (!ota_worker.Begin(LoadWifi)) {
+    ESP_LOGE(kTag, "OTA worker failed to start");
+  }
+  ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
+                      wifi_setup, Random);
+  if (boot_state.rolled_back && nvs.LoadMarker(kRollbackMarker) != boot_state.invalid_address) {
+    ui::app_shell::ShowNotice("Update failed. The previous version was restored.", kNoticeMs);
+    nvs.SaveMarker(kRollbackMarker, boot_state.invalid_address);
+  }
   ui_ready = true;
 }
 

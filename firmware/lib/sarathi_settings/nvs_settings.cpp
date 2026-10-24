@@ -58,4 +58,12 @@ bool NvsSettings::Save(const core::Settings& settings) {
   return ok;
 }
 
+uint32_t NvsSettings::LoadMarker(const char* key) { return opened ? prefs.getULong(key, 0) : 0; }
+
+void NvsSettings::SaveMarker(const char* key, uint32_t value) {
+  if (opened && prefs.getULong(key, 0) != value) {
+    prefs.putULong(key, value);
+  }
+}
+
 }  // namespace sarathi::settings

@@ -8,6 +8,7 @@
 #include "static_label.h"
 #include "theme_binding.h"
 #include "theme_registry.h"
+#include "version.h"
 
 namespace sarathi::ui::settings_screen {
 namespace {
@@ -23,7 +24,7 @@ enum class Page : uint8_t { kMain, kThemes };
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 core::AppModel* app = nullptr;
 lv_group_t* focus_group = nullptr;
-OpenInputTestFn open_input_test_fn = nullptr;
+Actions actions_{};
 StaticLabel<24> title;
 StaticLabel<40> lock_message;
 ListMenu main_menu;
@@ -33,6 +34,9 @@ size_t day_night_row = 0;
 size_t units_row = 0;
 size_t timeout_row = 0;
 size_t knob_row = 0;
+size_t wifi_row = 0;
+size_t forget_row = 0;
+std::array<char, 40> version_text{};
 std::array<size_t, ListMenu::kMaxRows> theme_indices{};
 Page page = Page::kMain;
 bool shown_locked = true;
@@ -54,7 +58,11 @@ void ShowPage(Page next) {
 
 void OpenThemes(void* /*context*/) { ShowPage(Page::kThemes); }
 void Back(void* /*context*/) { ShowPage(Page::kMain); }
-void OpenInputTest(void* /*context*/) { open_input_test_fn(); }
+void OpenInputTest(void* /*context*/) { actions_.open_input_test(); }
+void StartWifiSetup(void* /*context*/) { actions_.start_wifi_setup(); }
+void CheckForUpdate(void* /*context*/) { actions_.check_for_update(); }
+void ForgetWifi(void* /*context*/) { actions_.forget_wifi(); }
+void Nothing(void* /*context*/) {}
 
 void SelectTheme(void* context) {
   const size_t index = *static_cast<const size_t*>(context);
@@ -107,6 +115,18 @@ void RefreshSettingTexts(const core::Settings& s) {
   main_menu.SetText(knob_row, text.data());
 }
 
+void RefreshWifiTexts(const core::WifiSetup& wifi) {
+  std::array<char, 48> text{};
+  if (wifi.HasSaved()) {
+    std::snprintf(text.data(), text.size(), "Wi-Fi: %.*s",
+                  static_cast<int>(wifi.SavedSsid().size()), wifi.SavedSsid().data());
+  } else {
+    std::snprintf(text.data(), text.size(), "%s", "Wi-Fi: Set up");
+  }
+  main_menu.SetText(wifi_row, text.data());
+  main_menu.SetText(forget_row, wifi.HasSaved() ? "Forget Wi-Fi" : "No Wi-Fi saved");
+}
+
 void RefreshThemeTexts(core::ThemeId current) {
   std::array<char, 40> text{};
   std::snprintf(text.data(), text.size(), "Theme: %s", core::ThemeFor(current).short_name);
@@ -135,10 +155,10 @@ void SetLocked(bool locked) {
 
 }  // namespace
 
-lv_obj_t* Create(lv_group_t* group, core::AppModel& model, OpenInputTestFn open_input_test) {
+lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& actions) {
   app = &model;
   focus_group = group;
-  open_input_test_fn = open_input_test;
+  actions_ = actions;
   lv_obj_t* screen = theme::MakeScreen();
 
   title.Create(screen, theme::Text::kStoppedOnly, kTitleY);
@@ -151,6 +171,12 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, OpenInputTestFn open_
   units_row = main_menu.AddAction("Units", ToggleUnits, nullptr);
   timeout_row = main_menu.AddAction("Screen off", CycleTimeout, nullptr);
   knob_row = main_menu.AddAction("Knob", ToggleKnob, nullptr);
+  wifi_row = main_menu.AddAction("Wi-Fi", StartWifiSetup, nullptr);
+  main_menu.AddAction("Check for update", CheckForUpdate, nullptr);
+  forget_row = main_menu.AddAction("Forget Wi-Fi", ForgetWifi, nullptr);
+  std::snprintf(version_text.data(), version_text.size(), "Version %.*s",
+                static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data());
+  main_menu.AddAction(version_text.data(), Nothing, nullptr);
   main_menu.AddAction("Input test", OpenInputTest, nullptr);
 
   theme_menu.Create(screen, kMenuY, kMenuWidth, kMenuMaxHeight);
@@ -170,7 +196,7 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, OpenInputTestFn open_
   return screen;
 }
 
-void Update(const core::AppState& state, bool locked) {
+void Update(const core::AppState& state, bool locked, const core::WifiSetup& wifi) {
   if (locked != shown_locked) {
     SetLocked(locked);
   }
@@ -178,6 +204,7 @@ void Update(const core::AppState& state, bool locked) {
     RefreshThemeTexts(state.settings.theme);
   }
   RefreshSettingTexts(state.settings);  // SetText skips unchanged text
+  RefreshWifiTexts(wifi);
   main_menu.Refresh();
 }
 

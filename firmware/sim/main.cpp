@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -31,10 +32,12 @@
 #include "demo_ride.h"
 #include "input_test_model.h"
 #include "lvgl_port.h"
+#include "ota_update.h"
 #include "screen_manager.h"
 #include "settings_codec.h"
 #include "settings_saver.h"
 #include "theme_registry.h"
+#include "wifi_setup.h"
 
 namespace {
 
@@ -60,6 +63,8 @@ lv_obj_t* backlight_shade = nullptr;  // darkens the window like the real backli
 int shown_backlight = -1;
 core::SettingsSaver settings_saver;
 std::string settings_path = "sim_settings.bin";
+core::OtaUpdate ota_update;
+core::WifiSetup wifi_setup;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool InsideCircle(int32_t x, int32_t y) {
@@ -189,6 +194,121 @@ void ShowBacklight(int percent) {
   }
 }
 
+// ---- A pretend Wi-Fi, update server and phone, so the setup and update screens can be tried
+// (and screenshotted) on the desktop. Timings are short but not instant.
+
+constexpr uint32_t kFakeConnectMs = 500;
+constexpr uint32_t kFakeManifestMs = 800;
+constexpr uint32_t kFakeChunkMs = 100;
+constexpr uint64_t kFakeImageBytes = 1480000;
+constexpr uint64_t kFakeChunkBytes = 74000;
+constexpr uint32_t kFakeInstallMs = 600;
+constexpr uint32_t kFakePhoneMs = 6000;  // the "phone" fills in the page after this
+constexpr uint32_t kFakeJoinMs = 1500;
+
+struct FakePlatform {
+  core::OtaJob job;
+  bool busy = false;
+  uint32_t due_ms = 0;
+  uint64_t received = 0;
+  core::OtaError manifest_error = core::OtaError::kNone;  // what the next check finds
+  uint32_t phone_due_ms = 0;
+  bool phone_sent = false;
+  uint32_t join_due_ms = 0;
+};
+
+FakePlatform fake;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+uint32_t SimRandom() {
+  static std::random_device device;
+  return static_cast<uint32_t>(device());
+}
+
+void RunFakeOta(uint32_t now) {
+  const core::OtaJob job = ota_update.TakeJob();
+  switch (job.type) {
+    case core::OtaJobType::kNone:
+      break;
+    case core::OtaJobType::kAbort:
+      fake.busy = false;
+      break;
+    case core::OtaJobType::kReboot:
+      std::printf("sim: would restart into the new version\n");
+      ota_update = core::OtaUpdate{};  // as after a reboot
+      fake.busy = false;
+      return;
+    default:
+      fake.job = job;
+      fake.busy = true;
+      fake.received = 0;
+      fake.due_ms = now + (job.type == core::OtaJobType::kConnect         ? kFakeConnectMs
+                           : job.type == core::OtaJobType::kFetchManifest ? kFakeManifestMs
+                           : job.type == core::OtaJobType::kInstall       ? kFakeInstallMs
+                                                                          : kFakeChunkMs);
+      break;
+  }
+  if (!fake.busy || now < fake.due_ms) {
+    return;
+  }
+  const uint32_t attempt = fake.job.attempt;
+  switch (fake.job.type) {
+    case core::OtaJobType::kConnect:
+      fake.busy = false;
+      ota_update.OnConnected(attempt, wifi_setup.HasSaved());
+      break;
+    case core::OtaJobType::kFetchManifest: {
+      fake.busy = false;
+      core::Manifest manifest;
+      manifest.version.Assign("0.3.0");
+      manifest.size = kFakeImageBytes;
+      ota_update.OnManifest(attempt, true, fake.manifest_error, &manifest);
+      break;
+    }
+    case core::OtaJobType::kDownload:
+      fake.received += kFakeChunkBytes;
+      ota_update.OnProgress(attempt, fake.received);
+      if (fake.received >= kFakeImageBytes) {
+        fake.busy = false;
+        ota_update.OnDownloaded(attempt, true);
+      } else {
+        fake.due_ms = now + kFakeChunkMs;
+      }
+      break;
+    case core::OtaJobType::kInstall:
+      fake.busy = false;
+      ota_update.OnInstalled(attempt, core::OtaError::kNone, true);
+      break;
+    default:
+      fake.busy = false;
+      break;
+  }
+}
+
+void RunFakeWifiSetup(uint32_t now) {
+  switch (wifi_setup.TakeJob()) {
+    case core::WifiSetupJob::kStartAccessPoint:
+      wifi_setup.OnAccessPointStarted(true);
+      fake.phone_due_ms = now + kFakePhoneMs;
+      fake.phone_sent = false;
+      break;
+    case core::WifiSetupJob::kForget:
+      wifi_setup.SetSaved("");
+      break;
+    default:
+      break;
+  }
+  if (wifi_setup.Phase() == core::WifiSetupPhase::kWaitingForPhone && !fake.phone_sent &&
+      now >= fake.phone_due_ms) {
+    fake.phone_sent = true;
+    wifi_setup.OnSubmitted("Home Wi-Fi");
+    fake.join_due_ms = now + kFakeJoinMs;
+  }
+  if (wifi_setup.Phase() == core::WifiSetupPhase::kJoining && now >= fake.join_due_ms) {
+    wifi_setup.OnJoinResult(true);
+  }
+  wifi_setup.Tick(now);
+}
+
 uint32_t TimeUs() {
   return static_cast<uint32_t>(SDL_GetPerformanceCounter() * 1000000ULL /
                                SDL_GetPerformanceFrequency());
@@ -228,6 +348,7 @@ struct TourStep {
 
 constexpr uint32_t kTourSpeed = 10;
 constexpr uint32_t kPressMs = 100;
+constexpr uint32_t kLongHoldMs = 1000;  // past the 800 ms long press
 constexpr uint32_t kDoubleGapMs = 200;
 
 constexpr std::array<TourStep, 34> kTour = {{
@@ -279,8 +400,10 @@ struct Tour {
   std::array<PressWindow, 4> presses{};
   size_t press_count = 0;
 
-  void Press(uint32_t at) {
-    presses.at(press_count % presses.size()) = {at, at + kPressMs};
+  void Press(uint32_t at) { Hold(at, kPressMs); }
+
+  void Hold(uint32_t at, uint32_t ms) {
+    presses.at(press_count % presses.size()) = {at, at + ms};
     ++press_count;
   }
 
@@ -370,16 +493,23 @@ enum class GalleryAction : uint8_t {
   kLeaveThemeList,
   kInputTest,
   kLeaveInputTest,
+  kSaveWifi,  // pretend a network was saved earlier
+  kKnob,      // `arg` knob steps
+  kPress,     // a knob click
+  kLongPress,
+  kManifest,  // the next update check finds: 0 a new version, 1 a bad signature
+  kWait,
 };
 
 struct GalleryStep {
   GalleryAction action;
   const char* name;  // screenshot taken once the step has settled; nullptr = none
   uint32_t settle_ms;
+  int arg = 0;
 };
 
 constexpr uint32_t kGalleryWarmupMs = 2500;  // at 10x: the route window is in
-constexpr std::array<GalleryStep, 11> kGallerySteps = {{
+constexpr std::array<GalleryStep, 25> kGallerySteps = {{
     {GalleryAction::kLoadTheme, nullptr, 400},
     {GalleryAction::kNav, "1_nav", 600},
     {GalleryAction::kCallRinging, "2_call_ringing", 600},
@@ -391,6 +521,21 @@ constexpr std::array<GalleryStep, 11> kGallerySteps = {{
     {GalleryAction::kLeaveThemeList, nullptr, 900},    // re-select the current theme
     {GalleryAction::kInputTest, "7_input_test", 600},
     {GalleryAction::kLeaveInputTest, nullptr, 300},
+    // Settings rows from the top: 0 Theme ... 6 Wi-Fi, 7 Check for update.
+    {GalleryAction::kSaveWifi, nullptr, 100},
+    {GalleryAction::kKnob, nullptr, 300, 6},
+    {GalleryAction::kPress, "8_wifi_setup", 1200},
+    {GalleryAction::kWait, "8b_wifi_joined", 7000},  // the pretend phone joins after ~7.5 s
+    {GalleryAction::kPress, nullptr, 1600},          // close; focus stays on the Wi-Fi row
+    {GalleryAction::kKnob, nullptr, 300, 1},
+    {GalleryAction::kManifest, nullptr, 100, 0},
+    {GalleryAction::kPress, "9_update_available", 2200},
+    {GalleryAction::kPress, "10_update_downloading", 1300},
+    {GalleryAction::kWait, nullptr, 4000},  // finishes, installs, restarts: back to Settings
+    {GalleryAction::kManifest, nullptr, 100, 1},
+    {GalleryAction::kPress, "11_update_failed", 2200},
+    {GalleryAction::kPress, nullptr, 900},     // close
+    {GalleryAction::kKnob, nullptr, 300, -7},  // back to the Theme row for the next theme
 }};
 
 struct Gallery {
@@ -449,6 +594,28 @@ void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
       break;
     case GalleryAction::kLeaveInputTest:
       sm::CloseInputTest();
+      break;
+    case GalleryAction::kSaveWifi:
+      wifi_setup.SetSaved("Home Wi-Fi");
+      break;
+    case GalleryAction::kKnob: {
+      const int arg = kGallerySteps.at(gallery.step).arg;
+      for (int i = 0; i < (arg < 0 ? -arg : arg); ++i) {
+        ui::app_shell::OnKnobStep(arg < 0 ? -1 : 1);
+      }
+      break;
+    }
+    case GalleryAction::kPress:
+      tour.Press(now);
+      break;
+    case GalleryAction::kLongPress:
+      tour.Hold(now, kLongHoldMs);
+      break;
+    case GalleryAction::kManifest:
+      fake.manifest_error = kGallerySteps.at(gallery.step).arg == 0 ? core::OtaError::kNone
+                                                                    : core::OtaError::kBadSignature;
+      break;
+    case GalleryAction::kWait:
       break;
   }
 }
@@ -521,7 +688,8 @@ int main(int argc, char** argv) {
   lv_indev_set_display(touch, display);
 
   LoadSettingsFile();  // before the shell, so the saved theme applies from the first frame
-  ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs);
+  ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
+                      wifi_setup, SimRandom);
   ui::lvgl_port::AttachFrameTimer(display, TimeUs);
   CreateBacklightShade();  // under the round mask
   CreateRoundMask();
@@ -567,6 +735,8 @@ int main(int argc, char** argv) {
     while (app.TakeCommand(command)) {
       demo_ride.OnCommand(command, now, app);
     }
+    RunFakeOta(now);
+    RunFakeWifiSetup(now);
     if (settings_saver.ShouldSave(app.SettingsRevision(), now)) {
       SaveSettingsFile();
     }

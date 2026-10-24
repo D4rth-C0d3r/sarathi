@@ -29,4 +29,15 @@ void RingGauge::Set(float fraction) {
   }
 }
 
+void RingGauge::SetVisible(bool visible) {
+  if (visible != visible_) {
+    visible_ = visible;
+    if (visible) {
+      lv_obj_remove_flag(arc_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(arc_, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+}
+
 }  // namespace sarathi::ui

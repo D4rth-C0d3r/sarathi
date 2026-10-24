@@ -171,9 +171,23 @@ keeps its own settings file in `DIR`. It runs headless too:
 `SDL_VIDEODRIVER=dummy .pio/build/sim/program --tour /tmp/tour`.
 
 **Theme gallery.** `.pio/build/sim/program --gallery DIR` saves every screen in every
-registered theme as `DIR/<theme>_<n>_<screen>.bmp` (Nav, call ringing, call active, Music,
-Settings, the theme list, the input test), then exits. Use it to review a new or changed
-theme against the ADR-0003 checklist. It also starts from defaults and runs headless.
+registered theme as `DIR/<theme>_<n>_<screen>.bmp`, then exits:
+
+- Nav, call ringing, call active, Music, Settings, the theme list, the input test
+- Wi-Fi setup (waiting, then joined)
+- Software update (offered, downloading, failed)
+
+Use it to review a new or changed theme against the ADR-0003 checklist. It also starts from
+defaults and runs headless.
+
+**Wi-Fi setup and updates in the simulator** use a stand-in for the radio, the update server
+and the phone:
+
+- **Wi-Fi setup:** the access point "starts" at once, and a pretend phone sends "Home Wi-Fi"
+  about 6 s later.
+- **Check for update:** finds version 0.3.0 (1.5 MB) and "downloads" it in about 2 s.
+  "Restarting" just resets the update screen.
+- **Before a network is saved:** Check for update says to set up Wi-Fi first.
 
 ### Performance overlay (device)
 

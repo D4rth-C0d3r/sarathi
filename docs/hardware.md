@@ -178,6 +178,16 @@ an out-of-range field falls back to the default. The boot log repeats
 - **Internal heap at runtime:** 181 KB free (was about 213 KB). The 8 MB of PSRAM is
   unchanged.
 
+**Measured with Wi-Fi setup and the update flow wired in** (Phase 2 step 5, 2026-10-22):
+
+- **Firmware image:** 1,748,224 B, 27.8 % of a slot. HTTPS, the certificate bundle and the
+  web server are linked now.
+- **Internal RAM (static):** 58,360 B.
+- **Internal heap at runtime:** 155 KB free. The OTA worker's 12 KB stack must be internal
+  (TLS runs on it), but its buffers and the HTTPS and web-server buffers are allocated once,
+  in PSRAM. mbedTLS only uses internal RAM in this toolchain, so an update should leave about
+  45 KB free at its peak. The end-to-end test (step 7) will measure the real figure.
+
 **Measured during OTA network use** (`test_device_ota`, 2026-10-22, RSSI −45 dBm):
 
 | | Internal heap |

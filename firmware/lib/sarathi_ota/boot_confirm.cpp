@@ -23,7 +23,9 @@ BootState ReadBootState() {
   if (running != nullptr && esp_ota_get_state_partition(running, &img) == ESP_OK) {
     state.pending_verify = img == ESP_OTA_IMG_PENDING_VERIFY;
   }
-  state.rolled_back = esp_ota_get_last_invalid_partition() != nullptr;
+  const esp_partition_t* invalid = esp_ota_get_last_invalid_partition();
+  state.rolled_back = invalid != nullptr;
+  state.invalid_address = invalid != nullptr ? invalid->address : 0;
   ESP_LOGI(kTag, "running %s, %s%s", running != nullptr ? running->label : "?",
            state.pending_verify ? "pending verify" : "confirmed",
            state.rolled_back ? ", an earlier update was rolled back" : "");

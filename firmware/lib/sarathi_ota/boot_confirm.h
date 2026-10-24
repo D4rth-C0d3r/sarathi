@@ -13,8 +13,9 @@
 namespace sarathi::ota {
 
 struct BootState {
-  bool pending_verify = false;  // a new image waiting to confirm itself
-  bool rolled_back = false;     // an earlier update was rejected and we're on the old image
+  bool pending_verify = false;   // a new image waiting to confirm itself
+  bool rolled_back = false;      // an earlier update was rejected and we're on the old image
+  uint32_t invalid_address = 0;  // flash address of the rejected slot, when rolled_back
 };
 
 [[nodiscard]] BootState ReadBootState();

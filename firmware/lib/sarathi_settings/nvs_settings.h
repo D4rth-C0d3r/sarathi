@@ -19,6 +19,11 @@ class NvsSettings {
 
   // Returns false if the write failed.
   bool Save(const core::Settings& settings);
+
+  // A small number kept across reboots (for example "rollback notice already shown for this
+  // slot"). 0 if never written. Writes only when the value changes.
+  uint32_t LoadMarker(const char* key);
+  void SaveMarker(const char* key, uint32_t value);
 };
 
 }  // namespace sarathi::settings

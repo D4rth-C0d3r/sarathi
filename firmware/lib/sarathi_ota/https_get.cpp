@@ -3,8 +3,10 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #include <esp_crt_bundle.h>
+#include <esp_heap_caps.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
 #include <strings.h>
@@ -26,12 +28,23 @@ struct RequestState {
   bool location_too_long = false;
 };
 
-// One request at a time (the OTA worker), so these live here instead of on its stack.
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-RequestState state;
-std::array<char, kMaxUrl> current_url{};
-std::array<uint8_t, kChunkBytes> chunk{};
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+// One request at a time (the OTA worker). Allocated once, in PSRAM: internal RAM is needed by
+// Wi-Fi and TLS during an update. (Flash writes copy PSRAM data through a bounce buffer.)
+struct Buffers {
+  RequestState state;
+  std::array<char, kMaxUrl> url{};
+  std::array<uint8_t, kChunkBytes> chunk{};
+};
+
+Buffers* buffers = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+Buffers* GetBuffers() {
+  if (buffers == nullptr) {
+    void* memory = heap_caps_malloc(sizeof(Buffers), MALLOC_CAP_SPIRAM);
+    buffers = memory != nullptr ? new (memory) Buffers() : new (std::nothrow) Buffers();
+  }
+  return buffers;
+}
 
 esp_err_t OnEvent(esp_http_client_event_t* event) {
   if (event->event_id == HTTP_EVENT_ON_HEADER && strcasecmp(event->header_key, "Location") == 0) {
@@ -82,16 +95,21 @@ const char* FetchResultName(FetchResult result) {
 FetchResult HttpsGet(const char* url, uint64_t max_bytes, ChunkFn on_chunk, void* context,
                      FetchReport* report) {
   *report = FetchReport{};
-  if (std::strncmp(url, "https://", 8) != 0 || std::strlen(url) >= current_url.size()) {
+  Buffers* b = GetBuffers();
+  if (b == nullptr) {
+    return FetchResult::kConnectFailed;
+  }
+  RequestState& state = b->state;
+  if (std::strncmp(url, "https://", 8) != 0 || std::strlen(url) >= b->url.size()) {
     return FetchResult::kInsecureRedirect;
   }
-  std::strncpy(current_url.data(), url, current_url.size() - 1);
+  std::strncpy(b->url.data(), url, b->url.size() - 1);
 
   std::array<char, 32> agent{};
   std::snprintf(agent.data(), agent.size(), "sarathi/%.*s",
                 static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data());
   esp_http_client_config_t config{};
-  config.url = current_url.data();
+  config.url = b->url.data();
   config.crt_bundle_attach = esp_crt_bundle_attach;
   config.disable_auto_redirect = true;
   config.timeout_ms = static_cast<int>(kHttpTimeoutMs);
@@ -140,8 +158,9 @@ FetchResult HttpsGet(const char* url, uint64_t max_bytes, ChunkFn on_chunk, void
       break;
     }
     for (;;) {
-      const int n = esp_http_client_read(client, reinterpret_cast<char*>(chunk.data()),  // NOLINT
-                                         static_cast<int>(chunk.size()));
+      const int n =
+          esp_http_client_read(client, reinterpret_cast<char*>(b->chunk.data()),  // NOLINT
+                               static_cast<int>(b->chunk.size()));
       if (n < 0) {
         result = FetchResult::kReadFailed;
         break;
@@ -157,7 +176,7 @@ FetchResult HttpsGet(const char* url, uint64_t max_bytes, ChunkFn on_chunk, void
         result = FetchResult::kTooLarge;
         break;
       }
-      if (!on_chunk(context, chunk.data(), static_cast<size_t>(n))) {
+      if (!on_chunk(context, b->chunk.data(), static_cast<size_t>(n))) {
         result = FetchResult::kStopped;
         break;
       }

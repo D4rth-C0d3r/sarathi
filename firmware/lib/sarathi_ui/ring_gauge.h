@@ -16,12 +16,16 @@ class RingGauge {
   // 0.0 (empty) to 1.0 (full).
   void Set(float fraction);
 
+  // Shows or hides the ring; only changes (and redraws) when the visibility changes.
+  void SetVisible(bool visible);
+
  private:
   // 50 steps is plenty for a glance and keeps redraws rare: every change repaints the whole
   // ring (on Nav: one step per 10 m, like the distance label's rounding).
   static constexpr int32_t kRange = 50;
   lv_obj_t* arc_ = nullptr;
   int32_t shown_ = -1;
+  bool visible_ = true;
 };
 
 }  // namespace sarathi::ui
