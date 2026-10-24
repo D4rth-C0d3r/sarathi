@@ -39,11 +39,12 @@ Classic Bluetooth audio on the device.
   portal, signed (ES256 JWS) manifests from GitHub Releases, download to PSRAM and dark
   install, bootloader rollback with a boot self-check, release CI. All nine cases in
   `docs/ota-test-plan.md` pass on the device.
-- **Phase 3 (ChronosESP32 quick win) is in progress** (ADR-0005): the `crowpanel21-chronos`
+- **Phase 3 (ChronosESP32 quick win) is done** (ADR-0005): the `crowpanel21-chronos`
   build gets nav (arrow mode, the phone's icon), caller ID with Dismiss, music, time and
-  phone battery from the Chronos app, with pairing confirmed on the dash. Cases 1-16 of
-  `docs/phase3-test-plan.md` pass on the device, including the OTA from 0.3.0 to
-  `v0.4.0-rc.2` (case 17); still open: a ride (case 18).
+  phone battery from the Chronos app, with pairing confirmed on the dash. All of
+  `docs/phase3-test-plan.md` passes on the device, including the OTA from 0.3.0 to
+  `v0.4.0-rc.2`, except navigation on a real ride, which is still to be tried.
+- **Phase 4 (own Android app + protocol) is next.**
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -51,7 +52,7 @@ Roadmap:
    settings (incl. theme, persisted), nav screen with map renderer fed by **simulated**
    route windows, simulator
 2. Wi-Fi OTA + rollback (done, v0.3.0)
-3. ChronosESP32 quick win (nav is **arrows-only**: notifications carry no route geometry)
+3. ChronosESP32 quick win (done; nav is **arrows-only**: notifications carry no route geometry)
 4. Own Android app + protocol, including a routing source that provides route geometry
    (Google Maps' notification has none) and the vector route window
 5. BLE OTA
