@@ -19,4 +19,7 @@ bool WifiConnect(const core::WifiCredentials& credentials,
 // Disconnects and switches the radio off.
 void WifiOff();
 
+// Signal strength of the current connection, in dBm (0 when not connected).
+[[nodiscard]] int WifiRssi();
+
 }  // namespace sarathi::ota

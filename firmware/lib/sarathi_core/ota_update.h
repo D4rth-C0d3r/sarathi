@@ -24,6 +24,12 @@ namespace sarathi::core {
 // and then switches the backlight off; the worker waits this long before writing flash.
 constexpr uint32_t kInstallDarkMs = 1500;
 
+// Below this, an update doesn't start (or continue to the download): a weak link drops
+// connections and makes the download crawl.
+constexpr int kMinUpdateRssiDbm = -80;
+
+[[nodiscard]] constexpr bool SignalTooWeak(int rssi_dbm) { return rssi_dbm < kMinUpdateRssiDbm; }
+
 enum class OtaPhase : uint8_t {
   kIdle,
   kConnecting,   // joining Wi-Fi
@@ -45,6 +51,7 @@ enum class OtaFailure : uint8_t {
   kDownload,     // the connection failed mid-download
   kImage,        // downloaded but rejected (size or hash); see Error()
   kFlash,        // writing or switching the partition failed
+  kWeakWifi,     // the signal is too weak to download reliably
 };
 
 enum class OtaJobType : uint8_t {
@@ -70,12 +77,14 @@ class OtaUpdate {
   bool Cancel();
 
   // ---- Worker results. Ignored unless `attempt` is the current attempt and the phase fits.
-  void OnConnected(uint32_t attempt, bool ok);
+  // `weak_signal`: joined, but SignalTooWeak().
+  void OnConnected(uint32_t attempt, bool ok, bool weak_signal = false);
   // kNone with the verified manifest's version and size; kNotNewer means up to date; any
   // other error is a rejected manifest. `fetched` false means a network failure.
   void OnManifest(uint32_t attempt, bool fetched, OtaError error, const Manifest* manifest);
   void OnProgress(uint32_t attempt, uint64_t received);
-  void OnDownloaded(uint32_t attempt, bool ok);
+  // `weak_signal`: the signal was checked again before downloading and was too weak.
+  void OnDownloaded(uint32_t attempt, bool ok, bool weak_signal = false);
   // The result of ImageCheck::Finish, then of switching the boot partition.
   void OnInstalled(uint32_t attempt, OtaError image_error, bool switched);
 

@@ -35,6 +35,7 @@ struct OtaResult {
   core::OtaError error = core::OtaError::kNone;
   uint64_t bytes = 0;  // progress: received so far; manifest: image size
   core::FixedString<11> version;
+  bool weak_signal = false;  // connected / downloaded: Wi-Fi below core::kMinUpdateRssiDbm
 };
 
 // Reads the saved network; false if none is saved.

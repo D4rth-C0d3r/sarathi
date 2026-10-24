@@ -42,4 +42,10 @@ bool ConfirmBoot() {
   return err == ESP_OK;
 }
 
+void RollBack() {
+  ESP_LOGW(kTag, "self-check failed: rolling back to the previous image");
+  const esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
+  ESP_LOGE(kTag, "could not roll back: %s", esp_err_to_name(err));
+}
+
 }  // namespace sarathi::ota

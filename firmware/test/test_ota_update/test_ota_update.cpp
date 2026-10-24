@@ -152,6 +152,26 @@ void TestFailures() {
   }
 }
 
+void TestWeakSignal() {
+  TEST_ASSERT_TRUE(sarathi::core::SignalTooWeak(-81));
+  TEST_ASSERT_FALSE(sarathi::core::SignalTooWeak(-80));
+  {
+    OtaUpdate ota;
+    ota.Check(true);
+    ota.OnConnected(ExpectJob(ota, OtaJobType::kConnect), true, true);
+    TEST_ASSERT_EQUAL(OtaPhase::kFailed, ota.Phase());
+    TEST_ASSERT_EQUAL(OtaFailure::kWeakWifi, ota.Failure());
+    ExpectJob(ota, OtaJobType::kAbort);  // Wi-Fi off
+  }
+  {
+    OtaUpdate ota;
+    const uint32_t attempt = ToAvailable(ota);
+    ota.Confirm();
+    ota.OnDownloaded(attempt, false, true);  // checked again before downloading
+    TEST_ASSERT_EQUAL(OtaFailure::kWeakWifi, ota.Failure());
+  }
+}
+
 void TestCancelIgnoresLateResults() {
   OtaUpdate ota;
   const uint32_t first = ToAvailable(ota);
@@ -202,6 +222,19 @@ void TestBootHealth() {
   TEST_ASSERT_EQUAL(BootDecision::kConfirm, DecideBoot(h, true));
 }
 
+void TestForcedSelfCheckFailure() {
+  BootHealth h;
+  h.pending_verify = true;
+  h.ui_ready = true;
+  h.fail_self_check = true;
+  h.uptime_ms = kBootSettleMs - 1;
+  TEST_ASSERT_EQUAL(BootDecision::kWait, DecideBoot(h));  // not before the confirmation point
+  h.uptime_ms = kBootSettleMs;
+  TEST_ASSERT_EQUAL(BootDecision::kRollBack, DecideBoot(h));
+  h.pending_verify = false;
+  TEST_ASSERT_EQUAL(BootDecision::kNotPending, DecideBoot(h));  // nothing to roll back
+}
+
 }  // namespace
 
 int main() {
@@ -210,8 +243,10 @@ int main() {
   RUN_TEST(TestNoWifiSetup);
   RUN_TEST(TestUpToDate);
   RUN_TEST(TestFailures);
+  RUN_TEST(TestWeakSignal);
   RUN_TEST(TestCancelIgnoresLateResults);
   RUN_TEST(TestCommandsOnlyWhereTheyApply);
   RUN_TEST(TestBootHealth);
+  RUN_TEST(TestForcedSelfCheckFailure);
   return UNITY_END();
 }

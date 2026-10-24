@@ -137,7 +137,12 @@ void DoConnect() {
   core::WifiCredentials credentials;
   const bool ok = worker->credentials != nullptr && worker->credentials(&credentials) &&
                   WifiConnect(credentials);
-  Send(Result(OtaResult::Kind::kConnected, ok));
+  OtaResult r = Result(OtaResult::Kind::kConnected, ok);
+  r.weak_signal = ok && core::SignalTooWeak(WifiRssi());
+  if (r.weak_signal) {
+    ESP_LOGW(kTag, "Wi-Fi too weak for an update: %d dBm", WifiRssi());
+  }
+  Send(r);
 }
 
 void DoFetchManifest() {
@@ -183,6 +188,13 @@ void DoDownload() {
   worker->last_percent = 0;
   worker->sha.Restart();
   worker->check.emplace(worker->manifest.size, worker->manifest.sha256);
+  if (core::SignalTooWeak(WifiRssi())) {  // it may have faded while the rider decided
+    ESP_LOGW(kTag, "Wi-Fi too weak to download: %d dBm", WifiRssi());
+    OtaResult r = Result(OtaResult::Kind::kDownloaded, false);
+    r.weak_signal = true;
+    Send(r);
+    return;
+  }
   if (worker->partition == nullptr) {
     Send(Result(OtaResult::Kind::kDownloaded, false));
     return;
@@ -326,7 +338,7 @@ bool OtaWorker::TakeResult(OtaResult* out) {
 void ApplyResult(const OtaResult& result, core::OtaUpdate& update) {
   switch (result.kind) {
     case OtaResult::Kind::kConnected:
-      update.OnConnected(result.attempt, result.ok);
+      update.OnConnected(result.attempt, result.ok, result.weak_signal);
       break;
     case OtaResult::Kind::kManifest: {
       core::Manifest summary;  // the state machine only needs what the UI shows
@@ -339,7 +351,7 @@ void ApplyResult(const OtaResult& result, core::OtaUpdate& update) {
       update.OnProgress(result.attempt, result.bytes);
       break;
     case OtaResult::Kind::kDownloaded:
-      update.OnDownloaded(result.attempt, result.ok);
+      update.OnDownloaded(result.attempt, result.ok, result.weak_signal);
       break;
     case OtaResult::Kind::kInstalled:
       update.OnInstalled(result.attempt, result.error, result.ok);

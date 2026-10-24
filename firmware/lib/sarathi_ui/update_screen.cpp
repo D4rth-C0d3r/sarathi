@@ -42,6 +42,8 @@ const char* FailureText(const core::OtaUpdate& ota) {
       return "The download was damaged. Try again.";
     case core::OtaFailure::kFlash:
       return "Couldn't write the update";
+    case core::OtaFailure::kWeakWifi:
+      return "Wi-Fi signal too weak. Move closer to the router.";
     case core::OtaFailure::kNone:
       break;
   }

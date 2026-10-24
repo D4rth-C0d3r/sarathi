@@ -23,4 +23,8 @@ struct BootState {
 // Marks the running image valid, cancelling rollback. Returns false if that failed.
 bool ConfirmBoot();
 
+// The self-check failed: marks the running image invalid and reboots into the previous one.
+// Returns only if that isn't possible (nothing to roll back to).
+void RollBack();
+
 }  // namespace sarathi::ota

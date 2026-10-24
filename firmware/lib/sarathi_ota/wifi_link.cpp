@@ -39,6 +39,8 @@ bool WifiConnect(const core::WifiCredentials& credentials, uint32_t timeout_ms) 
   return false;
 }
 
+int WifiRssi() { return WiFi.status() == WL_CONNECTED ? static_cast<int>(WiFi.RSSI()) : 0; }
+
 void WifiOff() {
   WiFi.disconnect(true, false);  // radio off; don't erase the (unused) driver store
   WiFi.mode(WIFI_OFF);

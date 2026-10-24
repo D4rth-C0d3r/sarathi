@@ -76,10 +76,11 @@ uint32_t last_perf_ms = 0;
 core::FrameStats flush_stats;
 sarathi::settings::NvsSettings nvs;
 core::SettingsSaver settings_saver;
-bool settings_found = false;  // the boot load found saved settings
-ota::BootState boot_state;    // read at boot: is this a fresh OTA image awaiting confirmation?
-bool first_frame = false;     // a frame has reached the panel
-core::OtaUpdate ota_update;   // lives on the UI task; the worker runs its jobs
+bool settings_found = false;   // the boot load found saved settings
+ota::BootState boot_state;     // read at boot: is this a fresh OTA image awaiting confirmation?
+bool first_frame = false;      // a frame has reached the panel
+bool held_since_boot = false;  // test option: knob button held from power-on (fail self-check)
+core::OtaUpdate ota_update;    // lives on the UI task; the worker runs its jobs
 ota::OtaWorker ota_worker;
 core::WifiSetup wifi_setup;
 ota::WifiSetupServer setup_server;
@@ -256,8 +257,21 @@ void RunUi(uint32_t now) {
   // Confirming writes flash, which can leave the RGB panel shifted until the next restart
   // (docs/hardware.md). So do it with the backlight off, then restart once: it happens only on
   // the first boot after an update.
-  if (boot_state.pending_verify &&
-      core::DecideBoot({true, first_frame, false, now}) == core::BootDecision::kConfirm) {
+  held_since_boot = held_since_boot && knob.ReadButtonRaw();
+  if (boot_state.pending_verify) {
+    const core::BootDecision decision =
+        core::DecideBoot({true, first_frame, false, held_since_boot, now});
+    if (decision == core::BootDecision::kRollBack) {
+      backlight.SetPercent(0);
+      ota::RollBack();  // reboots; returns only if there is nothing to roll back to
+      boot_state.pending_verify = false;
+    }
+  } else if (held_since_boot && now >= core::kBootSettleMs) {
+    ESP_LOGI(kTag, "button held since boot, but this image isn't pending: nothing to roll back");
+    held_since_boot = false;
+  }
+  if (boot_state.pending_verify && core::DecideBoot({true, first_frame, false, held_since_boot,
+                                                     now}) == core::BootDecision::kConfirm) {
     backlight.SetPercent(0);
     delay(kDarkSettleMs);
     if (ota::ConfirmBoot()) {
@@ -289,6 +303,7 @@ void setup() {
   if (!knob.Begin()) {
     ESP_LOGE(kTag, "knob init failed");
   }
+  held_since_boot = knob.ReadButtonRaw();
   const auto buffer_bytes =
       static_cast<unsigned>(ui::lvgl_port::BufferBytes(pins::kScreenWidth, pins::kScreenHeight));
   if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, ReadTouch,

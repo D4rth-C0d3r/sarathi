@@ -60,11 +60,13 @@ bool OtaUpdate::Cancel() {
   }
 }
 
-void OtaUpdate::OnConnected(uint32_t attempt, bool ok) {
+void OtaUpdate::OnConnected(uint32_t attempt, bool ok, bool weak_signal) {
   if (!Current(attempt, OtaPhase::kConnecting)) {
     return;
   }
-  if (ok) {
+  if (ok && weak_signal) {
+    Fail(OtaFailure::kWeakWifi);
+  } else if (ok) {
     Enter(OtaPhase::kChecking, OtaJobType::kFetchManifest);
   } else {
     Fail(OtaFailure::kWifiConnect);
@@ -100,11 +102,13 @@ void OtaUpdate::OnProgress(uint32_t attempt, uint64_t received) {
   }
 }
 
-void OtaUpdate::OnDownloaded(uint32_t attempt, bool ok) {
+void OtaUpdate::OnDownloaded(uint32_t attempt, bool ok, bool weak_signal) {
   if (!Current(attempt, OtaPhase::kDownloading)) {
     return;
   }
-  if (ok) {
+  if (weak_signal) {
+    Fail(OtaFailure::kWeakWifi);
+  } else if (ok) {
     Enter(OtaPhase::kInstalling, OtaJobType::kInstall);
   } else {
     Fail(OtaFailure::kDownload);
