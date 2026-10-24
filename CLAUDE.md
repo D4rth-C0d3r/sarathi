@@ -35,14 +35,18 @@ Classic Bluetooth audio on the device.
 - **Phase 1 (UI shell) is done** (`v0.2.0`): simulator, knob-driven shell (Nav, Call,
   Music, Settings), Classic / Fighter jet HUD / Racing game themes, heading-up Nav map fed
   by the demo ride, settings persisted to NVS. Verified on hardware.
-- **Phase 2 (Wi-Fi OTA + rollback) is next.**
+- **Phase 2 (Wi-Fi OTA + rollback) is done** (`v0.3.0`): Wi-Fi setup through a captive
+  portal, signed (ES256 JWS) manifests from GitHub Releases, download to PSRAM and dark
+  install, bootloader rollback with a boot self-check, release CI. All nine cases in
+  `docs/ota-test-plan.md` pass on the device.
+- **Phase 3 (ChronosESP32 quick win) is next.**
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
 1. UI shell (done, v0.2.0): semantic components, theme system (Classic, Fighter jet HUD, Racing game),
    settings (incl. theme, persisted), nav screen with map renderer fed by **simulated**
    route windows, simulator
-2. Wi-Fi OTA + rollback
+2. Wi-Fi OTA + rollback (done, v0.3.0)
 3. ChronosESP32 quick win (nav is **arrows-only**: notifications carry no route geometry)
 4. Own Android app + protocol, including a routing source that provides route geometry
    (Google Maps' notification has none) and the vector route window
