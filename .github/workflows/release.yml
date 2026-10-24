@@ -18,6 +18,8 @@ env:
   PLATFORMIO_VERSION: "6.2.0"  # same as local; see docs/building.md
   PYTHON_VERSION: "3.12"
   OTA_KID: sarathi-ota-1  # docs/ota/keys/
+  # What ships: the Chronos phone link (ADR-0005). The demo build is compiled as a check only.
+  RELEASE_ENV: crowpanel21-chronos
 
 jobs:
   build:
@@ -84,10 +86,13 @@ jobs:
           PLATFORMIO_BUILD_FLAGS: >-
             '-DSARATHI_VERSION="${{ steps.version.outputs.version }}"'
             -DSARATHI_SEQ=${{ steps.version.outputs.seq }}
+        run: pio run -e "$RELEASE_ENV"
+
+      - name: Build the demo env (check only, not published)
         run: pio run -e crowpanel21
 
       - name: Check image size
-        run: python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin partitions.csv
+        run: python ../tools/check_image_size.py ".pio/build/$RELEASE_ENV/firmware.bin" partitions.csv
 
       - name: Collect release files
         env:
@@ -95,10 +100,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ github.ref_name }}
         run: |
-          grep -aq "$VERSION" .pio/build/crowpanel21/firmware.bin  # the version made it in
+          grep -aq "$VERSION" ".pio/build/$RELEASE_ENV/firmware.bin"  # the version made it in
           mkdir -p ../dist
-          cp .pio/build/crowpanel21/firmware.bin "../dist/$ASSET"
-          cp .pio/build/crowpanel21/firmware.elf "../dist/sarathi-crowpanel21-$TAG.elf"
+          cp ".pio/build/$RELEASE_ENV/firmware.bin" "../dist/$ASSET"
+          cp ".pio/build/$RELEASE_ENV/firmware.elf" "../dist/sarathi-crowpanel21-$TAG.elf"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
