@@ -1,0 +1,170 @@
+name: release
+
+# A tag vX.Y.Z publishes a signed firmware release (ADR-0004, docs/ota/manifest.md).
+# vX.Y.Z-rc.N publishes a signed pre-release: GitHub never serves it as "latest", so riders
+# never get it; test firmware can point at its manifest URL instead.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLATFORMIO_VERSION: "6.2.0"  # same as local; see docs/building.md
+  PYTHON_VERSION: "3.12"
+  OTA_KID: sarathi-ota-1  # docs/ota/keys/
+
+jobs:
+  build:
+    name: build and test
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      asset: ${{ steps.version.outputs.asset }}
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # MAJOR 0-999, MINOR and PATCH 0-99 (docs/ota/manifest.md), optionally -rc.N.
+      - name: Version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          re='^v(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-rc\.[1-9][0-9]*)?$'
+          if [[ ! "$TAG" =~ $re ]]; then
+            echo "::error::tag $TAG is not vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+          seq=$(( BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3] ))
+          prerelease=false
+          if [[ -n "${BASH_REMATCH[4]}" ]]; then prerelease=true; fi
+          {
+            echo "version=$version"
+            echo "seq=$seq"
+            echo "prerelease=$prerelease"
+            echo "asset=sarathi-crowpanel21-$TAG.bin"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release $TAG: firmware $version (seq $seq), pre-release: $prerelease"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install PlatformIO and repo tools
+        run: pip install "platformio==${PLATFORMIO_VERSION}" -r ../tools/requirements.txt
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: platformio-${{ runner.os }}-
+
+      - name: Native tests
+        run: pio test -e native
+
+      - name: OTA manifest vectors
+        run: python ../tools/ota_manifest.py check-vectors ../docs/ota/vectors
+
+      # version.h fails the build if SARATHI_SEQ doesn't match SARATHI_VERSION.
+      - name: Build
+        env:
+          PLATFORMIO_BUILD_FLAGS: >-
+            '-DSARATHI_VERSION="${{ steps.version.outputs.version }}"'
+            -DSARATHI_SEQ=${{ steps.version.outputs.seq }}
+        run: pio run -e crowpanel21
+
+      - name: Check image size
+        run: python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin partitions.csv
+
+      - name: Collect release files
+        env:
+          ASSET: ${{ steps.version.outputs.asset }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          grep -aq "$VERSION" .pio/build/crowpanel21/firmware.bin  # the version made it in
+          mkdir -p ../dist
+          cp .pio/build/crowpanel21/firmware.bin "../dist/$ASSET"
+          cp .pio/build/crowpanel21/firmware.elf "../dist/sarathi-crowpanel21-$TAG.elf"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-files
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: sign and publish
+    needs: build
+    runs-on: ubuntu-24.04
+    # The only job that can read OTA_SIGNING_KEY: the environment allows v* tags only.
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install repo tools
+        run: pip install -r tools/requirements.txt
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-files
+          path: dist/
+
+      # The key goes from the secret straight into the signer: never written or printed.
+      - name: Sign the manifest
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+          ASSET: ${{ needs.build.outputs.asset }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          python tools/ota_manifest.py sign --image "dist/$ASSET" --version "$VERSION" \
+            --url "https://github.com/$REPO/releases/download/$TAG/$ASSET" \
+            --kid "$OTA_KID" --key-env OTA_SIGNING_KEY --out dist/manifest.jws
+
+      # Exactly what a device does, against the committed public key: a wrong key or a
+      # broken manifest stops the release here.
+      - name: Verify the manifest
+        env:
+          ASSET: ${{ needs.build.outputs.asset }}
+        run: |
+          python tools/ota_manifest.py verify --manifest dist/manifest.jws \
+            --pubkey "docs/ota/keys/$OTA_KID.pub.pem" --kid "$OTA_KID" \
+            --image "dist/$ASSET" --running-seq 0
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          flags=(--title "sārathi $TAG" --generate-notes --verify-tag)
+          if [[ "$PRERELEASE" == "true" ]]; then flags+=(--prerelease); fi
+          gh release create "$TAG" dist/* "${flags[@]}" --repo "$GITHUB_REPOSITORY"

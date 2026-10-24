@@ -260,6 +260,37 @@ CI uses PlatformIO 6.2.0 and the pre-commit version in `tools/requirements.txt`,
 the local setup. Actions are pinned to commit SHAs. The `actionlint` hook checks workflow
 files before you push.
 
+## Making a release
+
+Firmware releases are built, signed and published by `.github/workflows/release.yml`
+(ADR-0004) when you push a version tag. Nothing is signed on a laptop.
+
+```bash
+git switch main && git pull
+git tag -a v0.3.0 -m "sārathi v0.3.0 — <summary>"
+git push origin v0.3.0
+```
+
+| Tag | Result |
+|---|---|
+| `vMAJOR.MINOR.PATCH` (MAJOR 0-999, MINOR and PATCH 0-99) | A release. It becomes GitHub's "latest", so devices offer it as an update. |
+| `vMAJOR.MINOR.PATCH-rc.N` | A **pre-release**. It's never "latest", so riders never see it. Test firmware can point at its manifest URL (`-DSARATHI_OTA_MANIFEST_URL=...`). |
+
+**What the workflow does:**
+
+1. **Build job (no secrets):** reads the version and `seq` from the tag. It runs the native
+   tests and the OTA vector check, then builds with `SARATHI_VERSION` / `SARATHI_SEQ` set (a
+   mismatch fails the build) and checks the image size.
+2. **Publish job:** runs in the protected `release` environment, which only `v*` tags can use
+   and which is the only place `OTA_SIGNING_KEY` exists. It signs `manifest.jws` with that key,
+   then verifies the manifest against the committed public key exactly as a device would. A
+   wrong key fails here.
+3. **Release:** publishes the `.bin`, `manifest.jws`, the `.elf` (for decoding crash
+   backtraces with the exception decoder) and `SHA256SUMS`, with generated release notes.
+
+A device only installs a release whose manifest verifies, is for its board, and is newer than
+what it runs. Local builds are `0.0.0-dev` (seq 0), so any release is newer.
+
 ## Android
 
 The companion app lives in `android/`: Kotlin, Jetpack Compose, Gradle (via the wrapper;
