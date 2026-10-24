@@ -72,6 +72,19 @@ void TestInputStampedAfterNowDoesNotSleep() {
   TEST_ASSERT_FALSE(power.Awake());
 }
 
+void TestPairingRequestWakesAndKeepsAwake() {
+  ScreenPower power;
+  AppState state = Idle(ScreenTimeout::k30s);
+  power.Update(state, 0);
+  power.Update(state, 30000);
+  TEST_ASSERT_FALSE(power.Awake());
+  state.pairing.requested = true;
+  power.Update(state, 31000);
+  TEST_ASSERT_TRUE(power.Awake());
+  power.Update(state, 90000);
+  TEST_ASSERT_TRUE(power.Awake());
+}
+
 void TestNeverSleepsWithNeverTimeout() {
   ScreenPower power;
   const AppState state = Idle(ScreenTimeout::kNever);
@@ -121,6 +134,7 @@ int main() {
   RUN_TEST(TestDayNightBrightness);
   RUN_TEST(TestSleepsAfterTimeoutWhenIdle);
   RUN_TEST(TestInputStampedAfterNowDoesNotSleep);
+  RUN_TEST(TestPairingRequestWakesAndKeepsAwake);
   RUN_TEST(TestNeverSleepsWithNeverTimeout);
   RUN_TEST(TestNeverSleepsWhileNavigatingOrInCall);
   RUN_TEST(TestWakingInputIsSwallowed);

@@ -46,6 +46,18 @@ std::atomic<bool> ble_up{false};
 std::atomic<uint32_t> rx_overflow{0};
 std::atomic<uint16_t> mtu{0};
 Write poll_write;  // UI task only: too big for its stack
+// Pairing (CLAUDE.md, Security): NimBLE's host task records a request, the UI asks the rider,
+// and the link task answers. Each counter changes once per event.
+std::atomic<uint32_t> pairing_code{0};
+std::atomic<uint16_t> pairing_handle{0};
+std::atomic<uint32_t> pairing_requests{0};
+std::atomic<uint32_t> pairing_ends{0};
+std::atomic<uint32_t> last_auth{0};  // bit 0 encrypted, 1 bonded, 2 authenticated
+std::atomic<uint8_t> paired_phones{0};
+std::atomic<uint32_t> rx_refused{0};  // writes from a link that isn't bonded with MITM
+// A new connection whose MTU the link task should raise (see LinkTask).
+std::atomic<uint16_t> mtu_handle{0};
+std::atomic<bool> mtu_wanted{false};
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Replaces the library's RX handler, so its parser (which trusts packet lengths and indices,
@@ -57,6 +69,12 @@ class RxCallbacks final : public NimBLECharacteristicCallbacks {
     // NimBLE hands the value out by copy: one short-lived allocation inside NimBLE per write.
     const NimBLEAttValue value = characteristic->getValue();
     mtu.store(info.getMTU());
+    // Only a phone the rider confirmed: encrypted, bonded, and authenticated (numeric
+    // comparison, so a "Just Works" bond that never showed a code doesn't count).
+    if (!info.isEncrypted() || !info.isBonded() || !info.isAuthenticated()) {
+      rx_refused.fetch_add(1);
+      return;
+    }
     if (value.size() == 0 || value.size() > kChronosMaxPacket) {
       return;
     }
@@ -73,6 +91,63 @@ class RxCallbacks final : public NimBLECharacteristicCallbacks {
 
 RxCallbacks rx_callbacks;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Takes over the library's server callbacks: forwards connect and disconnect to it (through
+// its public base class, which is legal C++ and needs no edit to the library), asks every
+// phone to secure the link, and hands a pairing code to the UI instead of accepting it. A
+// phone bonded earlier encrypts with its stored keys and never gets here. Copies and returns:
+// no logging or LVGL on NimBLE's host task.
+class ServerProxy final : public NimBLEServerCallbacks {
+ public:
+  void onConnect(NimBLEServer* server, NimBLEConnInfo& info) override {
+    static_cast<NimBLEServerCallbacks*>(watch)->onConnect(server, info);
+    NimBLEDevice::startSecurity(info.getConnHandle());
+    mtu_handle.store(info.getConnHandle());
+    mtu_wanted.store(true);
+  }
+  void onDisconnect(NimBLEServer* server, NimBLEConnInfo& info, int reason) override {
+    static_cast<NimBLEServerCallbacks*>(watch)->onDisconnect(server, info, reason);
+    pairing_ends.fetch_add(1);
+  }
+  void onMTUChange(uint16_t mtu_bytes, NimBLEConnInfo& /*info*/) override { mtu.store(mtu_bytes); }
+  void onConfirmPassKey(NimBLEConnInfo& info, uint32_t pin) override {
+    pairing_code.store(pin);
+    pairing_handle.store(info.getConnHandle());
+    pairing_requests.fetch_add(1);
+  }
+  void onAuthenticationComplete(NimBLEConnInfo& info) override {
+    last_auth.store((info.isEncrypted() ? 1U : 0U) | (info.isBonded() ? 2U : 0U) |
+                    (info.isAuthenticated() ? 4U : 0U));
+    pairing_ends.fetch_add(1);
+  }
+};
+
+ServerProxy server_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void CountBonds() {
+  const int bonds = NimBLEDevice::getNumBonds();
+  paired_phones.store(static_cast<uint8_t>(bonds < 0 ? 0 : bonds));
+}
+
+void AnswerPairing(bool accept) {
+  NimBLEServer* server = NimBLEDevice::getServer();
+  if (server == nullptr) {
+    return;
+  }
+  const NimBLEConnInfo info = server->getPeerInfoByHandle(pairing_handle.load());
+  NimBLEDevice::injectConfirmPasskey(info, accept);
+}
+
+void ForgetPhones() {
+  NimBLEDevice::deleteAllBonds();
+  NimBLEServer* server = NimBLEDevice::getServer();
+  if (server != nullptr) {
+    for (const uint16_t handle : server->getPeerDevices()) {
+      server->disconnect(handle);
+    }
+  }
+  CountBonds();
+}
+
 // After every begin(). The library's handler is live for the few microseconds before this.
 bool AttachRx() {
   NimBLEServer* server = NimBLEDevice::getServer();
@@ -83,6 +158,10 @@ bool AttachRx() {
     return false;
   }
   rx->setCallbacks(&rx_callbacks);
+  NimBLEDevice::setSecurityAuth(true, true, true);          // bonding, MITM, secure connections
+  NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_YESNO);  // the code on the dash, a knob yes/no
+  server->setCallbacks(&server_proxy, false);
+  CountBonds();
   return true;
 }
 
@@ -97,6 +176,15 @@ void Send(ChronosAction action) {
     case ChronosAction::kMusicPrevious:
       watch->musicControl(MUSIC_PREVIOUS);
       break;
+    case ChronosAction::kPairAccept:
+      AnswerPairing(true);
+      break;
+    case ChronosAction::kPairReject:
+      AnswerPairing(false);
+      break;
+    case ChronosAction::kForgetPhones:
+      ForgetPhones();
+      break;
     case ChronosAction::kNone:
       break;
   }
@@ -105,6 +193,7 @@ void Send(ChronosAction action) {
 // The library blocks for 200 ms after every notification it sends, so it runs here, never on
 // the UI task.
 void LinkTask(void* /*arg*/) {
+  uint32_t bonds_counted_at = 0;
   for (;;) {
     if (want_paused.load() && !stopped.load()) {
       watch->stop(true);  // NimBLEDevice::deinit: frees the BLE stack's RAM for Wi-Fi
@@ -125,8 +214,21 @@ void LinkTask(void* /*arg*/) {
       while (xQueueReceive(action_queue, &action, 0) == pdTRUE) {
       }
     } else {
+      // The app writes only the first 20 bytes of a longer packet until the MTU is raised, and
+      // the phone may wait minutes to raise it, so nav (always longer) went missing. Either
+      // side may start the exchange; Android answers with its maximum (docs/phase3-findings.md).
+      if (mtu_wanted.exchange(false)) {
+        const int rc = ble_gattc_exchange_mtu(mtu_handle.load(), nullptr, nullptr);
+        if (rc != 0) {
+          ESP_LOGW(kTag, "MTU exchange not started (rc %d)", rc);
+        }
+      }
       watch->loop();
       connected.store(watch->isConnected());
+      if (pairing_ends.load() != bonds_counted_at) {
+        bonds_counted_at = pairing_ends.load();
+        CountBonds();
+      }
       ble_up.store(true);
       while (xQueueReceive(action_queue, &action, 0) == pdTRUE) {
         Send(static_cast<ChronosAction>(action));
@@ -197,6 +299,7 @@ void ChronosSource::Poll(uint32_t now_ms, core::AppModel& model) {
     bridge_.OnConnection(now_connected, model);
     ESP_LOGI(kTag, "phone %s", now_connected ? "connected" : "disconnected");
   }
+  PollPairing(now_ms, model);
   bridge_.Tick(now_ms, model);
 
   const uint32_t dropped = receiver_.Dropped() + rx_overflow.load();
@@ -210,6 +313,33 @@ void ChronosSource::Poll(uint32_t now_ms, core::AppModel& model) {
              static_cast<unsigned>(drop.write_size), static_cast<unsigned>(drop.expected),
              static_cast<unsigned>(drop.received), static_cast<unsigned>(rx_overflow.load()));
     dropped_logged_ = dropped;
+  }
+}
+
+void ChronosSource::PollPairing(uint32_t now_ms, core::AppModel& model) {
+  if (pairing_requests.load() != pairing_requests_seen_) {
+    pairing_requests_seen_ = pairing_requests.load();
+    bridge_.OnPairingRequest(pairing_code.load(), now_ms, model);
+    ESP_LOGI(kTag, "a phone asks to pair: confirm the code on the dash");  // never the code
+  }
+  if (pairing_ends.load() != pairing_ends_seen_) {
+    pairing_ends_seen_ = pairing_ends.load();
+    bridge_.OnPairingEnded(model);
+    const uint32_t auth = last_auth.load();
+    ESP_LOGI(kTag, "link security: encrypted %u, bonded %u, authenticated %u", auth & 1U,
+             (auth >> 1U) & 1U, (auth >> 2U) & 1U);
+  }
+  if (paired_phones.load() != model.State().phone.paired_phones) {
+    bridge_.OnPairedPhones(paired_phones.load(), model);
+  }
+  if (mtu.load() != mtu_logged_) {
+    mtu_logged_ = mtu.load();
+    ESP_LOGI(kTag, "MTU %u", static_cast<unsigned>(mtu_logged_));
+  }
+  if (rx_refused.load() != refused_logged_) {
+    refused_logged_ = rx_refused.load();
+    ESP_LOGW(kTag, "%u write(s) refused from a phone that isn't paired",
+             static_cast<unsigned>(refused_logged_));
   }
 }
 

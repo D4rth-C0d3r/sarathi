@@ -180,13 +180,27 @@ void FakeChronos::SetConnected(bool connected, uint32_t now_ms, core::AppModel& 
   }
 }
 
+void FakeChronos::RequestPairing(uint32_t code, uint32_t now_ms, core::AppModel& model) {
+  bridge_.OnPairingRequest(code, now_ms, model);
+}
+
+void FakeChronos::SetNavigating(bool navigating, uint32_t now_ms, core::AppModel& model) {
+  navigating_ = navigating;
+  if (navigating) {
+    SendNav(now_ms, model);
+  } else {
+    Write(Packet(0xFE, 0xEF, {0x00}), now_ms, model);
+  }
+}
+
 void FakeChronos::Poll(uint32_t now_ms, core::AppModel& model) {
   if (!started_) {
     started_ = true;
     bridge_.Begin(model);
+    bridge_.OnPairedPhones(paired_, model);
     SetConnected(true, now_ms, model);
   }
-  if (connected_ && now_ms >= next_nav_ms_) {
+  if (connected_ && navigating_ && now_ms >= next_nav_ms_) {
     nav_step_ = (nav_step_ + 1) % kRoute.size();
     SendNav(now_ms, model);
     next_nav_ms_ = now_ms + kNavStepMs;
@@ -196,6 +210,16 @@ void FakeChronos::Poll(uint32_t now_ms, core::AppModel& model) {
 
 void FakeChronos::OnCommand(const core::Command& command, uint32_t now_ms, core::AppModel& model) {
   switch (bridge_.OnCommand(command, now_ms, model)) {
+    case link::ChronosAction::kPairAccept:
+      paired_ = static_cast<uint8_t>(paired_ + 1);
+      bridge_.OnPairedPhones(paired_, model);
+      return;
+    case link::ChronosAction::kPairReject:
+      return;
+    case link::ChronosAction::kForgetPhones:
+      paired_ = 0;
+      bridge_.OnPairedPhones(paired_, model);
+      return;
     case link::ChronosAction::kMusicToggle:
       playing_ = !playing_;
       break;

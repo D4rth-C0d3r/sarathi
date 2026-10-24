@@ -3,7 +3,8 @@
 //
 // What Chronos can't do shapes the capabilities: calls can only be dismissed on the dash (no
 // accept or reject), there is no route geometry and no speed (so settings lock while
-// navigating).
+// navigating). Pairing is ours, not Chronos's: a phone bonds only after the rider confirms
+// its code with the knob (CLAUDE.md, Security; docs/phase3-findings.md).
 
 #pragma once
 
@@ -22,9 +23,22 @@ constexpr core::Capabilities kChronosCapabilities{
     false,  // media_progress
     false,  // route_geometry
     false,  // speed
+    true,   // phone_pairing
 };
 
-enum class ChronosAction : uint8_t { kNone, kMusicToggle, kMusicNext, kMusicPrevious };
+// The phone's pairing attempt times out on its own after this (Bluetooth SMP); the prompt
+// closes then too, even if the link never reports the end.
+constexpr uint32_t kPairingTimeoutMs = 30000;
+
+enum class ChronosAction : uint8_t {
+  kNone,
+  kMusicToggle,
+  kMusicNext,
+  kMusicPrevious,
+  kPairAccept,
+  kPairReject,
+  kForgetPhones,
+};
 
 class ChronosBridge {
  public:
@@ -36,7 +50,13 @@ class ChronosBridge {
   // A lost link ends navigation and the call screen: stale data is never left showing.
   void OnConnection(bool connected, core::AppModel& model);
 
-  // Keeps the clock running between the phone's time syncs.
+  // Pairing, from the BLE stack: a phone shows `code` and waits for the rider; pairing ended
+  // (bonded, failed or timed out); the number of stored bonds.
+  void OnPairingRequest(uint32_t code, uint32_t now_ms, core::AppModel& model);
+  void OnPairingEnded(core::AppModel& model);
+  void OnPairedPhones(uint8_t count, core::AppModel& model);
+
+  // Keeps the clock running between the phone's time syncs; closes a stale pairing prompt.
   void Tick(uint32_t now_ms, core::AppModel& model) const;
 
   // What to send to the phone for a rider command, if anything.

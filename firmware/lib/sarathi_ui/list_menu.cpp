@@ -111,15 +111,46 @@ void ListMenu::Refresh() {
   }
 }
 
+void ListMenu::SetHidden(size_t row, bool hidden) {
+  if (row >= count_ || hidden == lv_obj_has_flag(rows_.at(row).button, LV_OBJ_FLAG_HIDDEN)) {
+    return;
+  }
+  if (hidden) {
+    lv_obj_add_flag(rows_.at(row).button, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_remove_flag(rows_.at(row).button, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (group_ != nullptr) {
+    JoinGroup();  // keep the group in row order
+  }
+}
+
+// The visible rows, in order; focus stays where it was if that row is still there.
+void ListMenu::JoinGroup() {
+  lv_obj_t* focused = lv_group_get_focused(group_);
+  lv_obj_t* first = nullptr;
+  bool keep = false;
+  for (size_t i = 0; i < count_; ++i) {
+    lv_group_remove_obj(rows_.at(i).button);
+  }
+  for (size_t i = 0; i < count_; ++i) {
+    lv_obj_t* button = rows_.at(i).button;
+    if (lv_obj_has_flag(button, LV_OBJ_FLAG_HIDDEN)) {
+      continue;
+    }
+    lv_group_add_obj(group_, button);
+    first = first == nullptr ? button : first;
+    keep = keep || button == focused;
+  }
+  if (first != nullptr) {
+    lv_group_focus_obj(keep ? focused : first);
+  }
+}
+
 void ListMenu::Show(lv_group_t* group) {
   group_ = group;
   lv_obj_remove_flag(container_, LV_OBJ_FLAG_HIDDEN);
-  for (size_t i = 0; i < count_; ++i) {
-    lv_group_add_obj(group, rows_.at(i).button);
-  }
-  if (count_ > 0) {
-    lv_group_focus_obj(rows_.at(0).button);
-  }
+  JoinGroup();  // a hidden menu's rows aren't in the group, so this focuses the first one
 }
 
 void ListMenu::Hide() {

@@ -505,6 +505,9 @@ enum class GalleryAction : uint8_t {
   kManifest,    // the next update check finds: 0 a new version, 1 a bad signature
   kDisconnect,  // --chronos: the phone drops the link (shown on Nav)
   kReconnect,
+  kPairing,  // --chronos: a phone asks to pair
+  kStopNav,  // --chronos: navigation ends (Settings unlocks)
+  kStartNav,
   kWait,
 };
 
@@ -546,7 +549,7 @@ constexpr std::array<GalleryStep, 25> kGallerySteps = {{
 }};
 
 // --chronos: the screens that differ, in every theme.
-constexpr std::array<GalleryStep, 8> kChronosGallerySteps = {{
+constexpr std::array<GalleryStep, 14> kChronosGallerySteps = {{
     {GalleryAction::kLoadTheme, nullptr, 400},
     {GalleryAction::kNav, "c1_nav", 600},
     {GalleryAction::kCallRinging, "c2_call", 600},
@@ -554,7 +557,14 @@ constexpr std::array<GalleryStep, 8> kChronosGallerySteps = {{
     {GalleryAction::kMusic, "c3_music", 600},
     {GalleryAction::kDisconnect, "c4_disconnected", 600},
     {GalleryAction::kReconnect, nullptr, 400},
-    {GalleryAction::kWait, nullptr, 100},
+    {GalleryAction::kPairing, "c5_pairing", 600},
+    {GalleryAction::kPress, nullptr, 900},  // Cancel has focus: the prompt closes
+    {GalleryAction::kStopNav, nullptr, 300},
+    {GalleryAction::kSettings, nullptr, 600},
+    // Main menu rows from the top: 0 Theme ... 8 Forget Wi-Fi, 9 Forget phones.
+    {GalleryAction::kKnob, "c6_forget_phones", 900, 9},
+    {GalleryAction::kKnob, nullptr, 300, -9},
+    {GalleryAction::kStartNav, nullptr, 300},
 }};
 
 struct Gallery {
@@ -647,6 +657,15 @@ void StartGalleryStep(Gallery& gallery, Tour& tour, uint32_t now) {
       break;
     case GalleryAction::kReconnect:
       fake_chronos.SetConnected(true, now, app);
+      break;
+    case GalleryAction::kPairing:
+      fake_chronos.RequestPairing(708361, now, app);
+      break;
+    case GalleryAction::kStopNav:
+      fake_chronos.SetNavigating(false, now, app);
+      break;
+    case GalleryAction::kStartNav:
+      fake_chronos.SetNavigating(true, now, app);
       break;
     case GalleryAction::kWait:
       break;

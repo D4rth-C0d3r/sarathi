@@ -82,6 +82,7 @@ void ChronosBridge::OnConnection(bool connected, core::AppModel& model) {
   if (!connected) {
     model.EndNav();
     model.SetCall(core::CallPhase::kIdle, {}, 0);
+    model.EndPairingRequest();
     nav_has_icon_ = false;
     icon_chunks_ = 0;
     has_player_ = false;
@@ -197,7 +198,21 @@ void ChronosBridge::PublishMedia(core::AppModel& model) const {
   model.SetMedia(media);
 }
 
+void ChronosBridge::OnPairingRequest(uint32_t code, uint32_t now_ms, core::AppModel& model) {
+  model.SetPairingRequest(code, now_ms);
+}
+
+void ChronosBridge::OnPairingEnded(core::AppModel& model) { model.EndPairingRequest(); }
+
+void ChronosBridge::OnPairedPhones(uint8_t count, core::AppModel& model) {
+  model.SetPairedPhones(count);
+}
+
 void ChronosBridge::Tick(uint32_t now_ms, core::AppModel& model) const {
+  const core::PairingState& pairing = model.State().pairing;
+  if (pairing.requested && now_ms - pairing.since_ms >= kPairingTimeoutMs) {
+    model.EndPairingRequest();
+  }
   if (!clock_valid_) {
     return;
   }
@@ -221,6 +236,12 @@ ChronosAction ChronosBridge::OnCommand(const core::Command& command, uint32_t no
       return ChronosAction::kMusicNext;
     case core::CommandType::kMediaPrev:
       return ChronosAction::kMusicPrevious;
+    case core::CommandType::kPairAccept:
+      return ChronosAction::kPairAccept;
+    case core::CommandType::kPairReject:
+      return ChronosAction::kPairReject;
+    case core::CommandType::kForgetPhones:
+      return ChronosAction::kForgetPhones;
     case core::CommandType::kCallAccept:
     case core::CommandType::kCallReject:
       break;  // not offered: Chronos has no call control (docs/phase3-findings.md)

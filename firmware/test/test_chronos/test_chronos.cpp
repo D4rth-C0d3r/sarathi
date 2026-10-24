@@ -301,6 +301,49 @@ void TestDismissHidesTheCallLocally() {
   TEST_ASSERT_EQUAL(CallPhase::kIdle, r.model.State().call.phase);
 }
 
+// ---- Pairing ----
+
+void TestPairingPromptAndAnswer() {
+  Rig r;
+  TEST_ASSERT_TRUE(r.model.State().caps.phone_pairing);
+  r.bridge.OnPairingRequest(708361, r.now_ms, r.model);
+  TEST_ASSERT_TRUE(r.model.State().pairing.requested);
+  TEST_ASSERT_EQUAL_UINT32(708361, r.model.State().pairing.code);
+  TEST_ASSERT_TRUE(r.model.AcceptPairing());
+  Command c;
+  TEST_ASSERT_TRUE(r.model.TakeCommand(c));
+  TEST_ASSERT_EQUAL(ChronosAction::kPairAccept, r.bridge.OnCommand(c, r.now_ms, r.model));
+  r.bridge.OnPairedPhones(1, r.model);
+  TEST_ASSERT_EQUAL_UINT8(1, r.model.State().phone.paired_phones);
+}
+
+void TestPairingPromptTimesOut() {
+  Rig r;
+  r.bridge.OnPairingRequest(123456, 1000, r.model);
+  r.bridge.Tick(1000 + sarathi::link::kPairingTimeoutMs - 1, r.model);
+  TEST_ASSERT_TRUE(r.model.State().pairing.requested);
+  r.bridge.Tick(1000 + sarathi::link::kPairingTimeoutMs, r.model);
+  TEST_ASSERT_FALSE(r.model.State().pairing.requested);
+}
+
+void TestPairingEndsOnDisconnectOrResult() {
+  Rig r;
+  r.bridge.OnPairingRequest(123456, r.now_ms, r.model);
+  r.bridge.OnPairingEnded(r.model);
+  TEST_ASSERT_FALSE(r.model.State().pairing.requested);
+  r.bridge.OnPairingRequest(123456, r.now_ms, r.model);
+  r.bridge.OnConnection(false, r.model);
+  TEST_ASSERT_FALSE(r.model.State().pairing.requested);
+}
+
+void TestForgetPhonesMapsToAnAction() {
+  Rig r;
+  TEST_ASSERT_TRUE(r.model.ForgetPhones());
+  Command c;
+  TEST_ASSERT_TRUE(r.model.TakeCommand(c));
+  TEST_ASSERT_EQUAL(ChronosAction::kForgetPhones, r.bridge.OnCommand(c, r.now_ms, r.model));
+}
+
 // ---- Malformed input: what the library would have written out of bounds ----
 
 void TestContinuationFarPastTheBuffer() {
@@ -418,6 +461,10 @@ int main() {
   RUN_TEST(TestIconClearsWhenTheManeuverChanges);
   RUN_TEST(TestDisconnectClearsLiveData);
   RUN_TEST(TestDismissHidesTheCallLocally);
+  RUN_TEST(TestPairingPromptAndAnswer);
+  RUN_TEST(TestPairingPromptTimesOut);
+  RUN_TEST(TestPairingEndsOnDisconnectOrResult);
+  RUN_TEST(TestForgetPhonesMapsToAnAction);
   RUN_TEST(TestContinuationFarPastTheBuffer);
   RUN_TEST(TestOutOfOrderContinuationIsDropped);
   RUN_TEST(TestStrayContinuationIsDropped);

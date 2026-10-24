@@ -36,6 +36,7 @@ size_t timeout_row = 0;
 size_t knob_row = 0;
 size_t wifi_row = 0;
 size_t forget_row = 0;
+size_t phones_row = 0;  // Forget phones: only with BLE pairing (Chronos build)
 std::array<char, 40> version_text{};
 std::array<size_t, ListMenu::kMaxRows> theme_indices{};
 Page page = Page::kMain;
@@ -62,6 +63,7 @@ void OpenInputTest(void* /*context*/) { actions_.open_input_test(); }
 void StartWifiSetup(void* /*context*/) { actions_.start_wifi_setup(); }
 void CheckForUpdate(void* /*context*/) { actions_.check_for_update(); }
 void ForgetWifi(void* /*context*/) { actions_.forget_wifi(); }
+void ForgetPhones(void* /*context*/) { app->ForgetPhones(); }
 void Nothing(void* /*context*/) {}
 
 void SelectTheme(void* context) {
@@ -174,6 +176,8 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& action
   wifi_row = main_menu.AddAction("Wi-Fi", StartWifiSetup, nullptr);
   main_menu.AddAction("Check for update", CheckForUpdate, nullptr);
   forget_row = main_menu.AddAction("Forget Wi-Fi", ForgetWifi, nullptr);
+  phones_row = main_menu.AddAction("Forget phones", ForgetPhones, nullptr);
+  main_menu.SetHidden(phones_row, true);
   std::snprintf(version_text.data(), version_text.size(), "Version %.*s",
                 static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data());
   main_menu.AddAction(version_text.data(), Nothing, nullptr);
@@ -205,6 +209,15 @@ void Update(const core::AppState& state, bool locked, const core::WifiSetup& wif
   }
   RefreshSettingTexts(state.settings);  // SetText skips unchanged text
   RefreshWifiTexts(wifi);
+  main_menu.SetHidden(phones_row, !state.caps.phone_pairing);
+  std::array<char, 40> text{};
+  if (state.phone.paired_phones > 0) {
+    std::snprintf(text.data(), text.size(), "Forget phones (%u)",
+                  static_cast<unsigned>(state.phone.paired_phones));
+  } else {
+    std::snprintf(text.data(), text.size(), "%s", "No phones paired");
+  }
+  main_menu.SetText(phones_row, text.data());
   main_menu.Refresh();
 }
 

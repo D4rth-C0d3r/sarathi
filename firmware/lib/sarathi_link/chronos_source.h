@@ -3,7 +3,8 @@
 // Chronos and NimBLE types never leave chronos_source.cpp.
 //
 // Threads:
-// - NimBLE's host task: our RX callback copies each write into a queue. Nothing else.
+// - NimBLE's host task: our RX callback copies each write into a queue, and our server
+//   callbacks record pairing requests (the rider confirms the code with the knob).
 // - The link task (core 0): runs the library's loop() and its blocking sends (music
 //   commands), and stops or restarts BLE.
 // - The UI task: Poll() decodes the queued writes and updates the model.
@@ -35,11 +36,17 @@ class ChronosSource final : public core::DataSource {
   void OnCommand(const core::Command& command, uint32_t now_ms, core::AppModel& model) override;
 
  private:
+  void PollPairing(uint32_t now_ms, core::AppModel& model);
+
   ChronosReceiver receiver_;
   ChronosBridge bridge_;
   bool started_ = false;
   bool connected_ = false;
   uint32_t dropped_logged_ = 0;
+  uint32_t pairing_requests_seen_ = 0;
+  uint32_t pairing_ends_seen_ = 0;
+  uint32_t refused_logged_ = 0;
+  uint16_t mtu_logged_ = 0;
 };
 
 }  // namespace sarathi::link

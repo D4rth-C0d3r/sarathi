@@ -55,6 +55,28 @@ void AppModel::SetPhoneBattery(uint8_t percent, bool charging) {
   state_.phone.charging = charging;
 }
 
+void AppModel::SetPairingRequest(uint32_t code, uint32_t now_ms) {
+  state_.pairing.requested = true;
+  state_.pairing.code = code > kPairingCodeMax ? kPairingCodeMax : code;
+  state_.pairing.since_ms = now_ms;
+}
+
+bool AppModel::AcceptPairing() { return EndPairingWith(CommandType::kPairAccept); }
+
+bool AppModel::RejectPairing() { return EndPairingWith(CommandType::kPairReject); }
+
+bool AppModel::EndPairingWith(CommandType type) {
+  if (!state_.pairing.requested || !Queue(type)) {
+    return false;
+  }
+  state_.pairing = PairingState{};
+  return true;
+}
+
+bool AppModel::ForgetPhones() {
+  return state_.caps.phone_pairing && !SettingsLocked() && Queue(CommandType::kForgetPhones);
+}
+
 bool AppModel::AcceptCall() {
   return state_.caps.call_accept && state_.call.phase == CallPhase::kRinging &&
          Queue(CommandType::kCallAccept);

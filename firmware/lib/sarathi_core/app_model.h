@@ -20,6 +20,9 @@ enum class CommandType : uint8_t {
   kMediaPlayPause,
   kMediaNext,
   kMediaPrev,
+  kPairAccept,    // the code matches: bond with the phone
+  kPairReject,    // the code doesn't match, or the rider didn't ask to pair
+  kForgetPhones,  // delete every stored bond
 };
 
 struct Command {
@@ -46,6 +49,9 @@ class AppModel {
   void SetCapabilities(const Capabilities& caps) { state_.caps = caps; }
   void SetPhoneConnected(bool connected) { state_.phone.connected = connected; }
   void SetPhoneBattery(uint8_t percent, bool charging);
+  void SetPairedPhones(uint8_t count) { state_.phone.paired_phones = count; }
+  void SetPairingRequest(uint32_t code, uint32_t now_ms);
+  void EndPairingRequest() { state_.pairing = PairingState{}; }
 
   // ---- Settings from storage ----
   // Applies saved settings at boot (not subject to the moving lock; brightness clamped). Does
@@ -61,6 +67,11 @@ class AppModel {
   bool MediaPlayPause();  // only when media is available
   bool MediaNext();
   bool MediaPrev();
+  // Pairing: only while a phone is asking. Either ends the request on the dash.
+  bool AcceptPairing();
+  bool RejectPairing();
+  // Settings-locked, like the settings themselves; only with phone_pairing.
+  bool ForgetPhones();
   // Settings: all refused while moving (CLAUDE.md).
   bool SetTheme(ThemeId theme);
   bool SetBrightness(int percent);  // clamped to 5-100 %
@@ -85,6 +96,7 @@ class AppModel {
  private:
   bool Queue(CommandType type);
   bool MediaAction(CommandType type);
+  bool EndPairingWith(CommandType type);
 
   // Applies `next` unless locked; counts a revision only if something changed.
   bool ChangeSettings(const Settings& next);

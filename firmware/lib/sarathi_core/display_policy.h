@@ -20,8 +20,9 @@ constexpr int kNightBrightnessPercent = 40;      // of the brightness setting
 // Never below the 5 % floor.
 [[nodiscard]] int DayNightBrightness(const Settings& settings, const ClockState& clock);
 
-// Screen timeout. The screen never sleeps while navigating or during a call (an incoming call
-// wakes it), and the input that wakes it only wakes it.
+// Screen timeout. The screen never sleeps while navigating, during a call or while a phone
+// asks to pair (an incoming call or a pairing request wakes it), and the input that wakes it
+// only wakes it.
 class ScreenPower {
  public:
   // Call for every knob step, button press and touch start. Returns false if the input only

@@ -193,7 +193,10 @@ void DemoRide::OnCommand(const Command& command, uint32_t now_ms, AppModel& mode
       }
       break;
     case CommandType::kCallDismiss:
-      break;  // the demo supports reject, so the UI never offers dismiss
+    case CommandType::kPairAccept:
+    case CommandType::kPairReject:
+    case CommandType::kForgetPhones:
+      break;  // the demo has no BLE and supports reject, so the UI never offers these
     case CommandType::kMediaPlayPause:
       playing_ = !playing_;
       break;

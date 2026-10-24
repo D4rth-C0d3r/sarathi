@@ -7,6 +7,7 @@
 #include "input_test_screen.h"
 #include "music_screen.h"
 #include "nav_screen.h"
+#include "pairing_screen.h"
 #include "settings_screen.h"
 #include "update_screen.h"
 #include "wifi_form.h"
@@ -15,7 +16,7 @@
 namespace sarathi::ui::screen_manager {
 namespace {
 
-constexpr size_t kScreenCount = 7;
+constexpr size_t kScreenCount = 8;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 lv_indev_t* knob = nullptr;
@@ -23,6 +24,7 @@ std::array<lv_obj_t*, kScreenCount> screens{};
 std::array<lv_group_t*, kScreenCount> groups{};
 ScreenId current = ScreenId::kNav;
 ScreenId before_call = ScreenId::kNav;
+ScreenId before_pairing = ScreenId::kNav;
 ScreenId before_input_test = ScreenId::kSettings;
 core::OtaUpdate* ota = nullptr;
 core::WifiSetup* wifi = nullptr;
@@ -75,6 +77,8 @@ void Init(lv_indev_t* encoder, core::AppModel& model, core::OtaUpdate& ota_updat
   screens[Index(ScreenId::kInputTest)] = input_test_screen::Create();
   screens[Index(ScreenId::kWifiSetup)] = wifi_setup_screen::Create();
   screens[Index(ScreenId::kUpdate)] = update_screen::Create();
+  screens[Index(ScreenId::kPairing)] =
+      pairing_screen::Create(groups[Index(ScreenId::kPairing)], model);
   Show(ScreenId::kNav);
 }
 
@@ -89,6 +93,16 @@ void Update(const core::AppModel& model, const core::InputTestState& input_test,
     Show(ScreenId::kCall);
   } else if (!in_call && current == ScreenId::kCall) {
     Show(before_call);
+  }
+
+  // A phone asking to pair takes over too, unless a call already has the screen; it waits.
+  const bool pairing = state.pairing.requested && !in_call;
+  if (pairing && current != ScreenId::kPairing && current != ScreenId::kCall) {
+    before_pairing = current;
+    pairing_screen::Reset();
+    Show(ScreenId::kPairing);
+  } else if (!pairing && current == ScreenId::kPairing) {
+    Show(before_pairing);
   }
 
   // A flow that ended without a knob press (cancelled, nothing to do) closes its screen.
@@ -119,6 +133,9 @@ void Update(const core::AppModel& model, const core::InputTestState& input_test,
     case ScreenId::kUpdate:
       update_screen::Update(*ota, *wifi);
       break;
+    case ScreenId::kPairing:
+      pairing_screen::Update(state);
+      break;
   }
 }
 
@@ -138,6 +155,7 @@ void NextScreen(const core::AppModel& model) {
     case ScreenId::kInputTest:
     case ScreenId::kWifiSetup:
     case ScreenId::kUpdate:
+    case ScreenId::kPairing:
       break;
   }
 }

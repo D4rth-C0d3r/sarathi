@@ -34,7 +34,8 @@ void ScreenPower::Update(const AppState& state, uint32_t now_ms) {
     last_activity_ms_ = now_ms;
   }
   const uint32_t timeout_ms = ScreenTimeoutMs(state.settings.screen_timeout);
-  const bool busy = state.nav.active || state.call.phase != CallPhase::kIdle;
+  const bool busy =
+      state.nav.active || state.call.phase != CallPhase::kIdle || state.pairing.requested;
   if (timeout_ms == 0 || busy) {
     // Keep counting from the end of the navigation or call, not from the last input.
     last_activity_ms_ = now_ms;

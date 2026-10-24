@@ -172,7 +172,8 @@ struct Capabilities {
   bool media_control = true;
   bool media_progress = true;  // track position and duration
   bool route_geometry = true;
-  bool speed = true;  // false: settings lock while navigating instead (ADR-0005)
+  bool speed = true;           // false: settings lock while navigating instead (ADR-0005)
+  bool phone_pairing = false;  // BLE pairing confirmed on the dash, and Forget phones
 };
 
 struct PhoneState {
@@ -180,6 +181,17 @@ struct PhoneState {
   bool battery_valid = false;
   uint8_t battery_percent = 0;
   bool charging = false;
+  uint8_t paired_phones = 0;  // bonds stored on the device
+};
+
+// A phone asks to pair: the rider compares the code with the phone's and confirms with the
+// knob (CLAUDE.md, Security). Until then nothing from that phone is accepted.
+constexpr uint32_t kPairingCodeMax = 999999;
+
+struct PairingState {
+  bool requested = false;
+  uint32_t code = 0;  // 6 digits
+  uint32_t since_ms = 0;
 };
 
 struct AppState {
@@ -191,6 +203,7 @@ struct AppState {
   ClockState clock;
   Capabilities caps;
   PhoneState phone;
+  PairingState pairing;
 };
 
 }  // namespace sarathi::core

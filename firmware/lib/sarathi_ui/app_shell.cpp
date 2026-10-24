@@ -176,6 +176,8 @@ const char* CurrentScreenName() {
       return "wifi-setup";
     case screen_manager::ScreenId::kUpdate:
       return "update";
+    case screen_manager::ScreenId::kPairing:
+      return "pairing";
   }
   return "?";
 }

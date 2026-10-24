@@ -198,6 +198,40 @@ void TestPhoneBatteryIsClamped() {
   TEST_ASSERT_TRUE(m.State().phone.charging);
 }
 
+void TestPairingNeedsARequest() {
+  AppModel m;
+  TEST_ASSERT_FALSE(m.AcceptPairing());
+  TEST_ASSERT_FALSE(m.RejectPairing());
+  m.SetPairingRequest(708361, 500);
+  TEST_ASSERT_TRUE(m.State().pairing.requested);
+  TEST_ASSERT_EQUAL_UINT32(708361, m.State().pairing.code);
+  TEST_ASSERT_TRUE(m.AcceptPairing());
+  TEST_ASSERT_FALSE(m.State().pairing.requested);  // answered: the prompt closes
+  TEST_ASSERT_FALSE(m.AcceptPairing());
+  Command c;
+  TEST_ASSERT_TRUE(m.TakeCommand(c));
+  TEST_ASSERT_EQUAL(CommandType::kPairAccept, c.type);
+  m.SetPairingRequest(123456, 900);
+  TEST_ASSERT_TRUE(m.RejectPairing());
+  TEST_ASSERT_TRUE(m.TakeCommand(c));
+  TEST_ASSERT_EQUAL(CommandType::kPairReject, c.type);
+}
+
+void TestForgetPhonesFollowsCapabilityAndLock() {
+  AppModel m;
+  TEST_ASSERT_FALSE(m.ForgetPhones());  // no BLE pairing (the demo)
+  Capabilities caps = NoCallControlNoSpeed();
+  caps.phone_pairing = true;
+  m.SetCapabilities(caps);
+  m.SetPhoneGuidance("200 m", "Turn left", "5 min");  // navigating, no speed: locked
+  TEST_ASSERT_FALSE(m.ForgetPhones());
+  m.EndNav();
+  TEST_ASSERT_TRUE(m.ForgetPhones());
+  Command c;
+  TEST_ASSERT_TRUE(m.TakeCommand(c));
+  TEST_ASSERT_EQUAL(CommandType::kForgetPhones, c.type);
+}
+
 }  // namespace
 
 int main() {
@@ -216,5 +250,7 @@ int main() {
   RUN_TEST(TestWithSpeedNavigatingDoesNotLock);
   RUN_TEST(TestPhoneGuidanceReplacesNumbers);
   RUN_TEST(TestPhoneBatteryIsClamped);
+  RUN_TEST(TestPairingNeedsARequest);
+  RUN_TEST(TestForgetPhonesFollowsCapabilityAndLock);
   return UNITY_END();
 }

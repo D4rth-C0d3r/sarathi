@@ -31,6 +31,9 @@ class ListMenu {
   // Replaces an action row's text (for example "Theme: Classic").
   void SetText(size_t row, const char* text);
 
+  // A hidden row takes no space and can't be focused (a row the data source doesn't support).
+  void SetHidden(size_t row, bool hidden);
+
   // Re-reads value rows from their getters.
   void Refresh();
 
@@ -64,6 +67,7 @@ class ListMenu {
   Row& NewRow(Kind kind);
   void WriteValueText(Row& row) const;
   void StopEditing();
+  void JoinGroup();
 
   lv_obj_t* container_ = nullptr;
   lv_group_t* group_ = nullptr;

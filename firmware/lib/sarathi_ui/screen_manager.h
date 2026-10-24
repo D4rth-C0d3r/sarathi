@@ -3,6 +3,7 @@
 //
 //   Nav -> Music -> Settings -> Nav ...   double-click; Settings is skipped while moving
 //   Call                                  shown while a call rings or is active, then back
+//   Pairing                               shown while a phone asks to pair, then back
 //   Input test                            from Settings; hold the button to leave
 //   Wi-Fi setup, Software update          from Settings; click and long press go to them
 
@@ -19,7 +20,16 @@
 
 namespace sarathi::ui::screen_manager {
 
-enum class ScreenId : uint8_t { kNav, kMusic, kSettings, kCall, kInputTest, kWifiSetup, kUpdate };
+enum class ScreenId : uint8_t {
+  kNav,
+  kMusic,
+  kSettings,
+  kCall,
+  kInputTest,
+  kWifiSetup,
+  kUpdate,
+  kPairing,
+};
 
 // Builds every screen once and shows Nav. `random` is a cryptographic random source, for the
 // Wi-Fi setup password (esp_random on the device).
@@ -29,7 +39,8 @@ void Init(lv_indev_t* encoder, core::AppModel& model, core::OtaUpdate& ota,
 // Shows the call screen when needed and refreshes the shown screen.
 void Update(const core::AppModel& model, const core::InputTestState& input_test, uint32_t now_ms);
 
-// Double-click: the next screen in the carousel. Ignored on the call and input test screens.
+// Double-click: the next screen in the carousel. Ignored on the call, pairing, input test,
+// Wi-Fi setup and update screens.
 void NextScreen(const core::AppModel& model);
 
 void OpenInputTest();

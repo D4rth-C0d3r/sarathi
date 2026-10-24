@@ -25,6 +25,12 @@ class FakeChronos final : public core::DataSource {
   // The phone drops the link (or comes back): Nav shows "Phone not connected".
   void SetConnected(bool connected, uint32_t now_ms, core::AppModel& model);
 
+  // A new phone asks to pair (the dash shows the code), as NimBLE reports it on the device.
+  void RequestPairing(uint32_t code, uint32_t now_ms, core::AppModel& model);
+
+  // Ends or restarts navigation on the phone (Settings is locked while navigating).
+  void SetNavigating(bool navigating, uint32_t now_ms, core::AppModel& model);
+
  private:
   void Write(const std::vector<uint8_t>& packet, uint32_t now_ms, core::AppModel& model);
   void SendNav(uint32_t now_ms, core::AppModel& model);
@@ -38,6 +44,8 @@ class FakeChronos final : public core::DataSource {
   size_t nav_step_ = 0;
   size_t track_ = 0;
   bool playing_ = true;
+  bool navigating_ = true;
+  uint8_t paired_ = 1;
 };
 
 }  // namespace sarathi::sim
