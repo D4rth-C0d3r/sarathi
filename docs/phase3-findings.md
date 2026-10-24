@@ -223,10 +223,32 @@ it's covered too.
 The Chronos build makes "BLE up" a real condition (`BootHealth::ble_ready`). The image is
 confirmed only after advertising has started.
 
-## Still to confirm with the phone (step 2)
+## Confirmed on the device (2026-10-24)
 
-- The exact strings Google Maps produces for each field, in your language and units. These
-  will be recorded as fixtures for the native tests, with names and numbers redacted.
-- What `caller` contains for a contact and for an unknown number.
-- How often navigation updates arrive (affects how we show stale data while stopped).
+With the recorder build and then the step 2 adapter, on Android with the Chronos app:
+
+- **Calls:** a ringing call from a saved contact sends the contact's name; the stop packet
+  follows when it stops ringing. Recorded as test fixtures, with the name redacted.
+- **Time and phone battery:** arrive as the source says, at connection and on change.
+- **Music needs Android's notification access for Chronos.** Without it, Chronos sends only a
+  placeholder (empty package name, title "No active media", artist "Chronos"), which the
+  bridge treats as "no media". With it:
+  - player package (here YouTube Music), playing or paused, title and artist all arrive;
+  - play, pause, next and previous reach the phone;
+  - there's no track position or duration, as the source says.
+- **Navigation** from Google Maps reaches the dash.
+- **MTU:** every connection starts at the BLE default (23, so 20-byte writes). The phone
+  switches to 517 about 5 s later. In those first seconds the app sends packets longer than
+  20 bytes **cut short**: it writes the first 20 bytes and never the rest. The receiver drops
+  them; about one per connection, usually the music title, which comes again on the next
+  change. The app also sends one unused packet (0xCB) cut short even at MTU 517.
+- **BLE pause for Wi-Fi:** "Check for update" stops BLE, internal heap stays at 75 KB or more
+  with Wi-Fi on, and BLE restarts about 3 s after Wi-Fi is off. Chronos reconnects by itself.
+
+## Still to confirm
+
+- Exact Google Maps strings for each nav field, recorded as fixtures (the nav tests use
+  synthetic packets built from the library's format until then).
+- What `caller` contains for an unknown number.
+- How often navigation updates arrive (affects how stale data shows while stopped).
 - The bonding experiment above.

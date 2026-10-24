@@ -13,6 +13,19 @@ void AppModel::SetGuidance(const Maneuver& next, uint32_t distance_m, std::strin
   state_.nav.eta_s = eta_s;
 }
 
+void AppModel::SetPhoneGuidance(std::string_view distance, std::string_view instruction,
+                                std::string_view remaining) {
+  state_.nav.active = true;
+  state_.nav.next = Maneuver{};
+  state_.nav.distance_m = 0;
+  state_.nav.eta_s = 0;
+  state_.nav.street.Assign(instruction);
+  state_.nav.distance_text.Assign(distance);
+  state_.nav.remaining_text.Assign(remaining);
+}
+
+void AppModel::SetManeuverIcon(const ManeuverIcon& icon) { state_.nav.icon = icon; }
+
 void AppModel::SetRouteWindow(const RouteWindow& window, uint32_t now_ms) {
   state_.nav.window = window;
   state_.nav.has_window = true;
@@ -36,21 +49,36 @@ void AppModel::SetSpeed(uint16_t speed_kmh) {
   state_.ride.moving = speed_kmh >= kMovingThresholdKmh;
 }
 
+void AppModel::SetPhoneBattery(uint8_t percent, bool charging) {
+  state_.phone.battery_valid = true;
+  state_.phone.battery_percent = percent > 100 ? 100 : percent;
+  state_.phone.charging = charging;
+}
+
 bool AppModel::AcceptCall() {
-  return state_.call.phase == CallPhase::kRinging && Queue(CommandType::kCallAccept);
+  return state_.caps.call_accept && state_.call.phase == CallPhase::kRinging &&
+         Queue(CommandType::kCallAccept);
 }
 
 bool AppModel::RejectCall() {
-  return state_.call.phase != CallPhase::kIdle && Queue(CommandType::kCallReject);
+  return state_.caps.call_reject && state_.call.phase != CallPhase::kIdle &&
+         Queue(CommandType::kCallReject);
 }
 
-bool AppModel::MediaPlayPause() {
-  return state_.media.available && Queue(CommandType::kMediaPlayPause);
+bool AppModel::DismissCall() {
+  return !state_.caps.call_reject && state_.call.phase == CallPhase::kRinging &&
+         Queue(CommandType::kCallDismiss);
 }
 
-bool AppModel::MediaNext() { return state_.media.available && Queue(CommandType::kMediaNext); }
+bool AppModel::MediaPlayPause() { return MediaAction(CommandType::kMediaPlayPause); }
 
-bool AppModel::MediaPrev() { return state_.media.available && Queue(CommandType::kMediaPrev); }
+bool AppModel::MediaNext() { return MediaAction(CommandType::kMediaNext); }
+
+bool AppModel::MediaPrev() { return MediaAction(CommandType::kMediaPrev); }
+
+bool AppModel::MediaAction(CommandType type) {
+  return state_.caps.media_control && state_.media.available && Queue(type);
+}
 
 void AppModel::SetClock(uint16_t minutes_of_day) {
   state_.clock.valid = true;

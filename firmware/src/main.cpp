@@ -1,7 +1,8 @@
 // sārathi firmware entry point: constructs the modules and wires them together.
 //
-// Phase 1: the UI shell (Nav, Music, Settings, Call, Input test) fed by the scripted demo
-// ride until the phone link exists. Also logs chip, flash and PSRAM info once a second.
+// The UI shell (Nav, Music, Settings, Call, Input test) is fed by a data source chosen at
+// build time: the scripted demo ride (env crowpanel21) or the Chronos app over BLE (env
+// crowpanel21-chronos, ADR-0005). Also logs chip, flash and PSRAM info at boot.
 
 #include <cinttypes>
 #include <cstdint>
@@ -21,7 +22,11 @@
 #include "board_pins.h"
 #include "boot_confirm.h"
 #include "boot_health.h"
+#ifdef SARATHI_BACKEND_CHRONOS
+#include "chronos_source.h"
+#else
 #include "demo_ride.h"
+#endif
 #include "display.h"
 #include "frame_stats.h"
 #include "input_test_model.h"
@@ -31,6 +36,7 @@
 #include "nvs_wifi.h"
 #include "ota_update.h"
 #include "ota_worker.h"
+#include "radio_policy.h"
 #include "settings_saver.h"
 #include "touch.h"
 #include "touch_filter.h"
@@ -66,7 +72,6 @@ board::Knob knob;
 core::TouchFilter touch_filter(pins::kScreenWidth, pins::kScreenHeight, pins::kTouchYOffset,
                                pins::kTouchJitterPx);
 core::AppModel app;
-core::DemoRide demo_ride;
 core::InputTestModel input_test(pins::kKnobDebounceMs, pins::kKnobDoubleClickMs,
                                 pins::kBacklightDefaultPercent, core::kBacklightStepPercent);
 bool ui_ready = false;
@@ -85,7 +90,30 @@ ota::OtaWorker ota_worker;
 core::WifiSetup wifi_setup;
 ota::WifiSetupServer setup_server;
 sarathi::settings::NvsWifi nvs_wifi;
+core::RadioPolicy radio_policy;
+core::OtaJob held_ota_job;                                      // waits for BLE to stop (ADR-0005)
+core::WifiSetupJob held_setup_job = core::WifiSetupJob::kNone;  // likewise
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// ---- The data source (ADR-0005). Removing Chronos means deleting this #if branch, the
+// crowpanel21-chronos env and sarathi_link/chronos_*.
+#ifdef SARATHI_BACKEND_CHRONOS
+constexpr bool kHasBle = true;
+sarathi::link::ChronosSource chronos;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+core::DataSource& source = chronos;
+bool BeginSource() { return chronos.Begin("sarathi"); }
+void SetBlePaused(bool paused) { chronos.SetBlePaused(paused); }
+bool BleStopped() { return chronos.BleStopped(); }
+bool BleUp() { return chronos.BleUp(); }
+#else
+constexpr bool kHasBle = false;
+core::DemoRide demo_ride;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+core::DataSource& source = demo_ride;
+bool BeginSource() { return true; }
+void SetBlePaused(bool /*paused*/) {}
+bool BleStopped() { return true; }
+bool BleUp() { return false; }
+#endif
 
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
 
@@ -190,14 +218,36 @@ void LogPerf() {
 }
 
 // Wi-Fi setup and OTA: hand jobs to the platform, feed results back (ADR-0004).
+// BLE and Wi-Fi don't both fit in internal RAM (ADR-0005): BLE stops while Wi-Fi is in use,
+// and a job that turns Wi-Fi on is held until it has.
 void RunOta(uint32_t now) {
-  ota_worker.Post(ota_update.TakeJob());
+  if (held_ota_job.type == core::OtaJobType::kNone) {
+    held_ota_job = ota_update.TakeJob();
+  }
+  if (held_setup_job == core::WifiSetupJob::kNone) {
+    held_setup_job = wifi_setup.TakeJob();
+  }
+  const bool wifi_wanted = core::WifiInUse(ota_update.Phase(), wifi_setup.Phase()) ||
+                           core::JobStartsWifi(held_ota_job.type) ||
+                           core::JobStartsWifi(held_setup_job);
+  SetBlePaused(radio_policy.Update(wifi_wanted, now));
+  const bool radio_free = BleStopped();
+
+  if (radio_free || !core::JobStartsWifi(held_ota_job.type)) {
+    ota_worker.Post(held_ota_job);
+    held_ota_job = core::OtaJob{};
+  }
   ota::OtaResult result;
   while (ota_worker.TakeResult(&result)) {
     ota::ApplyResult(result, ota_update);
   }
 
-  switch (wifi_setup.TakeJob()) {
+  core::WifiSetupJob setup_job = core::WifiSetupJob::kNone;
+  if (radio_free || !core::JobStartsWifi(held_setup_job)) {
+    setup_job = held_setup_job;
+    held_setup_job = core::WifiSetupJob::kNone;
+  }
+  switch (setup_job) {
     case core::WifiSetupJob::kStartAccessPoint:
       if (!setup_server.Start(wifi_setup.Password())) {
         wifi_setup.OnAccessPointStarted(false);
@@ -230,7 +280,7 @@ void RunOta(uint32_t now) {
 }
 
 void RunUi(uint32_t now) {
-  demo_ride.Poll(now, app);
+  source.Poll(now, app);
 
   int8_t step = 0;
   while (knob.TakeStep(step)) {
@@ -243,7 +293,7 @@ void RunUi(uint32_t now) {
 
   core::Command command;
   while (app.TakeCommand(command)) {
-    demo_ride.OnCommand(command, now, app);
+    source.OnCommand(command, now, app);
   }
   RunOta(now);
   // Debounced: one write once the settings have been still for 2 s.
@@ -260,7 +310,7 @@ void RunUi(uint32_t now) {
   held_since_boot = held_since_boot && knob.ReadButtonRaw();
   if (boot_state.pending_verify) {
     const core::BootDecision decision =
-        core::DecideBoot({true, first_frame, false, held_since_boot, now});
+        core::DecideBoot({true, first_frame, BleUp(), held_since_boot, now}, kHasBle);
     if (decision == core::BootDecision::kRollBack) {
       backlight.SetPercent(0);
       ota::RollBack();  // reboots; returns only if there is nothing to roll back to
@@ -270,8 +320,9 @@ void RunUi(uint32_t now) {
     ESP_LOGI(kTag, "button held since boot, but this image isn't pending: nothing to roll back");
     held_since_boot = false;
   }
-  if (boot_state.pending_verify && core::DecideBoot({true, first_frame, false, held_since_boot,
-                                                     now}) == core::BootDecision::kConfirm) {
+  if (boot_state.pending_verify &&
+      core::DecideBoot({true, first_frame, BleUp(), held_since_boot, now}, kHasBle) ==
+          core::BootDecision::kConfirm) {
     backlight.SetPercent(0);
     delay(kDarkSettleMs);
     if (ota::ConfirmBoot()) {
@@ -321,6 +372,9 @@ void setup() {
   }
   if (!ota_worker.Begin(LoadWifi)) {
     ESP_LOGE(kTag, "OTA worker failed to start");
+  }
+  if (!BeginSource()) {
+    ESP_LOGE(kTag, "data source failed to start");
   }
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, Random);

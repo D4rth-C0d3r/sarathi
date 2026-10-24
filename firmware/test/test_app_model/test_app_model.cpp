@@ -4,6 +4,7 @@
 
 using sarathi::core::AppModel;
 using sarathi::core::CallPhase;
+using sarathi::core::Capabilities;
 using sarathi::core::Command;
 using sarathi::core::CommandType;
 using sarathi::core::kCommandQueueLength;
@@ -113,6 +114,90 @@ void TestQueueDropsWhenFull() {
   TEST_ASSERT_EQUAL_UINT(kCommandQueueLength, taken);
 }
 
+Capabilities NoCallControlNoSpeed() {
+  Capabilities caps;
+  caps.call_accept = false;
+  caps.call_reject = false;
+  caps.speed = false;
+  return caps;
+}
+
+void TestCallActionsFollowCapabilities() {
+  AppModel m;
+  m.SetCapabilities(NoCallControlNoSpeed());
+  m.SetCall(CallPhase::kRinging, "Contact A", 0);
+  TEST_ASSERT_FALSE(m.AcceptCall());
+  TEST_ASSERT_FALSE(m.RejectCall());
+  TEST_ASSERT_TRUE(m.DismissCall());
+  Command c;
+  TEST_ASSERT_TRUE(m.TakeCommand(c));
+  TEST_ASSERT_EQUAL(CommandType::kCallDismiss, c.type);
+  TEST_ASSERT_FALSE(m.TakeCommand(c));
+}
+
+void TestDismissOnlyWithoutReject() {
+  AppModel m;  // default capabilities: reject is supported, so dismiss isn't offered
+  m.SetCall(CallPhase::kRinging, "Contact A", 0);
+  TEST_ASSERT_FALSE(m.DismissCall());
+  m.SetCapabilities(NoCallControlNoSpeed());
+  m.SetCall(CallPhase::kIdle, "", 0);
+  TEST_ASSERT_FALSE(m.DismissCall());
+}
+
+void TestMediaCommandsFollowCapabilities() {
+  AppModel m;
+  MediaState media{};
+  media.available = true;
+  m.SetMedia(media);
+  Capabilities caps;
+  caps.media_control = false;
+  m.SetCapabilities(caps);
+  TEST_ASSERT_FALSE(m.MediaPlayPause());
+  TEST_ASSERT_FALSE(m.MediaNext());
+  TEST_ASSERT_FALSE(m.MediaPrev());
+}
+
+void TestWithoutSpeedSettingsLockWhileNavigating() {
+  AppModel m;
+  m.SetCapabilities(NoCallControlNoSpeed());
+  TEST_ASSERT_FALSE(m.SettingsLocked());
+  m.SetPhoneGuidance("200 m", "Turn left onto Station Road", "12 min");
+  TEST_ASSERT_TRUE(m.SettingsLocked());
+  TEST_ASSERT_FALSE(m.SetTheme(ThemeId::kRacing));
+  m.EndNav();
+  TEST_ASSERT_FALSE(m.SettingsLocked());
+  TEST_ASSERT_TRUE(m.SetTheme(ThemeId::kRacing));
+}
+
+void TestWithSpeedNavigatingDoesNotLock() {
+  AppModel m;
+  m.SetGuidance(Maneuver{ManeuverType::kLeft, 0}, 200, "Station Road", 60);
+  m.SetSpeed(0);
+  TEST_ASSERT_FALSE(m.SettingsLocked());
+}
+
+void TestPhoneGuidanceReplacesNumbers() {
+  AppModel m;
+  m.SetGuidance(Maneuver{ManeuverType::kLeft, 0}, 200, "Station Road", 60);
+  m.SetPhoneGuidance("0.3 mi", "Keep right", "1 h 5 min");
+  const auto& nav = m.State().nav;
+  TEST_ASSERT_TRUE(nav.active);
+  TEST_ASSERT_EQUAL(ManeuverType::kNone, nav.next.type);
+  TEST_ASSERT_EQUAL_UINT32(0, nav.distance_m);
+  TEST_ASSERT_EQUAL_STRING("0.3 mi", nav.distance_text.CStr());
+  TEST_ASSERT_EQUAL_STRING("Keep right", nav.street.CStr());
+  TEST_ASSERT_EQUAL_STRING("1 h 5 min", nav.remaining_text.CStr());
+}
+
+void TestPhoneBatteryIsClamped() {
+  AppModel m;
+  TEST_ASSERT_FALSE(m.State().phone.battery_valid);
+  m.SetPhoneBattery(150, true);
+  TEST_ASSERT_TRUE(m.State().phone.battery_valid);
+  TEST_ASSERT_EQUAL_UINT8(100, m.State().phone.battery_percent);
+  TEST_ASSERT_TRUE(m.State().phone.charging);
+}
+
 }  // namespace
 
 int main() {
@@ -124,5 +209,12 @@ int main() {
   RUN_TEST(TestCallPhaseTimestamp);
   RUN_TEST(TestMediaCommandsNeedMedia);
   RUN_TEST(TestQueueDropsWhenFull);
+  RUN_TEST(TestCallActionsFollowCapabilities);
+  RUN_TEST(TestDismissOnlyWithoutReject);
+  RUN_TEST(TestMediaCommandsFollowCapabilities);
+  RUN_TEST(TestWithoutSpeedSettingsLockWhileNavigating);
+  RUN_TEST(TestWithSpeedNavigatingDoesNotLock);
+  RUN_TEST(TestPhoneGuidanceReplacesNumbers);
+  RUN_TEST(TestPhoneBatteryIsClamped);
   return UNITY_END();
 }

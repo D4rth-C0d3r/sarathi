@@ -10,7 +10,8 @@ namespace sarathi::core {
 // How long the UI must have been running before the image is trusted.
 constexpr uint32_t kBootSettleMs = 10000;
 
-// TODO(Phase 3): true once sarathi_link (BLE) exists and reports when it is advertising.
+// Default for builds without BLE (the demo ride). A build with a BLE data source (Chronos,
+// ADR-0005) passes true, so the image confirms only once BLE is advertising.
 constexpr bool kBootNeedsBle = false;
 
 struct BootHealth {

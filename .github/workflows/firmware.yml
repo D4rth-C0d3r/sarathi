@@ -113,6 +113,15 @@ jobs:
       - name: Check image size
         run: python ../tools/check_image_size.py .pio/build/crowpanel21/firmware.bin partitions.csv
 
+      # The interim Chronos phone link (ADR-0005): built and size-checked too, so it can't rot.
+      - name: Build (Chronos)
+        run: pio run -e crowpanel21-chronos
+
+      - name: Check image size (Chronos)
+        run: >-
+          python ../tools/check_image_size.py .pio/build/crowpanel21-chronos/firmware.bin
+          partitions.csv
+
       - name: Short commit SHA
         id: sha
         run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"

@@ -173,6 +173,7 @@ void DemoRide::Poll(uint32_t now_ms, AppModel& model) {
   clock_ms_ = (clock_ms_ + dt_ms) % kDayMs;
   model.SetClock(static_cast<uint16_t>(clock_ms_ / 60000U));
   model.SetSpeed(CurrentSpeedKmh());
+  model.SetPhoneConnected(true);  // the demo stands in for a connected phone
   PublishNav(now_ms, model);
   PublishCall(now_ms, model);
   PublishMedia(model);
@@ -191,6 +192,8 @@ void DemoRide::OnCommand(const Command& command, uint32_t now_ms, AppModel& mode
         call_stage_ = CallStage::kDone;
       }
       break;
+    case CommandType::kCallDismiss:
+      break;  // the demo supports reject, so the UI never offers dismiss
     case CommandType::kMediaPlayPause:
       playing_ = !playing_;
       break;

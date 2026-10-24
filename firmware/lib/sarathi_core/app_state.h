@@ -56,12 +56,28 @@ struct RouteWindow {
   uint32_t sequence = 0;        // increases with every new window
 };
 
+// The phone's own maneuver icon (Chronos, ADR-0005): 48x48, 1 bit per pixel, row-major, most
+// significant bit first.
+constexpr size_t kManeuverIconSize = 48;
+constexpr size_t kManeuverIconBytes = kManeuverIconSize * kManeuverIconSize / 8;
+
+struct ManeuverIcon {
+  bool valid = false;
+  uint32_t id = 0;  // changes when the picture changes
+  std::array<uint8_t, kManeuverIconBytes> bits{};
+};
+
 struct NavState {
   bool active = false;
   Maneuver next{};
   uint32_t distance_m = 0;  // to the next maneuver
-  FixedString<32> street;   // the street after the next maneuver
+  FixedString<48> street;   // the street after the next maneuver, or the phone's instruction
   uint32_t eta_s = 0;       // remaining time to the destination
+  // Phone-formatted guidance (Chronos, ADR-0005), shown as given: the phone's language and
+  // units. When set, they replace distance_m and eta_s, and `icon` replaces `next`.
+  FixedString<16> distance_text;
+  FixedString<16> remaining_text;
+  ManeuverIcon icon{};
   bool has_window = false;
   RouteWindow window{};
   uint32_t window_received_ms = 0;
@@ -147,6 +163,24 @@ struct RideState {
   bool moving = false;
 };
 
+// ---- Phone ----
+
+// What the data source can do (ADR-0005). The UI offers only what it supports.
+struct Capabilities {
+  bool call_accept = true;
+  bool call_reject = true;  // false: the call screen can only be dismissed on the dash
+  bool media_control = true;
+  bool route_geometry = true;
+  bool speed = true;  // false: settings lock while navigating instead (ADR-0005)
+};
+
+struct PhoneState {
+  bool connected = false;
+  bool battery_valid = false;
+  uint8_t battery_percent = 0;
+  bool charging = false;
+};
+
 struct AppState {
   NavState nav;
   CallState call;
@@ -154,6 +188,8 @@ struct AppState {
   Settings settings;
   RideState ride;
   ClockState clock;
+  Capabilities caps;
+  PhoneState phone;
 };
 
 }  // namespace sarathi::core

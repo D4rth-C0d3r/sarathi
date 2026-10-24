@@ -15,7 +15,8 @@ namespace sarathi::core {
 
 enum class CommandType : uint8_t {
   kCallAccept,
-  kCallReject,  // also hangs up an active call
+  kCallReject,   // also hangs up an active call
+  kCallDismiss,  // hides the call on the dash only; the phone keeps ringing
   kMediaPlayPause,
   kMediaNext,
   kMediaPrev,
@@ -32,12 +33,19 @@ class AppModel {
   // ---- From the data source ----
   void SetGuidance(const Maneuver& next, uint32_t distance_m, std::string_view street,
                    uint32_t eta_s);
+  // Guidance as the phone formats it (ADR-0005). Keeps the current icon.
+  void SetPhoneGuidance(std::string_view distance, std::string_view instruction,
+                        std::string_view remaining);
+  void SetManeuverIcon(const ManeuverIcon& icon);
   void SetRouteWindow(const RouteWindow& window, uint32_t now_ms);
   void EndNav();
   void SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms);
   void SetMedia(const MediaState& media);
   void SetSpeed(uint16_t speed_kmh);
   void SetClock(uint16_t minutes_of_day);  // 0-1439, wraps
+  void SetCapabilities(const Capabilities& caps) { state_.caps = caps; }
+  void SetPhoneConnected(bool connected) { state_.phone.connected = connected; }
+  void SetPhoneBattery(uint8_t percent, bool charging);
 
   // ---- Settings from storage ----
   // Applies saved settings at boot (not subject to the moving lock; brightness clamped). Does
@@ -46,8 +54,10 @@ class AppModel {
 
   // ---- Rider actions ----
   // Return false (and do nothing) when the action doesn't apply right now.
+  // Call and media actions also need the data source to support them (Capabilities).
   bool AcceptCall();      // only while ringing
   bool RejectCall();      // while ringing or active
+  bool DismissCall();     // only while ringing, when rejecting isn't supported
   bool MediaPlayPause();  // only when media is available
   bool MediaNext();
   bool MediaPrev();
@@ -59,7 +69,10 @@ class AppModel {
   bool SetScreenTimeout(ScreenTimeout timeout);
   bool SetKnobReversed(bool reversed);
 
-  [[nodiscard]] bool SettingsLocked() const { return state_.ride.moving; }
+  // Locked while moving. Without a speed source, locked while navigating (ADR-0005).
+  [[nodiscard]] bool SettingsLocked() const {
+    return state_.ride.moving || (!state_.caps.speed && state_.nav.active);
+  }
 
   // Increases with every rider change to the settings, so the saver knows when to write.
   [[nodiscard]] uint32_t SettingsRevision() const { return settings_revision_; }
@@ -71,6 +84,7 @@ class AppModel {
 
  private:
   bool Queue(CommandType type);
+  bool MediaAction(CommandType type);
 
   // Applies `next` unless locked; counts a revision only if something changed.
   bool ChangeSettings(const Settings& next);
