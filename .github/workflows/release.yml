@@ -80,6 +80,11 @@ jobs:
       - name: OTA manifest vectors
         run: python ../tools/ota_manifest.py check-vectors ../docs/ota/vectors
 
+      # First: PlatformIO wipes all of .pio/build when the build options change, and
+      # PLATFORMIO_BUILD_FLAGS counts. Built after the release env, this deleted its image.
+      - name: Build the demo env (check only, not published)
+        run: pio run -e crowpanel21
+
       # version.h fails the build if SARATHI_SEQ doesn't match SARATHI_VERSION.
       - name: Build
         env:
@@ -87,9 +92,6 @@ jobs:
             '-DSARATHI_VERSION="${{ steps.version.outputs.version }}"'
             -DSARATHI_SEQ=${{ steps.version.outputs.seq }}
         run: pio run -e "$RELEASE_ENV"
-
-      - name: Build the demo env (check only, not published)
-        run: pio run -e crowpanel21
 
       - name: Check image size
         run: python ../tools/check_image_size.py ".pio/build/$RELEASE_ENV/firmware.bin" partitions.csv
