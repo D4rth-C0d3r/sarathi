@@ -59,10 +59,11 @@ Classic Bluetooth audio on the device.
   `v0.4.0-rc.2`, except navigation on a real ride, which is still to be tried.
 - **Phase 4 (own Android app + protocol) is in design:** ADR-0006 (maps backends),
   ADR-0007 (protocol v1), ADR-0008 (destination input) and ADR-0009 (on-device game-style
-  map) are accepted. Before code: a device rendering spike (≥ 15 fps rotating map), an
-  offline-router spike (valhalla-mobile vs BRouter), the owner's checks listed in ADR-0006,
-  and recorded share-link fixtures (ADR-0008). New dependencies are still flagged as each
-  one is added.
+  map) are accepted. Spikes done: the rotating map renders at about 18.6 fps without
+  flicker (own rasteriser, pre-swapped colours; ADR-0009), and the offline router is
+  valhalla-mobile with Goa tiles (ADR-0006). Before code: the owner's checks listed in
+  ADR-0006 and recorded share-link fixtures (ADR-0008). New dependencies are still flagged
+  as each one is added.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
