@@ -164,17 +164,32 @@ interface RoutingProvider {
 | Ferrostar, offline router | Run inside our foreground service | Off-route → reroute with the screen off |
 | Search (any backend) | Only used before a ride, with the screen on | — |
 
-### Offline OSM router: spike before choosing
+### Offline OSM router: valhalla-mobile (spike, 2026-10-25)
 
-Compare **valhalla-mobile** and **BRouter** for the owner's region (a state, and India):
-- data size and download time
-- route time on the phone
-- battery during a one-hour headless ride
-- motorcycle profile quality
-- output that Ferrostar can use
+**Region: Goa** (the owner's). OSM extract: `goa-latest.osm.pbf` from openstreetmap.fr,
+7.5 MB.
 
-**Tentative pick: valhalla-mobile.** Its OSRM-format output plugs into Ferrostar with no
-conversion, and it can map-match.
+| | valhalla-mobile (Valhalla 3.9.1) | BRouter 1.7.10 |
+|---|---|---|
+| Version pin | valhalla-mobile 0.6.4 (2026-10-06) pins Valhalla **3.9.1**; tiles built with the matching `ghcr.io/valhalla/valhalla:3.9.1` image | Release jar |
+| Data for Goa | **14 MB** of routing tiles (18 files), built in 3 s on the laptop. Optional: admin boundaries 6.9 MB (country rules), global timezones 117 MB (only for time-dependent routing; can be left out or cut down) | **21.9 MB**: two prebuilt 5°×5° segments (`E70_N10`, `E70_N15`) that also cover most of Maharashtra and Karnataka. Smaller means building our own. |
+| Motorcycle profile | `motorcycle` costing. `motor_scooter` is unsuitable: 7–12 km detours avoiding main roads. | No motorcycle profile. `car-fast` is the closest; `moped` assumes about 45 km/h. |
+| Routes (5 Goa trips) | Same corridors as BRouter `car-fast` within 1 km, except Panaji–Mollem (+5 km, prefers the highway) | — |
+| Compute time (laptop, warm) | **13–16 ms** | 110–490 ms |
+| ETA (no traffic) | Optimistic (Panaji–Margao 30 min) | More realistic (40 min) |
+| Turn instructions | OSRM-format steps, read **directly by Ferrostar** | "Voice hints"; would need a converter to Ferrostar's format |
+
+**Decision: valhalla-mobile with the `motorcycle` costing.** It's faster, has smaller
+per-region data, outputs what Ferrostar reads natively, and can map-match. The optimistic
+ETA matters little for the last fallback, and the dash also shows the remaining distance.
+
+**Agreed with the owner:**
+- **No BRouter test on the phone:** it couldn't change the outcome.
+- **Phone smoke test** (route time and memory) when the offline provider is built.
+- **Battery** is measured in Phase 4's full screen-off ride test. Routing only runs on a
+  reroute, so its cost is small next to GPS and BLE.
+- **Valhalla and its tiles stay on the same version;** the app checks the tile version when
+  loading.
 
 ## Recommended defaults
 
@@ -221,7 +236,7 @@ a few dozen place lookups a month. That's about 10 % of the global Navigation ca
   - Google Navigation SDK and Places SDK (Play services)
   - Mappls SDK or plain HTTP
   - Ferrostar
-  - an offline router (valhalla-mobile or BRouter)
+  - the offline router, valhalla-mobile (0.6.4, Valhalla 3.9.1)
   - an HTTP client and `kotlinx.serialization`
 - **The app needs Google Play services** for the Google backend; OSM and Mappls work
   without it.
