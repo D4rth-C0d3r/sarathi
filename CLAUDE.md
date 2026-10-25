@@ -20,6 +20,19 @@ The ESP32-S3 has **BLE only**: no Classic Bluetooth, so no HFP or A2DP.
 Call and music audio stay on the helmet intercom. Never propose designs that need
 Classic Bluetooth audio on the device.
 
+### Hard rules (owner, Phase 4 onward)
+- **The phone stays locked in the rider's pocket with the screen off for the whole ride.**
+  Everything that runs during a ride (BLE link, guidance, location, rerouting, traffic, map
+  data) must work headless; anything that needs the screen happens before the ride starts.
+- **BLE only between phone and device** (ADR-0001). No Wi-Fi streaming and no images to the
+  device; the device renders the map itself from vector data.
+- **Only free usage.** Google with a billing account is fine as long as usage stays inside
+  the free tier (with a local cost guard and Cloud Console quota caps, ADR-0006). Any other
+  paid option: ask the owner first.
+- **Data derived from Google must never be uploaded to OpenStreetMap,** or mixed into OSM
+  map data (map chunks carry provenance, ADR-0009).
+- Private project for the owner's own use.
+
 ### Map and themes (ADR-0002 `docs/adr/0002-vector-route-map.md`, ADR-0003 `docs/adr/0003-theme-system.md`)
 - **Map:** the phone sends a vector route window (polyline in local metres relative to the
   rider, heading, next maneuver and distance); the device draws it heading-up with LVGL.
@@ -44,7 +57,12 @@ Classic Bluetooth audio on the device.
   phone battery from the Chronos app, with pairing confirmed on the dash. All of
   `docs/phase3-test-plan.md` passes on the device, including the OTA from 0.3.0 to
   `v0.4.0-rc.2`, except navigation on a real ride, which is still to be tried.
-- **Phase 4 (own Android app + protocol) is next.**
+- **Phase 4 (own Android app + protocol) is in design:** ADR-0006 (maps backends),
+  ADR-0007 (protocol v1), ADR-0008 (destination input) and ADR-0009 (on-device game-style
+  map) are accepted. Before code: a device rendering spike (≥ 15 fps rotating map), an
+  offline-router spike (valhalla-mobile vs BRouter), the owner's checks listed in ADR-0006,
+  and recorded share-link fixtures (ADR-0008). New dependencies are still flagged as each
+  one is added.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -231,12 +249,20 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   `vendor/`. Don't vendor Elecrow's SquareLine UI or its large image assets.
 
 ### Protocol (phone ↔ device)
-- One custom GATT service: a write characteristic (phone→device) and a notify
-  characteristic (device→phone). MTU ≥ 247. JSON messages.
-- Message types: `hello`, `nav`, `route`, `nav_end`, `call`, `call_action`, `media`,
-  `media_cmd`, `time`, `phone_batt`, `ota_begin`, `ota_chunk`, `ota_end`.
-  `route` is the vector route window (ADR-0002); its format is defined in
-  `docs/protocol/` before any code. Never send map images over the link.
+- Protocol v1 is ADR-0007 (`docs/adr/0007-protocol-v1.md`). One custom GATT service: `rx`
+  (phone→device, write without response) and `tx` (device→phone, notify), bonded and
+  authenticated links only. MTU ≥ 247 (the device starts the exchange). Every write is one
+  frame (type, msg_id, fragment flags; the first fragment adds total length and CRC-16);
+  the device grants credits for flow control.
+- **Encoding: JSON for control messages; compact binary (zigzag-varint deltas) for `pose`,
+  `route`, `traffic`, `chunk` and `chunk_have`** (measured 4-5x smaller for geometry).
+- Message types: phone→device `hello`, `time`, `phone_batt`, `frame`, `backend`, `event`,
+  `nav`, `nav_end`, `pose`, `route`, `traffic`, `chunk`, `call`, `media`; device→phone
+  `hello`, `chunk_have`, `chunk_ack`, `flow`, `style`, `call_action`, `media_cmd`. OTA
+  messages are reserved for Phase 5. No navigation control from the device.
+- Positions reach the device only in a per-ride local metric frame: never latitude or
+  longitude (ADR-0002, ADR-0009). Never send map images over the link; map chunks are OSM
+  vector data with a provenance field.
 - The protocol version is separate from the firmware version and is sent in `hello`.
 - **Any protocol change: update `docs/protocol/protocol.md`, `schema/` and `vectors/`
   FIRST.** Firmware and Android tests both run against the same golden vectors.

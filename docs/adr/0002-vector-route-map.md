@@ -131,3 +131,28 @@ need most of the UI task at well under 10 Hz. Before revisiting it, make redraws
 render straight into the panel framebuffer (removing the 42 ms copy and R/B swap), and
 invalidate only the area the route actually covers instead of the whole circle. The window
 format itself (about 1 KB per second) is not a bottleneck.
+
+## Extension: roads and full route on the device (ADR-0009, accepted 2026-10-25)
+
+ADR-0009 (on-device game-style map) and ADR-0007 (protocol v1) extend this decision for
+Phase 4:
+
+- **What stays:**
+  - The phone owns routing and positioning.
+  - The device draws everything itself, heading-up, from vector data; no images over BLE.
+  - **The device never learns latitude or longitude.**
+- **What changes:**
+  - **Full route, not a window:** the phone sends the whole route once (and on reroute) in a
+    per-ride local metric frame, plus per-segment traffic. A 50 km route is about 2.4 KB in
+    binary.
+  - **Rider pose at 2 Hz** (x, y, heading, speed) instead of a re-centred window every
+    second. The device dead-reckons between poses for smooth rotation.
+  - **Roads:** OSM road chunks (OpenFreeMap online, a Protomaps extract offline), simplified
+    and quantized on the phone, cached on both sides with provenance on every chunk.
+  - **Message encoding:** route, pose, traffic and chunks are binary; control messages stay
+    JSON (ADR-0007).
+  - **Smooth rotation is the target now (≥ 15 fps).** It depends on the redraw work this
+    ADR already named: direct framebuffer rendering, no R/B swap pass, culling, and redraw
+    thresholds. A device spike measures it before the protocol is frozen (ADR-0009).
+- **The 64-point window format from this ADR is retired** when Phase 4's phone link
+  replaces the demo ride's windows. `core::route_projection` is reused for the route line.
