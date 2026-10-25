@@ -228,3 +228,36 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
   [basemap layers](https://docs.protomaps.com/basemaps/layers)
 - Measurements: OpenFreeMap TileJSON `https://tiles.openfreemap.org/planet` (build
   20261018_080001_pt), z14 tiles 11553/7334, 11723/7596, 11531/7322, 11694/7560
+
+## Spike result (2026-10-25)
+
+- **What was measured:** the measured Pune L0 chunk (1,187 polylines, 3,758 points) drawn
+  heading-up at 2 m/px, rotating continuously, about 420 road segments visible per frame.
+- **Where:** on the device, in a throwaway build (not committed), with frame and flush
+  times from the existing perf log.
+- **Visual check:** the owner filmed it at 60 fps.
+
+| Pipeline | Draw | Flush | Frame | fps | On screen |
+|---|---|---|---|---|---|
+| LVGL `lv_draw_line` per segment, R/B swap, copy (today) | 92 ms | 42 ms | 147 ms | 6.8 | clean |
+| Own rasteriser, R/B swap, copy | 19 ms | 42 ms | 75 ms | 13.3 | clean |
+| **Own rasteriser, pre-swapped colours, copy** | 19 ms | 21 ms | **54 ms** | **18.6** | **clean** |
+| Own rasteriser, direct into the single panel framebuffer | 18 ms | 0.2 ms | 32 ms | about 30 (LVGL's refresh cap) | **flickers**: the panel shows the cleared or half-drawn frame |
+
+**What decided it:**
+- **`lv_draw_line` is unusable for a map in LVGL 9.1.** Each call allocates a draw task and
+  appends it by walking the layer's whole task list, so cost grows with the square of the
+  segment count. The map renderer instead lets LVGL finish the layer's queued tasks, then
+  rasterises all road segments directly into the draw buffer: thick Bresenham, clipped to
+  the clip area.
+- **Pre-swapped colours** remove the per-frame R/B swap pass (21 ms of the 42 ms flush).
+  Theme binding converts the palette once; images and fonts need the same treatment,
+  checked when implemented.
+- **Single-buffer direct mode is ruled out** (it flickers). Double buffering (two
+  `esp_lcd` framebuffers swapped on vsync, needs our own RGB panel setup instead of GFX
+  Library's) stays an optional later upgrade towards about 30 fps.
+- **Decision:** the map renders with our rasteriser into LVGL's buffers, with pre-swapped
+  colours and the existing copy flush: **about 18 fps** on a dense city chunk, above the
+  15 fps target.
+- **Panel stability:** 30 minutes of continuous rotating rendering in this configuration
+  (2026-10-25, owner's visual check): no shift, garbling or flicker.
