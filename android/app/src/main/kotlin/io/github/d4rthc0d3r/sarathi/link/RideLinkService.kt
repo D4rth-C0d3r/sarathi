@@ -127,7 +127,9 @@ class RideLinkService : LifecycleService() {
         val dash = link ?: return
         if (dash.state.value !is LinkState.Ready) return
         lifecycleScope.launch {
-            runCatching { dash.send(message) }.onFailure { Log.w(TAG, "send failed: ${it.message}") }
+            runCatching { dash.send(message) }
+                .onSuccess { Log.d(TAG, "sent $message") }
+                .onFailure { Log.w(TAG, "send failed: ${it.message}") }
         }
     }
 
