@@ -165,10 +165,17 @@ python tools/ble_client.py ride --backend osm --speed 4 --fallback-at 30
 python tools/ble_client.py forget                # remove the pairing on this computer
 ```
 
-- **Pairing (once per computer):** the dash shows a 6-digit code, and so does the computer
-  (on a Linux desktop, a system dialog; without one, add `--agent` to confirm it in the
-  terminal). If they match, turn the knob to **Pair** and click, then confirm on the
-  computer. Nothing moves over the link until both have.
+- **Pairing (once per computer):** the dash shows a 6-digit code, and so does the computer.
+  On a GNOME desktop, keep **Settings → Bluetooth** open while pairing: GNOME's pairing
+  dialog only works while that panel is open (otherwise BlueZ logs "No agent available" and
+  pairing fails). Without a desktop, add `--agent` to confirm the code in the terminal. If
+  the codes match, turn the knob to **Pair** and click, then confirm on the computer.
+  Nothing moves over the link until both have.
+- **One connection at a time:** if the computer's Bluetooth settings stay connected to the
+  dash (it shows "Waiting for the app"), the tool can't find it; disconnect it there, or with
+  `bluetoothctl disconnect <address>`.
+- **After Forget phones on the dash,** run `forget` too: the computer otherwise keeps trying
+  its old keys, which the dash refuses.
 - **What it sends:** `hello`, then time, battery, the ride frame, the backend and its
   attribution, the route and traffic, then `nav` every second and `pose` five times a second,
   the call at 60 s of ride time, and a playlist. Accept, reject and the music controls on the

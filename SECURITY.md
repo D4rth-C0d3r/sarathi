@@ -103,12 +103,12 @@ The link the sārathi app will use (ADR-0007, `docs/protocol/protocol.md`):
 
 - **Pairing is confirmed on the dash.** LE Secure Connections with numeric comparison: the
   phone and the dash show the same 6-digit code, and the rider confirms with a knob press
-  (focus starts on Cancel). A link that ends up without MITM protection ("Just Works") is
-  disconnected.
-- **Nothing moves before pairing.** Both characteristics require an encrypted, authenticated
-  link at the ATT level, so an unpaired phone can't write or even subscribe. The device also
-  refuses any write that doesn't come over an encrypted, bonded and authenticated link, and
-  sends nothing until the link is secured, subscribed and its MTU raised.
+  (focus starts on Cancel). A link without MITM protection ("Just Works") is never used.
+- **Nothing moves before pairing.** Writes need an encrypted, authenticated link at the ATT
+  level, and the device also refuses any write that doesn't come over an encrypted, bonded
+  and authenticated link. An unpaired phone can turn notifications on (NimBLE doesn't extend
+  the encryption requirement to that), but the device sends nothing until the link is
+  secured, subscribed and its MTU raised.
 - **One phone at a time.** A second phone that connects is disconnected.
 - **Checked input.** Every frame and message is checked against the spec (lengths, CRC,
   ranges, UTF-8) before it's used; the same checks run against golden vectors in CI. Positions
