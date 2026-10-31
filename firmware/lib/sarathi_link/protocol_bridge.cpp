@@ -96,6 +96,7 @@ ProtocolBridge::ProtocolBridge(const BridgeStorage& storage)
 
 void ProtocolBridge::Begin(core::AppModel& model) {
   model.SetCapabilities(kPhoneCapabilities);
+  model.SetSpeedValid(false);  // until poses arrive
   OnLinkEvent(LinkEvent::kAdvertising, model);
 }
 
@@ -137,6 +138,9 @@ void ProtocolBridge::Disconnected(core::AppModel& model) {
   model.SetMedia(core::MediaState{});
   model.SetBackend(core::BackendState{});
   model.EndPairingRequest();
+  motion_.Reset();
+  model.SetMotion(0, false);
+  model.SetSpeedValid(false);
 }
 
 void ProtocolBridge::OnFrame(const uint8_t* frame, size_t size, uint32_t now_ms,
@@ -227,6 +231,10 @@ void ProtocolBridge::OnJson(const proto::PhoneMessage& message, uint32_t now_ms,
           decltype(core::CallState::caller) caller;
           AssignText(caller, m.caller.View());
           model.SetCall(Phase(m.phase), caller.View(), now_ms);
+        } else if constexpr (std::is_same_v<T, proto::Lock>) {
+          // Kept until the dash restarts; the phone resends it after every hello.
+          motion_.Configure({m.enabled, m.move_kmh, m.move_s, m.stop_kmh, m.stop_s});
+          model.SetLockEnabled(m.enabled);
         } else if constexpr (std::is_same_v<T, proto::Media>) {
           core::MediaState media;
           media.available = m.avail;
@@ -346,8 +354,10 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
 
 void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppModel& model) {
   // cm/s to km/h, rounded: 1 km/h = 27.78 cm/s.
-  const uint32_t kmh = ((static_cast<uint32_t>(pose.speed_cms) * 36U) + 500U) / 1000U;
-  model.SetSpeed(static_cast<uint16_t>(kmh));
+  const auto kmh =
+      static_cast<uint16_t>(((static_cast<uint32_t>(pose.speed_cms) * 36U) + 500U) / 1000U);
+  model.SetMotion(kmh, motion_.Update(kmh, now_ms));
+  model.SetSpeedValid(true);
   // Poses come five times a second; the map gets a new window at most once a second.
   if (!tracker_.HasRoute() || (!window_due_ && now_ms - window_ms_ < core::kWindowPeriodMs)) {
     return;
@@ -409,6 +419,11 @@ void ProtocolBridge::Tick(uint32_t now_ms, core::AppModel& model, Outbox& out) {
   }
   if (!hello_) {
     return;
+  }
+  if (model.State().ride.speed_valid && !motion_.Fresh(now_ms)) {
+    motion_.Reset();  // no pose for 5 s: speed unknown, settings lock while navigating
+    model.SetMotion(0, false);
+    model.SetSpeedValid(false);
   }
   const core::NavState& nav = model.State().nav;
   if (nav.active && !nav.guidance_stale && now_ms - nav_received_ms_ >= kNavStaleMs) {

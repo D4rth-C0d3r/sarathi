@@ -44,7 +44,11 @@ class AppModel {
   void EndNav();
   void SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms);
   void SetMedia(const MediaState& media);
-  void SetSpeed(uint16_t speed_kmh);
+  void SetSpeed(uint16_t speed_kmh);  // moving at kMovingThresholdKmh, no hysteresis (demo)
+  // Speed and moving decided by the source (MovingDetector, with hysteresis).
+  void SetMotion(uint16_t speed_kmh, bool moving);
+  void SetSpeedValid(bool valid) { state_.ride.speed_valid = valid; }
+  void SetLockEnabled(bool enabled) { state_.ride.lock_enabled = enabled; }
   void SetClock(uint16_t minutes_of_day);  // 0-1439, wraps
   void SetCapabilities(const Capabilities& caps) { state_.caps = caps; }
   void SetPhoneConnected(bool connected) { state_.phone.connected = connected; }
@@ -89,9 +93,12 @@ class AppModel {
   bool SetScreenTimeout(ScreenTimeout timeout);
   bool SetKnobReversed(bool reversed);
 
-  // Locked while moving. Without a speed source, locked while navigating (ADR-0005).
+  // Locked while moving. Without a speed source, or while its speed isn't arriving, locked
+  // while navigating (ADR-0005). Never locked when the rider turned the lock off (ADR-0011).
   [[nodiscard]] bool SettingsLocked() const {
-    return state_.ride.moving || (!state_.caps.speed && state_.nav.active);
+    const RideState& ride = state_.ride;
+    const bool no_speed = !state_.caps.speed || !ride.speed_valid;
+    return ride.lock_enabled && (ride.moving || (no_speed && state_.nav.active));
   }
 
   // Increases with every rider change to the settings, so the saver knows when to write.

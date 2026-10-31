@@ -57,6 +57,11 @@ void AppModel::SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms
 
 void AppModel::SetMedia(const MediaState& media) { state_.media = media; }
 
+void AppModel::SetMotion(uint16_t speed_kmh, bool moving) {
+  state_.ride.speed_kmh = speed_kmh;
+  state_.ride.moving = moving;
+}
+
 void AppModel::SetSpeed(uint16_t speed_kmh) {
   state_.ride.speed_kmh = speed_kmh;
   state_.ride.moving = speed_kmh >= kMovingThresholdKmh;

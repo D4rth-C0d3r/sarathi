@@ -166,6 +166,11 @@ constexpr uint16_t kMovingThresholdKmh = 5;
 struct RideState {
   uint16_t speed_kmh = 0;
   bool moving = false;
+  // False while the source has a speed but it isn't arriving (no pose for 5 s): settings then
+  // lock while navigating, as for a source without speed (protocol.md section 5).
+  bool speed_valid = true;
+  // False only when the rider turned the moving lock off in the app (ADR-0011).
+  bool lock_enabled = true;
 };
 
 // ---- Phone ----

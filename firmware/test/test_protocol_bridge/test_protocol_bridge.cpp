@@ -287,7 +287,41 @@ void TestPoseNeedsTheFrame() {
   f.SendJson(0x04, VectorPayload("frame"));  // epoch 7
   f.Send(0x40, pose);
   TEST_ASSERT_EQUAL(50, f.model.State().ride.speed_kmh);
+  TEST_ASSERT_FALSE(f.model.State().ride.moving);  // one sample: not yet 2 s
+}
+
+std::vector<uint8_t> PoseAt(uint16_t speed_cms) {
+  proto::Pose pose;
+  pose.epoch = 7;
+  pose.speed_cms = speed_cms;
+  std::vector<uint8_t> bytes(proto::kPoseSize);
+  TEST_ASSERT_EQUAL(proto::kPoseSize, proto::EncodeBinary(pose, bytes.data(), bytes.size()));
+  return bytes;
+}
+
+// The lock follows pose speed with hysteresis; without poses it falls back to "locked while
+// navigating"; the phone can change the thresholds or turn it off (ADR-0011).
+void TestMovingLockFromPoses() {
+  Fixture f;
+  f.Hello();
+  f.SendJson(0x04, VectorPayload("frame"));
+  f.SendJson(0x07, VectorPayload("nav"), 0);
+  TEST_ASSERT_TRUE(f.model.SettingsLocked());  // navigating, no speed yet
+  f.Send(0x40, PoseAt(0), 100);
+  TEST_ASSERT_FALSE(f.model.SettingsLocked());  // speed known: standing still
+  for (uint32_t t = 1000; t <= 3000; t += 1000) {
+    f.Send(0x40, PoseAt(1000), t);  // 36 km/h
+  }
   TEST_ASSERT_TRUE(f.model.State().ride.moving);
+  TEST_ASSERT_TRUE(f.model.SettingsLocked());
+  f.bridge.Tick(3000 + sarathi::core::kSpeedTimeoutMs, f.model, f.out);  // poses stop
+  TEST_ASSERT_FALSE(f.model.State().ride.speed_valid);
+  TEST_ASSERT_FALSE(f.model.State().ride.moving);
+  TEST_ASSERT_TRUE(f.model.SettingsLocked());  // still navigating: locked
+  f.SendJson(0x0B, VectorPayload("lock-off"));
+  TEST_ASSERT_FALSE(f.model.SettingsLocked());
+  f.SendJson(0x0B, VectorPayload("lock-default"));
+  TEST_ASSERT_TRUE(f.model.SettingsLocked());
 }
 
 void TestHelloReportsTheHeldRoute() {
@@ -373,6 +407,7 @@ int main() {
   RUN_TEST(TestFlowCredit);
   RUN_TEST(TestStyleFollowsTheTheme);
   RUN_TEST(TestPoseNeedsTheFrame);
+  RUN_TEST(TestMovingLockFromPoses);
   RUN_TEST(TestHelloReportsTheHeldRoute);
   RUN_TEST(TestPoseOnTheRouteMakesAWindow);
   RUN_TEST(TestBadMessagesAreCounted);

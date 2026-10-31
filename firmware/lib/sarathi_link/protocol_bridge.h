@@ -15,6 +15,7 @@
 #include "binary_codec.h"
 #include "frame.h"
 #include "json_codec.h"
+#include "moving_detector.h"
 #include "route_tracker.h"
 
 namespace sarathi::link {
@@ -143,6 +144,7 @@ class ProtocolBridge {
   size_t route_points_size_;
   std::array<proto::RouteMarker, proto::kMaxRouteMarkers> route_markers_{};
   core::RouteTracker tracker_;
+  core::MovingDetector motion_;
   uint32_t window_sequence_ = 0;
   bool window_due_ = true;  // the next pose cuts a window at once (a new route or frame)
   uint32_t window_ms_ = 0;
