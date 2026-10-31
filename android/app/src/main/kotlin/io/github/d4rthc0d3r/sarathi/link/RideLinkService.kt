@@ -26,7 +26,6 @@ import kotlinx.coroutines.launch
 class RideLinkService : LifecycleService() {
     private var link: DashLink? = null
     private var startedByPresence = false
-    private var locationCheck: LocationCheck? = null
     private var session: RideSession? = null
 
     override fun onStartCommand(
@@ -49,15 +48,16 @@ class RideLinkService : LifecycleService() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (link == null) startedByPresence = fromPresence // a restart by Android (null intent) counts as the rider's
-        goForeground(LinkState.Waiting)
         if (link == null) {
+            startedByPresence = fromPresence // a restart by Android (null intent) counts as the rider's
             val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
             val dash = DashLink(this, address, versionName, lifecycleScope, RideSession.caps(this)).also { it.start() }
             link = dash
             session = RideSession(this, dash, lifecycleScope).also { it.start() }
             lifecycleScope.launch { dash.state.collect { onLinkState(it) } }
         }
+        // Every start: one from the app may now be allowed location that a background one wasn't.
+        goForeground(link?.state?.value ?: LinkState.Waiting)
         return START_STICKY
     }
 
@@ -79,10 +79,8 @@ class RideLinkService : LifecycleService() {
                 ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, connected)
                 false
             }
-        if (located && locationCheck == null) {
-            locationCheck = LocationCheck(this).takeIf { it.start() }
-        }
-        LinkRepository.update { it.copy(running = true, locationActive = locationCheck != null) }
+        if (located) session?.startPosition()
+        LinkRepository.update { it.copy(running = true, locationActive = session?.positionActive == true) }
     }
 
     private fun locationAllowed(): Boolean =
@@ -101,8 +99,6 @@ class RideLinkService : LifecycleService() {
         session = null
         link?.stop()
         link = null
-        locationCheck?.stop()
-        locationCheck = null
         LinkRepository.update { LinkRepository.Status() }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -114,7 +110,6 @@ class RideLinkService : LifecycleService() {
     override fun onDestroy() {
         session?.stop()
         link?.stop()
-        locationCheck?.stop()
         LinkRepository.update { LinkRepository.Status() }
         super.onDestroy()
     }

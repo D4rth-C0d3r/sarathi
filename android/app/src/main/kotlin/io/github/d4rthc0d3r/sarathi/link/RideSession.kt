@@ -13,13 +13,15 @@ import io.github.d4rthc0d3r.sarathi.feature.media.MediaFeature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /**
  * Everything that runs on the link to the dash while the ride link is on: the time every 10
- * minutes, the phone's battery on change, and the features (music, then calls and position).
+ * minutes and on a clock change, the phone's battery on change, the moving lock's settings,
+ * position once a second, and the features (music, calls).
  * The service owns the link's lifetime; this owns what flows over it.
  */
 class RideSession(
@@ -36,12 +38,20 @@ class RideSession(
         }
     private var media: MediaFeature? = null
     private var calls: CallsFeature? = null
+    private var pose: PoseSender? = null
+    private val timeWatcher = TimeWatcher(context) { send(timeNow()) }
 
     fun start() {
         batteryWatcher.start()
+        timeWatcher.start()
         media = MediaFeature(context, listenerComponent(context), dash, scope).takeIf { it.start() }
         calls = CallsFeature(context, dash, scope, CallNotifications.current).takeIf { it.start() }
         jobs += scope.launch { dash.received.collect { Log.i(TAG, "from the dash: $it") } }
+        jobs +=
+            scope.launch {
+                combine(dash.ready, LockSettings.flow(context)) { ready, lock -> ready to lock }
+                    .collect { (ready, lock) -> if (ready) send(lock) }
+            }
         jobs +=
             scope.launch {
                 var clock: Job? = null
@@ -55,7 +65,17 @@ class RideSession(
             }
     }
 
+    /** Starts sending position, once the service runs with location (ADR-0010). */
+    fun startPosition() {
+        if (pose == null) pose = PoseSender(context, dash, scope).takeIf { it.start() }
+    }
+
+    val positionActive: Boolean get() = pose != null
+
     fun stop() {
+        pose?.stop()
+        pose = null
+        timeWatcher.stop()
         media?.stop()
         media = null
         calls?.stop()

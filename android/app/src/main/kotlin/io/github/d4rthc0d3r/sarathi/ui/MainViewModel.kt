@@ -2,8 +2,10 @@ package io.github.d4rthc0d3r.sarathi.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import io.github.d4rthc0d3r.sarathi.core.protocol.Lock
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.LinkRepository
+import io.github.d4rthc0d3r.sarathi.link.LockSettings
 import io.github.d4rthc0d3r.sarathi.link.RideLinkService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +19,10 @@ class MainViewModel(
     val setup: StateFlow<SetupState> = _setup.asStateFlow()
 
     val link: StateFlow<LinkRepository.Status> = LinkRepository.status
+
+    val lock: StateFlow<Lock> = LockSettings.flow(application)
+
+    fun setLock(lock: Lock) = LockSettings.save(getApplication(), lock)
 
     /** Re-reads permissions and pairing (after any system dialog, and on resume). */
     fun refresh() {

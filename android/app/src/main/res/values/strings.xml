@@ -40,6 +40,17 @@
     <string name="setup_music_reason">Turn on notification access for sārathi, so the dash can show what\'s playing and skip tracks. sārathi only reads the playing music; it doesn\'t read or keep other apps\' notifications.</string>
     <string name="setup_calls">Calls on the dash</string>
     <string name="setup_calls_reason">See who\'s calling on the dash, and answer or reject with the knob. sārathi doesn\'t read your contacts or call log; the name comes from the call notification your phone already shows.</string>
+    <string name="lock_title">Lock dash settings while riding</string>
+    <string name="lock_reason">The dash\'s settings lock while the bike moves, judged from the phone\'s GPS speed.</string>
+    <string name="lock_move_kmh">Moving from (km/h)</string>
+    <string name="lock_move_s">… for (seconds)</string>
+    <string name="lock_stop_kmh">Stopped below (km/h)</string>
+    <string name="lock_stop_s">… for (seconds)</string>
+    <string name="lock_off_note">Off: the dash\'s settings stay unlocked while riding.</string>
+    <string name="lock_warning_title">Turn off the settings lock?</string>
+    <string name="lock_warning">The dash will let you change settings while you ride. Looking down and turning the knob at speed is dangerous: change settings only when you\'ve stopped.</string>
+    <string name="lock_turn_off">Turn off</string>
+    <string name="lock_keep_on">Keep it on</string>
     <string name="pair_failed">Could not look for the dash: %1$s</string>
 
     <!-- Ride link -->

@@ -48,9 +48,11 @@ class MainActivity : ComponentActivity() {
             SarathiTheme {
                 val setup = model.setup.collectAsStateWithLifecycle()
                 val link = model.link.collectAsStateWithLifecycle()
+                val lock = model.lock.collectAsStateWithLifecycle()
                 HomeScreen(
                     setup = setup.value,
                     link = link.value,
+                    lock = lock.value,
                     actions =
                         HomeActions(
                             onSetupStep = ::runStep,
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
                             onStopLink = model::stopLink,
                             onAutoStart = model::setAutoStart,
                             onForget = model::forgetDash,
+                            onLock = model::setLock,
                         ),
                 )
             }

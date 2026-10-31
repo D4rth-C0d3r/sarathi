@@ -23,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.d4rthc0d3r.sarathi.R
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
+import io.github.d4rthc0d3r.sarathi.core.protocol.Lock
 import io.github.d4rthc0d3r.sarathi.link.LinkRepository
 import io.github.d4rthc0d3r.sarathi.link.LinkText
 
@@ -31,6 +32,7 @@ import io.github.d4rthc0d3r.sarathi.link.LinkText
 fun HomeScreen(
     setup: SetupState,
     link: LinkRepository.Status,
+    lock: Lock,
     actions: HomeActions,
     modifier: Modifier = Modifier,
 ) {
@@ -47,6 +49,7 @@ fun HomeScreen(
             setup.next?.let { SetupCard(it, actions.onSetupStep) }
             if (setup.dashAddress != null) {
                 LinkCard(setup, link, actions)
+                LockCard(lock, actions.onLock)
             }
             if (SetupStep.BATTERY in setup.done) BatteryCard()
             if (setup.dashAddress != null) {
@@ -124,7 +127,7 @@ private fun BatteryCard() {
 @Preview
 @Composable
 private fun HomeScreenSetupPreview() {
-    HomeScreen(SetupState(done = setOf(SetupStep.NEARBY)), LinkRepository.Status(), HomeActions())
+    HomeScreen(SetupState(done = setOf(SetupStep.NEARBY)), LinkRepository.Status(), Lock(), HomeActions())
 }
 
 @Preview
@@ -133,6 +136,7 @@ private fun HomeScreenReadyPreview() {
     HomeScreen(
         SetupState(done = SetupStep.entries.toSet(), dashAddress = "44:BD:8D:71:CA:F9", autoStartSupported = true),
         LinkRepository.Status(running = true, link = LinkState.Waiting, locationActive = true, locationFixes = 42),
+        Lock(),
         HomeActions(),
     )
 }
