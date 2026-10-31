@@ -32,6 +32,7 @@ Before finishing any Android change, run both check lines and report the result.
 | `:app` | Android application | Activity, Compose UI, navigation, ViewModels, wiring |
 | `:core:protocol` | **pure Kotlin/JVM** | Message types, JSON encode/decode, protocol version |
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
+| `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard (ADR-0006) |
 | `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
 | `:feature:*` (later) | Android library | `navigation`, `ota` |
 

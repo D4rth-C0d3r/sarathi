@@ -434,6 +434,20 @@ All from `android/`:
 ./gradlew installDebug                           # install on the connected phone (adb)
 ```
 
+### Maps keys (optional)
+
+The maps backends' keys are build-time secrets kept outside the repository (ADR-0006). The
+build reads them if present; without them it still builds, and those backends report
+"no key" in the app's Maps settings.
+
+```
+~/sarathi-secrets/google/api-key         # one line; restricted in Cloud Console (ADR-0006)
+~/sarathi-secrets/graphhopper/api-key    # one line
+~/sarathi-secrets/mappls/                # the Mappls SDK's <appId>.a.conf and .a.olf files
+```
+
+Make each file readable only by you (`chmod 600`). Never commit, paste or log them.
+
 ### The phone (wireless debugging)
 
 Nothing to install on the computer: `adb` is in the SDK's `platform-tools`.

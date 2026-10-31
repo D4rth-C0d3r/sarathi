@@ -52,6 +52,37 @@
     <string name="lock_warning">The dash will let you change settings while you ride. Looking down and turning the knob at speed is dangerous: change settings only when you\'ve stopped.</string>
     <string name="lock_turn_off">Turn off</string>
     <string name="lock_keep_on">Keep it on</string>
+    <!-- Maps settings (ADR-0006) -->
+    <string name="back">Back</string>
+    <string name="maps_settings">Maps settings</string>
+    <string name="maps_title">Maps</string>
+    <string name="maps_backend">Maps backend</string>
+    <string name="maps_backend_reason">Used for searching places and for routes. If it can\'t be used (no key, over quota, no network), the next one in the fallback order takes over.</string>
+    <string name="maps_advanced">Advanced</string>
+    <string name="maps_advanced_reason">A different backend for search or for routing, and the order to fall back in.</string>
+    <string name="maps_search_override">Search with</string>
+    <string name="maps_routing_override">Route with</string>
+    <string name="maps_same_as_backend">Same as the maps backend</string>
+    <string name="maps_fallback">Fallback order</string>
+    <string name="maps_always_last">always last</string>
+    <string name="maps_keys">Keys</string>
+    <string name="maps_keys_reason">Built into this app from files on the build computer; never shown, never sent anywhere but to their own service.</string>
+    <string name="key_present">present</string>
+    <string name="key_missing">missing</string>
+    <string name="maps_usage">Usage</string>
+    <string name="maps_usage_reason">Counted on this phone. Google is blocked at 95 % of its free monthly allowance and warns at 80 %; Mappls stops for the day at its caps or when it reports a limit.</string>
+    <string name="maps_mappls_search_cap">Mappls searches a day</string>
+    <string name="maps_mappls_route_cap">Mappls routes a day</string>
+    <string name="maps_valhalla">OSM online server (Valhalla)</string>
+    <string name="maps_valhalla_reason">The default is FOSSGIS\'s public server: free for non-commercial use, at most one request a second.</string>
+    <string name="meter_google_nav">Google navigation: %1$d of %2$d destinations this month</string>
+    <string name="meter_google_autocomplete">Google autocomplete: %1$d of %2$d this month</string>
+    <string name="meter_google_details">Google place details: %1$d of %2$d this month</string>
+    <string name="meter_google_geocoding">Google geocoding: %1$d of %2$d this month</string>
+    <string name="meter_mappls_search">Mappls search: %1$d of %2$d today</string>
+    <string name="meter_mappls_routing">Mappls routes: %1$d of %2$d today</string>
+    <string name="meter_warn">over 80 %</string>
+    <string name="meter_blocked">blocked</string>
     <string name="pair_failed">Could not look for the dash: %1$s</string>
 
     <!-- Ride link -->

@@ -25,5 +25,6 @@ rootProject.name = "sarathi"
 include(":app")
 include(":core:protocol")
 include(":core:ble")
+include(":core:maps")
 include(":feature:media")
 include(":feature:calls")

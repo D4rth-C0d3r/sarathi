@@ -52,6 +52,7 @@ fun HomeScreen(
                 LockCard(lock, actions.onLock)
             }
             if (SetupStep.BATTERY in setup.done) BatteryCard()
+            OutlinedButton(onClick = actions.onMapsSettings) { Text(stringResource(R.string.maps_settings)) }
             if (setup.dashAddress != null) {
                 OutlinedButton(onClick = actions.onForget) { Text(stringResource(R.string.forget_dash)) }
             }

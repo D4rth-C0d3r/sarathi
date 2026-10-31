@@ -9,20 +9,31 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.d4rthc0d3r.sarathi.core.maps.Meter
 import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
+import io.github.d4rthc0d3r.sarathi.maps.Keys
+import io.github.d4rthc0d3r.sarathi.maps.MapsStore
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
 import io.github.d4rthc0d3r.sarathi.ui.MainViewModel
+import io.github.d4rthc0d3r.sarathi.ui.MapsSettingsScreen
+import io.github.d4rthc0d3r.sarathi.ui.MapsStatus
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
 import io.github.d4rthc0d3r.sarathi.ui.theme.SarathiTheme
 
@@ -46,6 +57,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SarathiTheme {
+                var showMaps by rememberSaveable { mutableStateOf(false) }
+                if (showMaps) {
+                    BackHandler { showMaps = false }
+                    MapsSettings(onBack = { showMaps = false })
+                    return@SarathiTheme
+                }
                 val setup = model.setup.collectAsStateWithLifecycle()
                 val link = model.link.collectAsStateWithLifecycle()
                 val lock = model.lock.collectAsStateWithLifecycle()
@@ -61,10 +78,26 @@ class MainActivity : ComponentActivity() {
                             onAutoStart = model::setAutoStart,
                             onForget = model::forgetDash,
                             onLock = model::setLock,
+                            onMapsSettings = { showMaps = true },
                         ),
                 )
             }
         }
+    }
+
+    @Composable
+    private fun MapsSettings(onBack: () -> Unit) {
+        val store = MapsStore.get(this)
+        val settings = store.settings.collectAsStateWithLifecycle()
+        val usage = store.usage.collectAsStateWithLifecycle()
+        val status =
+            MapsStatus(
+                googleKey = Keys.google != null,
+                graphHopperKey = Keys.graphHopper != null,
+                mapplsConfigured = false, // the Mappls SDK and its config files arrive with its provider (F2)
+                meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
+            )
+        MapsSettingsScreen(settings.value, status, store::update, onBack)
     }
 
     override fun onResume() {

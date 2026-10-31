@@ -83,17 +83,18 @@ fun LockCard(
 }
 
 @Composable
-private fun Stepper(
+internal fun Stepper(
     label: String,
     value: Int,
     range: IntRange,
+    step: Int = 1,
     onChange: (Int) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
-        TextButton(onClick = { onChange(value - 1) }, enabled = value - 1 in range) { Text("−") }
+        TextButton(onClick = { onChange(value - step) }, enabled = value - step in range) { Text("−") }
         Text(value.toString())
-        TextButton(onClick = { onChange(value + 1) }, enabled = value + 1 in range) { Text("+") }
+        TextButton(onClick = { onChange(value + step) }, enabled = value + step in range) { Text("+") }
     }
 }
 

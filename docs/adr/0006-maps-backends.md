@@ -1,6 +1,6 @@
 # ADR-0006: Maps backends for search, routing and guidance
 
-- **Status:** Accepted (2026-10-25)
+- **Status:** Accepted (2026-10-25); amended 2026-10-31 (API keys, storage, GraphHopper)
 - **Date:** 2026-10-25
 - **Related:** ADR-0001 (BLE only, phone as brain), ADR-0002 (map), ADR-0005 (Chronos, to be
   replaced), ADR-0007 (protocol v1), ADR-0008 (destination input), ADR-0009 (on-device map)
@@ -133,7 +133,7 @@ interface RoutingProvider {
 ### Cost guard (per Google API, and per Mappls API once quotas are known)
 
 - **Counts locally,** per billing month (calendar month, Pacific time for Google). Persisted
-  in the app's database.
+  in a JSON file in the app's private storage (no database; amended 2026-10-31).
 - **What counts:**
   - Navigation: destinations per route request (reroutes not counted).
   - Places: Autocomplete requests outside a completed session, Place Details Essentials and
@@ -159,8 +159,18 @@ interface RoutingProvider {
 
 ### API keys
 
-- **Entry and storage:** keys are entered in the app's settings and encrypted with an
-  **Android Keystore** key (AES-GCM; the Keystore key never leaves the hardware-backed store).
+- **Build-time secrets (amended 2026-10-31):** the Navigation SDK takes its key only from the
+  manifest's `com.google.android.geo.API_KEY` meta-data; it has no runtime setter. So keys
+  aren't typed into the app: the build reads them from files outside the repository,
+  `~/sarathi-secrets/google/api-key` and `~/sarathi-secrets/graphhopper/api-key` (mode 600),
+  into the manifest and build constants. Mappls's SDK config files (`<appId>.a.conf`, `.olf`)
+  live in `~/sarathi-secrets/mappls/` and are copied in by the build. A build without them
+  (CI) still works, and those backends report "no key". The app's settings show only
+  whether each key is present, never its value. This replaces the earlier plan of entering
+  keys in the app and encrypting them with the Android Keystore.
+- **Consequence:** the debug APK holds the keys in plain text, like any app with a manifest
+  key; it isn't distributed, and the Google key's package and certificate restrictions are
+  what protect it.
 - **Never:** committed, logged, put in crash reports or sent to the device.
 - **Google key** restricted to the app's package and signing-certificate SHA-1, and to the
   Navigation SDK and Places API (New) only.
@@ -246,9 +256,10 @@ a few dozen place lookups a month. That's about 10 % of the global Navigation ca
    - Email alerts at 50 %, 90 % and 100 % of actual spend.
    - A budget only alerts; the quota caps are what actually limit spending. Done by the owner
      on 2026-10-31, as were steps 1–5.
-8. **Paste the key** into the app's settings once that screen exists (Phase 4). It's
-   encrypted with the Keystore and never leaves the phone except in requests to Google. Until
-   then the key stays only in the Console.
+8. **Save the key** in `~/sarathi-secrets/google/api-key` (one line, `chmod 600`); the build
+   reads it from there (amended 2026-10-31, see API keys). It never enters the repository
+   and never leaves the phone except in requests to Google. Done by the owner on 2026-10-31,
+   as was the GraphHopper key.
 
 ## Consequences
 

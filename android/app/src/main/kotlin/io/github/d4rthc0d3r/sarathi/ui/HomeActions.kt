@@ -10,4 +10,5 @@ data class HomeActions(
     val onAutoStart: (Boolean) -> Unit = {},
     val onForget: () -> Unit = {},
     val onLock: (Lock) -> Unit = {},
+    val onMapsSettings: () -> Unit = {},
 )

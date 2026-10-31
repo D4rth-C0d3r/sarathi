@@ -3,6 +3,19 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Keys are build-time secrets (ADR-0006, amended): files in ~/sarathi-secrets on the owner's
+// laptop, never in the repository. A build without them (CI) still works; those backends then
+// report "no key". The values are never printed.
+val secretsDir = "${providers.systemProperty("user.home").get()}/sarathi-secrets"
+
+fun secret(path: String): String =
+    providers
+        .fileContents(layout.projectDirectory.file("$secretsDir/$path"))
+        .asText
+        .orNull
+        ?.trim()
+        .orEmpty()
+
 android {
     namespace = "io.github.d4rthc0d3r.sarathi"
     compileSdk =
@@ -22,6 +35,11 @@ android {
                 .toInt()
         versionCode = 1
         versionName = "0.0.1"
+
+        buildConfigField("String", "GOOGLE_API_KEY", "\"${secret("google/api-key")}\"")
+        buildConfigField("String", "GRAPHHOPPER_API_KEY", "\"${secret("graphhopper/api-key")}\"")
+        // The Navigation SDK reads its key only from the manifest (no runtime setter).
+        manifestPlaceholders["googleApiKey"] = secret("google/api-key")
     }
 
     buildTypes {
@@ -37,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -48,6 +67,7 @@ android {
 dependencies {
     implementation(project(":core:protocol"))
     implementation(project(":core:ble"))
+    implementation(project(":core:maps"))
     implementation(project(":feature:media"))
     implementation(project(":feature:calls"))
 
