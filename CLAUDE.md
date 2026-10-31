@@ -65,7 +65,8 @@ Classic Bluetooth audio on the device.
   app, Mappls SDK credentials kept outside the repo (`~/sarathi-secrets/mappls/`), FOSSGIS
   terms read, share-link fixtures recorded (`docs/fixtures/share-links.json`). Test phone:
   Nothing Phone (1), Android 15. Dependencies approved; each is still flagged with its exact
-  version when added.
+  version when added. Protocol v1 is implemented (step B): `sarathi_proto` and
+  `:core:protocol` pass the shared golden vectors, without new dependencies.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)

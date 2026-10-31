@@ -6,8 +6,8 @@ are in `docs/building.md`.
 
 ## Status
 
-Phase 0 skeleton: one placeholder screen, empty core modules, CI green. Real features start
-in Phase 4 (own protocol and app). Until then, don't add features or permissions unasked.
+Phase 0 skeleton (one placeholder screen) plus `:core:protocol`, which implements protocol v1
+(Phase 4 step B). Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -35,6 +35,11 @@ Before finishing any Android change, run both check lines and report the result.
 - **`core:protocol` stays pure Kotlin.** No `android.*` imports, no Android plugin. Its tests
   run on the JVM against the golden vectors in `docs/protocol/vectors/`, the same files the
   firmware tests use. It has a `testDebugUnitTest` alias so the standard command runs them.
+- `core:protocol` has **no library dependencies**: it has its own strict JSON parser and
+  canonical writer (`Json.kt`), matching the firmware's `JsonReader` byte for byte. Use them
+  for protocol messages; other modules may still propose kotlinx-serialization for other JSON.
+- Messages are data classes that check the spec's limits in `init`, so anything that encodes
+  is valid. Decode errors are `ProtocolException.reason`, the vectors' error names.
 - New modules: add them to `settings.gradle.kts` and copy the shape of an existing module.
   If shared build config grows past a few lines, propose `build-logic/` convention plugins
   instead of growing the root `allprojects {}` block.

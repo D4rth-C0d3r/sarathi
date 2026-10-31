@@ -6,6 +6,17 @@ ADR-0007. This file is the specification. JSON Schemas for the JSON messages are
 app (`:core:protocol`) test against. `tools/protocol_vectors.py` is the reference encoder
 that generates and checks the vectors.
 
+**Implementations,** each tested against every vector:
+
+| Where | What | Tests |
+|---|---|---|
+| `firmware/lib/sarathi_proto` | `frame` (CRC, fragmenter, reassembler), `json_codec` (decodes phone → device, encodes all), `binary_codec` (decodes pose, route, traffic, chunk into caller buffers; encodes all) | `pio test -e native` (`test_proto_*`) |
+| `android/core/protocol` | `Framing`, `Reassembler`, `JsonCodec`, `BinaryCodec` (both directions), a strict JSON parser; no dependencies | `./gradlew testDebugUnitTest` |
+| `tools/protocol_vectors.py` | Reference encoder and checker, standard library only | `check-vectors` (CI) |
+
+Both test suites read the files in `vectors/` directly, so CI fails on either side if the
+code and the vectors disagree.
+
 **Changing the protocol:** update this file, the schemas and the vectors **first**, then
 the code (CLAUDE.md).
 
