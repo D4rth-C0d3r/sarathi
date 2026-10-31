@@ -45,10 +45,11 @@ Facts below were checked on 2026-10-25 against the sources listed at the end. It
 
 | Item | Finding |
 |---|---|
-| Plan | Free developer plan with the owner's key; terms noted and accepted by the owner for private use. Mappls doesn't publish free-plan quotas publicly. **Verify** the per-API daily/monthly limits in the Mappls console. |
+| Plan | Free developer plan; terms noted and accepted by the owner for private use. **No payment method is on the account**, so usage past the free plan can't be billed: Mappls can only reject requests. The free-plan quotas aren't published and the console doesn't show them (checked by the owner, 2026-10-31). |
+| Credentials | An "application" registered in the Mappls console with the app's package name and the **SHA-256** of its signing certificate. The console issues two **configuration files** (`<appId>.a.conf` and `<appId>.a.olf`) that authenticate Mappls's **Android SDK**. They're credentials: kept in `~/sarathi-secrets/mappls/` on the owner's laptop, never committed (their names are gitignored in `android/app/` before the integration starts), and copied into the app module by the build. |
 | Search | Autosuggest, geocode, reverse geocode, nearby and place details by eLoc (Mappls Pin) in the Search API. **Verify** that place details by Mappls Pin returns coordinates on the free plan. |
 | Directions | Route API with geometry and steps. Profile **`biking`** is the two-wheeler profile, only with resource `route_adv`. Traffic-aware resource (`route_traffic`) is **India only**, and `region`/`rtype` aren't supported with the two-wheeler profile. **Verify** whether traffic and `biking` combine, and the step format. |
-| Navigation SDK | The public Android SDK lists Routing and Direction Widget but no headless navigation SDK. **Decision: use Directions + our guidance engine (Ferrostar)**, which is headless by construction. |
+| Navigation SDK | The public Android SDK lists Routing and Direction Widget but no headless navigation SDK. **Decision: use Directions + our guidance engine (Ferrostar)**, which is headless by construction. Search and Directions are called **through Mappls's Android SDK** (not plain HTTP), because the credentials are SDK configuration files bound to the app's signature. The map component isn't used. |
 | Attribution | "Powered by Mappls" shown in the app and on the device while Mappls is active. |
 
 ### OSM
@@ -144,7 +145,17 @@ interface RoutingProvider {
   **95 %** the API is blocked locally until the month resets, and the fallback chain takes
   over.
 - **Belt and braces:** daily quota caps in the Cloud Console (below), so a bug in the guard
-  can't exceed the free tier either.
+  can't exceed the free tier either. They can only be set once the billing account is out of
+  the free trial (the trial blocks quota edits, but it also can't charge).
+- **Mappls (quotas unknown):**
+  - **Detect, don't predict:** a quota or rate-limit error from Mappls blocks it for the rest
+    of the day, and the fallback chain takes over. The device shows "Mappls over quota → OSM".
+  - **Conservative local caps** against runaway use: **200 search** and **100 routing calls a
+    day** by default, adjustable in advanced settings.
+  - **Usage is counted per day** and shown in the app's settings, so real figures replace the
+    guesses once known.
+- **Google billing errors** (trial ended, billing disabled) are reported as "Google
+  unavailable (account)", not as a generic failure, and fall back like a quota block.
 
 ### API keys
 
@@ -220,30 +231,41 @@ a few dozen place lookups a month. That's about 10 % of the global Navigation ca
    - Or run `./gradlew signingReport` in `android/`.
 5. **Restrict the key's APIs:** API restrictions → **Restrict key** → only Navigation SDK
    and Places API (New).
-6. **Daily quota caps:** APIs & Services → each API → **Quotas & system limits**.
-   - Navigation SDK: about **30 requests/day** (1,000 ÷ 31 with margin).
-   - Places API (New): Autocomplete about **250/day**, Place Details about **250/day**.
+6. **Daily quota caps,** once the billing account is **out of the free trial** (the trial
+   blocks quota edits but can't charge; the APIs just stop when it ends). Google Maps
+   Platform → **Quotas** (<https://console.cloud.google.com/project/_/google/maps-apis/quotas>)
+   → pick the API → tick a per-day quota → **Edit quota**:
+   - Navigation SDK: **30 requests/day** (1,000 ÷ 31 with margin).
+   - Places API (New): Autocomplete **300/day**, Place Details **300/day** (10,000 ÷ 31). If
+     only per-minute quotas are listed, set those to about 10/min.
    - Raise them only if the owner moves to the India caps.
-7. **Billing alert:** Billing → **Budgets & alerts** → a budget of the smallest amount
-   (for example ₹100 or $1) with email alerts at 50 %, 90 % and 100 %. A budget only alerts;
-   the quota caps are what actually limit spending.
-8. **Paste the key** into the app's settings. It's encrypted with the Keystore and never
-   leaves the phone except in requests to Google.
+7. **Billing alert:** Billing → **Budgets & alerts** → **Create budget**.
+   - Scope: the sārathi project only; **untick all credits**, or the trial credit hides real
+     usage.
+   - Amount: a small figure (for example ₹100).
+   - Email alerts at 50 %, 90 % and 100 % of actual spend.
+   - A budget only alerts; the quota caps are what actually limit spending. Done by the owner
+     on 2026-10-31, as were steps 1–5.
+8. **Paste the key** into the app's settings once that screen exists (Phase 4). It's
+   encrypted with the Keystore and never leaves the phone except in requests to Google. Until
+   then the key stays only in the Console.
 
 ## Consequences
 
 - **The app gets more dependencies,** each needing approval when Phase 4 code starts:
   - Google Navigation SDK and Places SDK (Play services)
-  - Mappls SDK or plain HTTP
+  - Mappls Android SDK (search and directions only) and the Mappls Maven repository
   - Ferrostar
   - the offline router, valhalla-mobile (0.6.4, Valhalla 3.9.1)
   - an HTTP client and `kotlinx.serialization`
 - **The app needs Google Play services** for the Google backend; OSM and Mappls work
   without it.
 - **One foreground service** owns the ride: BLE, guidance and location.
-- **Verification items** (marked above) gate Phase 4: India vs global caps, Mappls quotas
-  and formats, the FOSSGIS terms, headless behaviour on the owner's phone, and the
-  offline-router spike.
+- **Verification items** (marked above) gate Phase 4: India vs global caps, Mappls formats
+  (Mappls Pin lookup, `biking` with traffic, step format), the FOSSGIS terms, and headless
+  behaviour on the owner's phone. Done: the offline-router spike, and the Google Console
+  steps 1–5 and 7. Mappls quotas are unknowable up front and are handled by detection
+  instead.
 
 ## Sources (checked 2026-10-25)
 
