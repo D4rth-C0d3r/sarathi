@@ -3,3 +3,7 @@
 pre-commit==4.7.0
 # OTA manifest signing, verification and test vectors (tools/ota_manifest.py, ADR-0004).
 cryptography==50.0.2
+# The fake phone for protocol v1 (tools/ble_client.py, ADR-0007). dbus-fast is bleak's D-Bus
+# library on Linux; the tool also uses it directly for its optional pairing agent.
+bleak==3.0.2
+dbus-fast==5.2.0 ; sys_platform == "linux"
