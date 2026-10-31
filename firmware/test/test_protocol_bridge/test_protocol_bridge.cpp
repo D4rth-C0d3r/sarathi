@@ -116,7 +116,7 @@ std::vector<uint8_t> BinaryVector(const char* name) {
 
 void TestHelloRepliesHelloFlowStyle() {
   Fixture f;
-  TEST_ASSERT_EQUAL(static_cast<int>(LinkStatus::kSecuring),
+  TEST_ASSERT_EQUAL(static_cast<int>(LinkStatus::kWaitingForApp),
                     static_cast<int>(f.model.State().phone.link));
   f.Hello();
   TEST_ASSERT_EQUAL(static_cast<int>(LinkStatus::kReady),
@@ -333,6 +333,13 @@ void TestPoseOnTheRouteMakesAWindow() {
   TEST_ASSERT_EQUAL(-60, nav.window.points[0].x_m);  // the route's start, behind the rider
   TEST_ASSERT_TRUE(nav.window.has_maneuver_point);   // marker at point 2: left
   TEST_ASSERT_EQUAL(180, nav.window.maneuver_point.x_m);
+  // Five poses a second, one window a second.
+  const uint32_t sequence = nav.window.sequence;
+  f.Send(0x40, bytes, 1234 + 999);
+  TEST_ASSERT_EQUAL(sequence, nav.window.sequence);
+  TEST_ASSERT_EQUAL(1234, nav.window_received_ms);
+  f.Send(0x40, bytes, 1234 + 1000);
+  TEST_ASSERT_EQUAL(sequence + 1, nav.window.sequence);
   f.SendJson(0x04, R"({"t":"frame","epoch":8})");
   TEST_ASSERT_FALSE(nav.has_window);
 }

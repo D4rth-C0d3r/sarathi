@@ -186,6 +186,7 @@ enum class LinkStatus : uint8_t {
   kOff,             // BLE paused for Wi-Fi
   kWaiting,         // advertising; no phone connected
   kSecuring,        // a phone is connected but the link isn't encrypted and paired yet
+  kWaitingForApp,   // secured, but no hello yet (for example a computer's Bluetooth settings)
   kReady,           // secured, and the app said hello
   kUpdateApp,       // the app speaks an older protocol major version
   kUpdateFirmware,  // the app speaks a newer one

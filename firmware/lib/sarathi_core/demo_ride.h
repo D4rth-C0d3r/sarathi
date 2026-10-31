@@ -45,9 +45,6 @@ struct DemoScript {
 
 const DemoScript& DefaultDemoScript();
 
-// How often the demo ride cuts a new route window.
-constexpr uint32_t kWindowPeriodMs = 1000;
-
 // The demo clock starts at 18:55, so auto day/night switches to night five minutes in.
 constexpr uint32_t kDemoClockStartMs = ((18U * 60U) + 55U) * 60U * 1000U;
 

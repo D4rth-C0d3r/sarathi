@@ -31,6 +31,9 @@ constexpr size_t kMaxPathPoints = 128;
 constexpr float kWindowBehindM = 100.0F;
 constexpr float kWindowAheadM = 1500.0F;
 constexpr float kWindowToleranceM = 3.0F;
+// How often a new window is cut. Each one redraws the whole map, so faster costs frame rate
+// (about 100 ms a redraw with today's RouteView); the map is supporting context.
+constexpr uint32_t kWindowPeriodMs = 1000;
 
 class RoutePath {
  public:

@@ -117,7 +117,7 @@ void ProtocolBridge::OnLinkEvent(LinkEvent event, core::AppModel& model) {
     case LinkEvent::kSecured:
       secured_ = true;
       if (!hello_) {
-        model.SetLinkStatus(core::LinkStatus::kSecuring);  // until the app says hello
+        model.SetLinkStatus(core::LinkStatus::kWaitingForApp);
       }
       return;
   }
@@ -299,6 +299,7 @@ void ProtocolBridge::OnFrameEpoch(uint16_t epoch, core::AppModel& model) {
 
 void ProtocolBridge::ForgetRoute(core::AppModel& model) {
   has_route_ = false;
+  window_due_ = true;
   tracker_.Clear();
   model.ClearRouteWindow();
 }
@@ -347,9 +348,12 @@ void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppM
   // cm/s to km/h, rounded: 1 km/h = 27.78 cm/s.
   const uint32_t kmh = ((static_cast<uint32_t>(pose.speed_cms) * 36U) + 500U) / 1000U;
   model.SetSpeed(static_cast<uint16_t>(kmh));
-  if (!tracker_.HasRoute()) {
+  // Poses come five times a second; the map gets a new window at most once a second.
+  if (!tracker_.HasRoute() || (!window_due_ && now_ms - window_ms_ < core::kWindowPeriodMs)) {
     return;
   }
+  window_due_ = false;
+  window_ms_ = now_ms;
   constexpr float kMetresPerDm = 0.1F;
   const core::MetricPoint rider{static_cast<float>(pose.x_dm) * kMetresPerDm,
                                 static_cast<float>(pose.y_dm) * kMetresPerDm};
@@ -385,6 +389,7 @@ void ProtocolBridge::OnRoute(const proto::Route& route, core::AppModel& model) {
     tracker_.AddManeuver(marker.point, glyph);  // the decoder checked the order
   }
   has_route_ = true;
+  window_due_ = true;
   route_id_ = route.route_id;
   route_version_ = route.version;
 }

@@ -170,11 +170,10 @@ class ServerCallbacks final : public NimBLEServerCallbacks {
     last_auth.store((info.isEncrypted() ? 1U : 0U) | (info.isBonded() ? 2U : 0U) |
                     (info.isAuthenticated() ? 4U : 0U));
     pairing_ends.fetch_add(1);
+    // A failed or unauthenticated (Just Works) attempt leaves the link unusable but open: the
+    // phone may retry pairing on it (BlueZ does, after the device's own request fails).
     if (info.getConnHandle() == conn_handle.load()) {
       secured.store(Secure(info));
-      if (!Secure(info)) {
-        NimBLEDevice::getServer()->disconnect(info.getConnHandle());  // failed or Just Works
-      }
     }
   }
 };

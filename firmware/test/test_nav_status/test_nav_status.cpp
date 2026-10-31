@@ -122,6 +122,8 @@ void TestIdleTextFollowsTheLink() {
   TEST_ASSERT_EQUAL_STRING("Phone not connected", NavIdleText(s));
   s.phone.link = LinkStatus::kSecuring;
   TEST_ASSERT_EQUAL_STRING("Securing link", NavIdleText(s));
+  s.phone.link = LinkStatus::kWaitingForApp;
+  TEST_ASSERT_EQUAL_STRING("Waiting for the app", NavIdleText(s));
   s.phone.link = LinkStatus::kUpdateApp;
   TEST_ASSERT_EQUAL_STRING("Update the app", NavIdleText(s));
   s.phone.link = LinkStatus::kOff;

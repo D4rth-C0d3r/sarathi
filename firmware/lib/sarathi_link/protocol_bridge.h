@@ -144,6 +144,8 @@ class ProtocolBridge {
   std::array<proto::RouteMarker, proto::kMaxRouteMarkers> route_markers_{};
   core::RouteTracker tracker_;
   uint32_t window_sequence_ = 0;
+  bool window_due_ = true;  // the next pose cuts a window at once (a new route or frame)
+  uint32_t window_ms_ = 0;
   std::array<char, proto::kMaxJson> json_out_{};
 
   bool secured_ = false;

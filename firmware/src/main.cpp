@@ -13,6 +13,7 @@
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_random.h>
+#include <esp_system.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -167,6 +168,32 @@ void LoadSettings() {
   settings_saver.MarkSaved(app.SettingsRevision());
 }
 
+// Why the chip last reset: a crash, a watchdog or a brownout explains itself in the log.
+const char* ResetReason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:
+      return "power-on";
+    case ESP_RST_EXT:
+      return "reset pin";
+    case ESP_RST_SW:
+      return "software";
+    case ESP_RST_PANIC:
+      return "panic";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:
+      return "watchdog";
+    case ESP_RST_DEEPSLEEP:
+      return "deep sleep";
+    case ESP_RST_BROWNOUT:
+      return "brownout";
+    case ESP_RST_USB:
+      return "USB";
+    default:
+      return "other";
+  }
+}
+
 // Repeated with the hello line for the first seconds: native USB CDC comes up after setup(),
 // so a line logged only once at boot never reaches the monitor.
 void LogBootSettings() {
@@ -177,9 +204,9 @@ void LogBootSettings() {
            s.brightness_percent, s.auto_day_night ? "auto" : "off",
            s.units == core::Units::kMetric ? "metric" : "imperial",
            static_cast<unsigned>(s.screen_timeout), s.knob_reversed ? "reversed" : "normal");
-  ESP_LOGI(kTag, "firmware %.*s (seq %u), image %s%s",
+  ESP_LOGI(kTag, "firmware %.*s (seq %u), last reset: %s, image %s%s",
            static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data(),
-           static_cast<unsigned>(core::kFirmwareSeq),
+           static_cast<unsigned>(core::kFirmwareSeq), ResetReason(),
            boot_state.pending_verify ? "pending verify" : "not pending",
            boot_state.rolled_back ? ", an earlier update was rolled back" : "");
 }

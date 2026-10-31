@@ -73,6 +73,8 @@ const char* NavIdleText(const AppState& state) {
       return "Bluetooth paused";
     case LinkStatus::kSecuring:
       return "Securing link";
+    case LinkStatus::kWaitingForApp:
+      return "Waiting for the app";
     case LinkStatus::kUpdateApp:
       return "Update the app";
     case LinkStatus::kUpdateFirmware:
@@ -92,6 +94,8 @@ const char* LinkText(LinkStatus status) {
       return "not connected";
     case LinkStatus::kSecuring:
       return "securing";
+    case LinkStatus::kWaitingForApp:
+      return "waiting for app";
     case LinkStatus::kReady:
       return "connected";
     case LinkStatus::kUpdateApp:
