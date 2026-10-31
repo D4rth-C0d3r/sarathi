@@ -81,6 +81,11 @@ struct NavState {
   bool has_window = false;
   RouteWindow window{};
   uint32_t window_received_ms = 0;
+  // From our own phone link (protocol v1): the route is being recalculated, or the rider has
+  // left it; and guidance that stopped arriving (protocol.md section 5). Never silent.
+  bool rerouting = false;
+  bool off_route = false;
+  bool guidance_stale = false;
 };
 
 // ---- Call ----
@@ -176,12 +181,31 @@ struct Capabilities {
   bool phone_pairing = false;  // BLE pairing confirmed on the dash, and Forget phones
 };
 
+// The phone link, as the rider should understand it (our own link only; ADR-0007).
+enum class LinkStatus : uint8_t {
+  kOff,             // BLE paused for Wi-Fi
+  kWaiting,         // advertising; no phone connected
+  kSecuring,        // a phone is connected but the link isn't encrypted and paired yet
+  kReady,           // secured, and the app said hello
+  kUpdateApp,       // the app speaks an older protocol major version
+  kUpdateFirmware,  // the app speaks a newer one
+};
+
 struct PhoneState {
+  LinkStatus link = LinkStatus::kWaiting;
   bool connected = false;
   bool battery_valid = false;
   uint8_t battery_percent = 0;
   bool charging = false;
   uint8_t paired_phones = 0;  // bonds stored on the device
+};
+
+// The routing backend the phone uses, and the attribution its data needs (ADR-0006).
+struct BackendState {
+  bool valid = false;
+  FixedString<24> name;
+  FixedString<64> attribution;
+  bool traffic = false;
 };
 
 // A phone asks to pair: the rider compares the code with the phone's and confirms with the
@@ -204,6 +228,7 @@ struct AppState {
   Capabilities caps;
   PhoneState phone;
   PairingState pairing;
+  BackendState backend;
 };
 
 }  // namespace sarathi::core

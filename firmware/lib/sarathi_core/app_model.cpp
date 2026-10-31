@@ -24,6 +24,19 @@ void AppModel::SetPhoneGuidance(std::string_view distance, std::string_view inst
   state_.nav.remaining_text.Assign(remaining);
 }
 
+void AppModel::SetNavFlags(bool rerouting, bool off_route) {
+  if (state_.nav.active) {
+    state_.nav.rerouting = rerouting;
+    state_.nav.off_route = off_route;
+  }
+}
+
+void AppModel::SetGuidanceStale(bool stale) {
+  if (state_.nav.active) {
+    state_.nav.guidance_stale = stale;
+  }
+}
+
 void AppModel::SetManeuverIcon(const ManeuverIcon& icon) { state_.nav.icon = icon; }
 
 void AppModel::SetRouteWindow(const RouteWindow& window, uint32_t now_ms) {

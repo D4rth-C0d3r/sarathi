@@ -90,6 +90,9 @@ class Reassembler {
 
   [[nodiscard]] uint32_t Dropped() const { return dropped_; }
 
+  // Forgets an unfinished message (a new connection).
+  void Reset() { active_ = false; }
+
  private:
   void Add(FeedResult& result, Drop drop);
   void Complete(FeedResult& result, uint8_t type, uint8_t msg_id, uint16_t total, uint16_t crc,

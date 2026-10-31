@@ -48,6 +48,15 @@ class AppModel {
   void SetClock(uint16_t minutes_of_day);  // 0-1439, wraps
   void SetCapabilities(const Capabilities& caps) { state_.caps = caps; }
   void SetPhoneConnected(bool connected) { state_.phone.connected = connected; }
+  void SetLinkStatus(LinkStatus status) { state_.phone.link = status; }
+  void SetBackend(const BackendState& backend) { state_.backend = backend; }
+  // Only while navigating; EndNav clears them.
+  void SetNavFlags(bool rerouting, bool off_route);
+  void SetGuidanceStale(bool stale);
+  void ClearRouteWindow() {
+    state_.nav.has_window = false;
+    state_.nav.window = RouteWindow{};
+  }
   void SetPhoneBattery(uint8_t percent, bool charging);
   void SetPairedPhones(uint8_t count) { state_.phone.paired_phones = count; }
   void SetPairingRequest(uint32_t code, uint32_t now_ms);

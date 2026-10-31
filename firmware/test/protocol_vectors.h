@@ -80,6 +80,67 @@ inline std::vector<int> Elements(const Doc& doc, int array) {
   return out;
 }
 
+// A string token's value: JSON escapes decoded, as UTF-8.
+inline std::string String(const Doc& doc, int i) {
+  const std::string raw = Text(doc, i);
+  std::string out;
+  auto put = [&out](uint32_t cp) {
+    if (cp < 0x80) {
+      out += static_cast<char>(cp);
+    } else if (cp < 0x800) {
+      out += static_cast<char>(0xC0 | (cp >> 6));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+      out += static_cast<char>(0xE0 | (cp >> 12));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+      out += static_cast<char>(0xF0 | (cp >> 18));
+      out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+  };
+  for (size_t k = 0; k < raw.size(); ++k) {
+    if (raw[k] != '\\') {
+      out += raw[k];
+      continue;
+    }
+    const char e = raw[++k];
+    switch (e) {
+      case 'b':
+        out += '\b';
+        break;
+      case 'f':
+        out += '\f';
+        break;
+      case 'n':
+        out += '\n';
+        break;
+      case 'r':
+        out += '\r';
+        break;
+      case 't':
+        out += '\t';
+        break;
+      case 'u': {
+        uint32_t cp = static_cast<uint32_t>(std::stoul(raw.substr(k + 1, 4), nullptr, 16));
+        k += 4;
+        if (cp >= 0xD800 && cp <= 0xDBFF && k + 6 < raw.size() && raw[k + 1] == '\\') {
+          const auto low = static_cast<uint32_t>(std::stoul(raw.substr(k + 3, 4), nullptr, 16));
+          cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+          k += 6;
+        }
+        put(cp);
+        break;
+      }
+      default:
+        out += e;  // " \ /
+    }
+  }
+  return out;
+}
+
 inline long Integer(const Doc& doc, int i) { return std::stol(Text(doc, i), nullptr, 0); }
 
 inline std::vector<uint8_t> Hex(const std::string& hex) {
