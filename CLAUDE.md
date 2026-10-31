@@ -61,9 +61,11 @@ Classic Bluetooth audio on the device.
   ADR-0007 (protocol v1), ADR-0008 (destination input) and ADR-0009 (on-device game-style
   map) are accepted. Spikes done: the rotating map renders at about 18.6 fps without
   flicker (own rasteriser, pre-swapped colours; ADR-0009), and the offline router is
-  valhalla-mobile with Goa tiles (ADR-0006). Before code: the owner's checks listed in
-  ADR-0006 and recorded share-link fixtures (ADR-0008). New dependencies are still flagged
-  as each one is added.
+  valhalla-mobile with Goa tiles (ADR-0006). Setup done: Google Cloud key restricted to the
+  app, Mappls SDK credentials kept outside the repo (`~/sarathi-secrets/mappls/`), FOSSGIS
+  terms read, share-link fixtures recorded (`docs/fixtures/share-links.json`). Test phone:
+  Nothing Phone (1), Android 15. Dependencies approved; each is still flagged with its exact
+  version when added.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
