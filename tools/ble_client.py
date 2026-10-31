@@ -473,10 +473,10 @@ async def cmd_ride(args: argparse.Namespace) -> None:
     device = await find(args)
     log("..", f"connecting to {device.address}")
     agent = terminal_agent() if args.agent else contextlib.nullcontext()
-    async with agent, BleakClient(device, timeout=30) as client:
-        if sys.platform != "darwin":  # macOS pairs on the first secured access
-            log("..", "pairing: compare the code on the dash, then confirm it there with the knob")
-            await client.pair()
+    log("..", "pairing if needed: compare the codes, then Pair on the dash with the knob")
+    # Pair before service discovery (BlueZ, Windows), so the system's pairing agent runs it;
+    # macOS pairs on the first secured access instead.
+    async with agent, BleakClient(device, timeout=60, pair=sys.platform != "darwin") as client:
         mtu = 0
         for _ in range(20):  # the device starts the exchange; give it a moment
             mtu = await negotiated_mtu(client)
@@ -496,8 +496,8 @@ async def cmd_ride(args: argparse.Namespace) -> None:
 
 async def cmd_forget(args: argparse.Namespace) -> None:
     device = await find(args)
-    async with BleakClient(device) as client:
-        await client.unpair()
+    # No connection needed (and a stale pairing would refuse one): the system just drops it.
+    await BleakClient(device).unpair()
     print(f"forgot {device.address} on this computer; use Settings > Forget phones on the dash "
           "to forget this computer there")
 
