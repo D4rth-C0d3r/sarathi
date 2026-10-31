@@ -23,4 +23,22 @@ Flash with `pio run -e crowpanel21-phone -t upload` (from `firmware/`), keep
 | C11 | Disconnect | Ctrl-C mid-ride | Within a few seconds: "No phone"; nav and call cleared, not frozen |
 | C12 | Wi-Fi pauses BLE | Settings → Check for update while connected | Log: `BLE stopped for Wi-Fi`; Nav shows "Bluetooth paused"; after it, the tool can reconnect |
 | C13 | Forget phones | Settings → Forget phones | The tool disconnects; `ride` asks for a code again |
-| C14 | Second phone | Connect another BLE central (for example nRF Connect) while the tool is connected | Log: `extra phone(s) turned away`; the ride carries on |
+| C14 | Second phone | Scan with another BLE central (for example nRF Connect) while the tool is connected | The dash isn't listed: it stops advertising while a phone is connected. (If two connect at the same instant, the second is turned away: `extra phone(s) turned away`.) The ride carries on |
+
+### Results, 2026-10-31 (the fake phone on the maintainer's laptop)
+
+All of C1-C14 pass on the device, after the fixes the first run found:
+
+- **Pairing through BlueZ** failed at first: the dash disconnected on its own failed security
+  request before the laptop could pair, and GNOME's agent only answers with Settings →
+  Bluetooth open. Fixed in the firmware and the tool; documented in `docs/building.md`.
+- **The map redrew five times a second** (every pose), holding the dash at about 5 fps; now
+  once a second.
+- **"Phone not connected" was cut** to "Phone not..." on the Nav card; now "No phone".
+- **"Securing link"** showed while a computer's Bluetooth settings held the secured link
+  without the app; now "Waiting for app".
+- **An unpaired central can turn notifications on** (NimBLE doesn't protect the CCCD); the
+  device still sends nothing before the link is secured. SECURITY.md corrected.
+
+The update check during C12 couldn't reach GitHub from the test network (TLS connect
+timeouts); BLE paused and came back as it should.
