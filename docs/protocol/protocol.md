@@ -239,7 +239,7 @@ An unknown `m` (a newer minor version) is drawn as `straight`.
 | `mode` | u8 | 0 two-wheeler, 1 driving |
 | `quantum_dm` | u8 | Coordinate unit, decimetres, 1–255 (10 = 1 m) |
 | `n_points` | varint | 2–4,000 |
-| points | zigzag varint pairs | The first point is x, y in quanta from the ride-frame origin; each later one is the delta from the previous point |
+| points | zigzag varint pairs | The first point is x, y in quanta from the ride-frame origin; each later one is the delta from the previous point. Every point lies within −2³⁰…2³⁰−1 on both axes, so every delta fits a 32-bit zigzag. |
 | `n_markers` | varint | 0–256 |
 | markers | `point` varint, `maneuver` u8, `exit` u8 | `point` < `n_points`, in increasing order; `maneuver` is a code from the table in section 3 |
 

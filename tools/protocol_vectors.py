@@ -318,6 +318,9 @@ def _read_points(r: Reader, n: int) -> list[list[int]]:
     return pts
 
 
+ROUTE_LIMIT = 1 << 30  # route coordinates, quanta (protocol.md section 4)
+
+
 def _limit(cond: bool, what: str) -> None:
     if not cond:
         raise Invalid(f"invalid ({what})")
@@ -376,6 +379,7 @@ def decode_binary(name: str, data: bytes) -> dict:
         n = r.varint()
         _limit(2 <= n <= 4000, "n_points")
         pts = _read_points(r, n)
+        _limit(all(-ROUTE_LIMIT <= c < ROUTE_LIMIT for p in pts for c in p), "coordinates")
         nm = r.varint()
         _limit(nm <= 256, "n_markers")
         markers, prev = [], -1
@@ -588,6 +592,8 @@ def binary_invalid() -> list[tuple[str, str, str, str]]:
         ("route-one-point", "route", bytes(one_point).hex(), "invalid"),
         ("route-truncated", "route", route[:-3].hex(), "invalid"),
         ("varint-overflow", "route", (route[:13] + b"\xff\xff\xff\xff\x7f").hex(), "invalid"),
+        ("route-out-of-range", "route", (bytearray(struct.pack("<BIHBHBB", 1, 1, 0, 0, 7, 0, 10)) + varint(2)
+                                         + _points([[ROUTE_LIMIT - 1, 0], [ROUTE_LIMIT, 0]]) + varint(0)).hex(), "invalid"),
         ("chunk-provenance-0", "chunk", bytes(bad_prov).hex(), "invalid"),
         ("traffic-overlap", "traffic", bytes(overlap).hex(), "invalid"),
         ("chunk-have-too-many", "chunk_have", bytes(many).hex(), "invalid"),
