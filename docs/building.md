@@ -398,9 +398,9 @@ no Gradle install needed). Modules:
 
 | Module | Kind | Purpose |
 |---|---|---|
-| `:app` | Android application | UI (Compose, Material 3); one placeholder screen for now |
+| `:app` | Android application | Setup and the ride link (Compose, Material 3): companion pairing, the foreground service, permissions (ADR-0010) |
 | `:core:protocol` | Kotlin/JVM library, no dependencies | Protocol v1 framing and message codecs, tested against `docs/protocol/vectors/` |
-| `:core:ble` | Android library | BLE scan, bond and GATT transport (Phase 4) |
+| `:core:ble` | Android library | The protocol session (JVM-tested) and the Bluetooth transport to the dash |
 
 Versions are in `android/gradle/libs.versions.toml`.
 
@@ -430,8 +430,35 @@ All from `android/`:
 ./gradlew lint testDebugUnitTest assembleDebug   # Android lint, unit tests, debug APK
 ./gradlew ktlintCheck detekt                     # style and static analysis
 ./gradlew ktlintFormat                           # auto-fix ktlint findings
-./gradlew installDebug                           # install on a USB-connected phone (adb)
+./gradlew installDebug                           # install on the connected phone (adb)
 ```
+
+### The phone (wireless debugging)
+
+Nothing to install on the computer: `adb` is in the SDK's `platform-tools`.
+
+1. On the phone: Settings, About phone, tap **Build number** 7 times (Developer options).
+2. Developer options, **Wireless debugging**: on, on the same Wi-Fi as the computer.
+3. **Pair device with pairing code**, then on the computer:
+   ```bash
+   ~/Android/Sdk/platform-tools/adb pair <ip:port from the pairing popup> <6-digit code>
+   ~/Android/Sdk/platform-tools/adb devices    # the phone appears by itself (mDNS)
+   ```
+4. Install with `./gradlew installDebug`, or `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+
+Useful while testing the ride link (ADR-0010):
+
+```bash
+adb logcat -v time 'RideLink:V' 'BluetoothGatt:V' '*:S'   # the app's link states and sends
+adb shell dumpsys battery unplug && adb shell dumpsys deviceidle force-idle   # deep Doze (screen off)
+adb shell dumpsys deviceidle unforce && adb shell dumpsys battery reset       # back to normal
+adb shell dumpsys companiondevice                          # the association and presence
+```
+
+**First use:** the app asks for Nearby devices, notifications, location, location all the
+time, and the battery exemption, one at a time; then **Find the dash** (the dash on, nearby):
+pick sarathi, compare the codes, and Pair on the dash with the knob. A phone that was paired
+with the dash's Chronos build keeps working: the dash tells it the services changed.
 
 `testDebugUnitTest` also runs `:core:protocol`'s JVM tests. The debug APK is written to
 `app/build/outputs/apk/debug/app-debug.apk`.

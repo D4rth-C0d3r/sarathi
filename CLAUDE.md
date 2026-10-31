@@ -69,7 +69,10 @@ Classic Bluetooth audio on the device.
   `:core:protocol` pass the shared golden vectors, without new dependencies. Step C: the
   `crowpanel21-phone` build carries it over its own BLE service (knob-confirmed pairing,
   link status, backend and attribution on Nav); `tools/ble_client.py` is a fake phone that
-  replays the demo ride. On-device checks: `docs/phase4-test-plan.md`.
+  replays the demo ride. Step D: the Android app pairs through CompanionDeviceManager and
+  keeps the ride link in a foreground service through Doze (ADR-0010), tested on the phone;
+  auto-start on dash power-on is deferred (Android never reported the dash as gone). On-device
+  checks: `docs/phase4-test-plan.md`.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)

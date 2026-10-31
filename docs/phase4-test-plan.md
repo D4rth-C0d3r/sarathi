@@ -42,3 +42,32 @@ All of C1-C14 pass on the device, after the fixes the first run found:
 
 The update check during C12 couldn't reach GitHub from the test network (TLS connect
 timeouts); BLE paused and came back as it should.
+
+## Step D: the Android app and the ride link
+
+Phone with the debug app (`docs/building.md`, "The phone"), the dash on the `crowpanel21-phone`
+build, `adb logcat -v time 'RideLink:V' 'BluetoothGatt:V' '*:S'` running.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| D1 | Setup | Fresh install; go through the steps | One step at a time, each with its reason; every permission granted |
+| D2 | Pairing | Find the dash; pick sarathi; compare codes; Pair on the dash | Bonded; the link reaches Ready; the dash shows "No navigation" |
+| D3 | Phone paired with the Chronos build earlier | The same, on such a phone | Connects (the dash's Service Changed refreshes Android's cache) |
+| D4 | Service | `adb shell dumpsys activity services io.github.d4rthc0d3r.sarathi` | Foreground, `types=0x00000018` (connected device and location) |
+| D5 | Deep Doze | Lock the phone; force idle; `dumpsys battery set level 40` | The link stays up; `sent PhoneBattery(level=40...)` while IDLE; location fixes keep coming |
+| D6 | Dash restarts, phone locked in Doze | Reset or power-cycle the dash | Reconnects within seconds; battery and time resent |
+| D7 | Stop | Stop in the app or the notification | The notification goes; the dash shows "No phone" |
+| D8 | Auto-start | Switch on, Stop, lock; dash off 10 min, then on | The link starts by itself |
+| D9 | Pocket ride | Ride with the phone locked in a pocket | The link stays up the whole ride; location fixes about once a second outdoors |
+
+### Results, 2026-10-31 (Nothing Phone (1), Android 15)
+
+- **D1, D2, D4–D7 pass.** Connect to Ready takes about 300 ms; after a dash reset in deep Doze
+  the phone reconnected in 3 s.
+- **D3 failed, then passes after two fixes:** the phone had cached the Chronos build's services.
+  The dash now sends Service Changed once per phone per boot, and the app re-reads the
+  services if that arrives during setup.
+- **D8 fails on this phone:** Android never reported the dash as gone (still "nearby" after 10
+  minutes unplugged), so there was no "appeared" to start the link. Deferred: auto-start that
+  keeps the link waiting all the time (ADR-0010).
+- **D9 not done yet** (indoors the check only saw Wi-Fi and cell fixes, about one every 4 s).

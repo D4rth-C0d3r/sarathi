@@ -6,8 +6,10 @@ are in `docs/building.md`.
 
 ## Status
 
-Phase 0 skeleton (one placeholder screen) plus `:core:protocol`, which implements protocol v1
-(Phase 4 step B). Don't add features or permissions unasked.
+Phase 4 step D: setup (permissions, companion pairing) and the ride link, a foreground service
+that keeps the dash connected with the screen off (ADR-0010). `:core:protocol` implements
+protocol v1; `:core:ble` the session and the Bluetooth transport. Navigation, calls and music
+come in later steps. Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -92,6 +94,11 @@ Before finishing any Android change, run both check lines and report the result.
   foreground service for the ride, notification-listener access for nav and media, and
   `ANSWER_PHONE_CALLS` for accept/reject.
 - Handle disconnects as normal: reconnect with backoff, never spin.
+- **How it's done (ADR-0010):** `DashLink` reconnects with `autoConnect` (the chip waits, no
+  polling); `RideLinkService` adds the `location` type only when Android allows it at that
+  start. No `BLUETOOTH_SCAN`: the companion chooser finds the dash.
+- **Test on the phone over wireless debugging** (`docs/building.md`); force Doze with
+  `adb shell dumpsys deviceidle force-idle`. The emulator has no Bluetooth.
 
 ## Rider safety and security
 

@@ -116,6 +116,22 @@ The link the sārathi app will use (ADR-0007, `docs/protocol/protocol.md`):
 - **Paired phones reconnect silently.** Settings → **Forget phones** deletes every bond.
 - **No updates over BLE** yet; OTA messages are reserved for Phase 5.
 
+### The Android app (Phase 4)
+
+Each permission and why (ADR-0010; the manifest says the same):
+
+| Permission | Why |
+|---|---|
+| Nearby devices (`BLUETOOTH_CONNECT`) | Connect to the paired dash. There is **no** `BLUETOOTH_SCAN`: Android's companion chooser finds the dash. |
+| Notifications | The ride link's ongoing notification, with Stop. |
+| Location, and location all the time | Navigation needs the position during the ride, with the phone locked. Positions reach the dash only as distances in the ride's own frame, never latitude and longitude (ADR-0007). |
+| Foreground service (connected device, location) | Keep the link and location running with the screen off. |
+| Companion device (start in background, run in background, observe presence) | Restart the link when Android needs to, and optional auto-start. |
+| Ignore battery optimisation | Asked for once, confirmed by the rider in a system dialog. |
+
+The app talks only to the dash it paired, over the bonded, authenticated link described above.
+Backup and device transfer are off: bonds and settings stay on the phone.
+
 ### The Chronos app (Phase 3, `crowpanel21-chronos`)
 
 The interim link through the Chronos app (ADR-0005). The ChronosESP32 library it's built on
