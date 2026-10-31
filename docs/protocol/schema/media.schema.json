@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/media.schema.json",
+  "title": "media",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "media"
+    },
+    "avail": {
+      "type": "boolean"
+    },
+    "playing": {
+      "type": "boolean"
+    },
+    "title": {
+      "type": "string",
+      "x-maxBytes": 48
+    },
+    "artist": {
+      "type": "string",
+      "x-maxBytes": 48
+    },
+    "pos_s": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400
+    },
+    "dur_s": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400
+    }
+  },
+  "required": [
+    "t",
+    "avail",
+    "playing",
+    "title",
+    "artist",
+    "pos_s",
+    "dur_s"
+  ],
+  "additionalProperties": true
+}

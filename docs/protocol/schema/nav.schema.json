@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/nav.schema.json",
+  "title": "nav",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "nav"
+    },
+    "m": {
+      "type": "string",
+      "x-maxBytes": 16,
+      "x-knownValues": [
+        "none",
+        "depart",
+        "straight",
+        "slight_left",
+        "left",
+        "sharp_left",
+        "slight_right",
+        "right",
+        "sharp_right",
+        "uturn",
+        "roundabout",
+        "arrive",
+        "keep_left",
+        "keep_right",
+        "merge",
+        "fork_left",
+        "fork_right",
+        "ramp_left",
+        "ramp_right",
+        "ferry"
+      ]
+    },
+    "exit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 15
+    },
+    "dist_m": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "street": {
+      "type": "string",
+      "x-maxBytes": 48
+    },
+    "rem_s": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 604800
+    },
+    "rem_m": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000000
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "off_route",
+          "rerouting",
+          "arrived"
+        ]
+      },
+      "maxItems": 3
+    }
+  },
+  "required": [
+    "t",
+    "m",
+    "exit",
+    "dist_m",
+    "street",
+    "rem_s",
+    "rem_m",
+    "flags"
+  ],
+  "additionalProperties": true
+}

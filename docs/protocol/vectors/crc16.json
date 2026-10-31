@@ -1,0 +1,17 @@
+{
+ "algorithm": "CRC-16/CCITT-FALSE",
+ "cases": [
+  {
+   "input": "313233343536373839",
+   "crc": "0x29B1"
+  },
+  {
+   "input": "",
+   "crc": "0xFFFF"
+  },
+  {
+   "input": "73c4817261746869",
+   "crc": "0x62B3"
+  }
+ ]
+}

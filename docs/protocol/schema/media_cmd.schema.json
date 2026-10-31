@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/media_cmd.schema.json",
+  "title": "media_cmd",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "media_cmd"
+    },
+    "cmd": {
+      "enum": [
+        "play_pause",
+        "next",
+        "prev"
+      ]
+    }
+  },
+  "required": [
+    "t",
+    "cmd"
+  ],
+  "additionalProperties": true
+}

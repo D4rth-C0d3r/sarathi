@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/phone_batt.schema.json",
+  "title": "phone_batt",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "phone_batt"
+    },
+    "level": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "charging": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "t",
+    "level",
+    "charging"
+  ],
+  "additionalProperties": true
+}

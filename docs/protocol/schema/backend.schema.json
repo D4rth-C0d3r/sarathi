@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/backend.schema.json",
+  "title": "backend",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "backend"
+    },
+    "routing": {
+      "enum": [
+        "google",
+        "mappls",
+        "osm_online",
+        "osm_offline"
+      ]
+    },
+    "search": {
+      "enum": [
+        "google",
+        "mappls",
+        "osm"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "x-maxBytes": 24
+    },
+    "attribution": {
+      "type": "string",
+      "x-maxBytes": 64
+    },
+    "traffic": {
+      "type": "boolean"
+    },
+    "two_wheeler": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "t",
+    "routing",
+    "search",
+    "name",
+    "attribution",
+    "traffic",
+    "two_wheeler"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/hello.phone.schema.json",
+  "title": "hello (phone → device)",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "hello"
+    },
+    "proto": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "app": {
+      "type": "string",
+      "x-maxBytes": 32
+    },
+    "caps": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "google",
+          "mappls",
+          "osm",
+          "offline",
+          "traffic",
+          "calls",
+          "media"
+        ]
+      },
+      "maxItems": 16
+    }
+  },
+  "required": [
+    "t",
+    "proto",
+    "app",
+    "caps"
+  ],
+  "additionalProperties": true
+}

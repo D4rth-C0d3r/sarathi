@@ -81,6 +81,11 @@ jobs:
       - name: Check vectors
         run: python ../tools/ota_manifest.py check-vectors ../docs/ota/vectors
 
+      # The protocol reference encoder must agree with every golden vector
+      # (docs/protocol/protocol.md, ADR-0007). Standard library only.
+      - name: Check protocol vectors
+        run: python ../tools/protocol_vectors.py check-vectors ../docs/protocol/vectors
+
   build:
     name: build crowpanel21
     runs-on: ubuntu-24.04

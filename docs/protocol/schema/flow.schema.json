@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/flow.schema.json",
+  "title": "flow",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "flow"
+    },
+    "window": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64
+    },
+    "consumed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    }
+  },
+  "required": [
+    "t",
+    "window",
+    "consumed"
+  ],
+  "additionalProperties": true
+}

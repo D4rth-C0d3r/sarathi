@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/chunk_ack.schema.json",
+  "title": "chunk_ack",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "chunk_ack"
+    },
+    "stored": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        ],
+        "items": false,
+        "minItems": 4
+      },
+      "maxItems": 64
+    },
+    "refused": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "enum": [
+              "full",
+              "invalid",
+              "epoch"
+            ]
+          }
+        ],
+        "items": false,
+        "minItems": 5
+      },
+      "maxItems": 64
+    }
+  },
+  "required": [
+    "t",
+    "stored",
+    "refused"
+  ],
+  "additionalProperties": true
+}

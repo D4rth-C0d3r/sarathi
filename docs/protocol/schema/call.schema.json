@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/call.schema.json",
+  "title": "call",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "call"
+    },
+    "phase": {
+      "enum": [
+        "ringing",
+        "active",
+        "idle"
+      ]
+    },
+    "caller": {
+      "type": "string",
+      "x-maxBytes": 32
+    }
+  },
+  "required": [
+    "t",
+    "phase",
+    "caller"
+  ],
+  "additionalProperties": true
+}

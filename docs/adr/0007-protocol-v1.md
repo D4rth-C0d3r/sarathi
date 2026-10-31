@@ -30,7 +30,7 @@ Lessons from Phase 3 apply:
 | Map chunk, highway L1 (z12) | 1.5–10 KB | **0.3–2.2 KB** | < 0.3 s |
 | Route, 50 km, about 800 points at 1 m quantum | about 9.6 KB (`[[x,y],…]`) | **about 2.4 KB** | 0.3 s |
 | Traffic, 50 stretches | about 1.5 KB | **about 250 B** | — |
-| Rider pose | about 80 B | **18 B** | — |
+| Rider pose | about 80 B | **20 B** (spec, with version byte and accuracy) | — |
 | Guidance state (`nav`) | about 120 B | about 40 B | — |
 
 Binary is 4–5× smaller for geometry. For small control messages the difference doesn't

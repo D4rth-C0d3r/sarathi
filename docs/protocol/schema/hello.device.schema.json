@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/hello.device.schema.json",
+  "title": "hello (device → phone)",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "hello"
+    },
+    "proto": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      ],
+      "items": false,
+      "minItems": 2
+    },
+    "fw": {
+      "type": "string",
+      "x-maxBytes": 16
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "caps": {
+      "type": "object",
+      "properties": {
+        "styles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "x-maxBytes": 16
+          },
+          "maxItems": 8
+        },
+        "chunk_kb": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "max_msg": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15360
+        }
+      },
+      "required": [
+        "styles",
+        "chunk_kb",
+        "max_msg"
+      ]
+    },
+    "route": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "v": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "required": [
+            "id",
+            "v"
+          ]
+        }
+      ]
+    },
+    "epoch": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      ]
+    }
+  },
+  "required": [
+    "t",
+    "proto",
+    "fw",
+    "seq",
+    "caps",
+    "route",
+    "epoch"
+  ],
+  "additionalProperties": true
+}

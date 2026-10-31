@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/style.schema.json",
+  "title": "style",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "style"
+    },
+    "map": {
+      "enum": [
+        "classic",
+        "hud",
+        "racing",
+        "minimal"
+      ]
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "water",
+          "parks"
+        ]
+      },
+      "maxItems": 2
+    }
+  },
+  "required": [
+    "t",
+    "map",
+    "layers"
+  ],
+  "additionalProperties": true
+}

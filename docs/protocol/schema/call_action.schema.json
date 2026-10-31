@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/call_action.schema.json",
+  "title": "call_action",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "call_action"
+    },
+    "action": {
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    }
+  },
+  "required": [
+    "t",
+    "action"
+  ],
+  "additionalProperties": true
+}

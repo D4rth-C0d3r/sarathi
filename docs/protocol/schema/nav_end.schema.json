@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/nav_end.schema.json",
+  "title": "nav_end",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "nav_end"
+    },
+    "reason": {
+      "enum": [
+        "arrived",
+        "cancelled",
+        "error"
+      ]
+    }
+  },
+  "required": [
+    "t",
+    "reason"
+  ],
+  "additionalProperties": true
+}

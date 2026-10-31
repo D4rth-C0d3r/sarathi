@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/event.schema.json",
+  "title": "event",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "event"
+    },
+    "kind": {
+      "enum": [
+        "fallback",
+        "reroute",
+        "cost_warning"
+      ]
+    },
+    "from": {
+      "enum": [
+        "google",
+        "mappls",
+        "osm_online",
+        "osm_offline"
+      ]
+    },
+    "to": {
+      "enum": [
+        "google",
+        "mappls",
+        "osm_online",
+        "osm_offline"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "quota",
+        "offline",
+        "error",
+        "no_route",
+        "account"
+      ]
+    },
+    "backend": {
+      "enum": [
+        "google",
+        "mappls",
+        "osm"
+      ]
+    },
+    "percent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "t",
+    "kind"
+  ],
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "fallback"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "from",
+          "to",
+          "reason"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "cost_warning"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "backend",
+          "percent"
+        ]
+      }
+    }
+  ]
+}

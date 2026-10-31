@@ -1,0 +1,221 @@
+{
+ "valid": [
+  {
+   "name": "hello-phone",
+   "direction": "phone",
+   "type": 1,
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"app\":\"0.1.0\",\"caps\":[\"google\",\"traffic\",\"calls\",\"media\"]}"
+  },
+  {
+   "name": "hello-device",
+   "direction": "device",
+   "type": 1,
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\",\"hud\",\"racing\",\"minimal\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":{\"id\":3,\"v\":2},\"epoch\":7}"
+  },
+  {
+   "name": "hello-device-empty",
+   "direction": "device",
+   "type": 1,
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":null,\"epoch\":null}"
+  },
+  {
+   "name": "time",
+   "direction": "phone",
+   "type": 2,
+   "payload": "{\"t\":\"time\",\"local\":\"2026-10-31T18:42:05\",\"utc_offset_min\":330}"
+  },
+  {
+   "name": "phone-batt",
+   "direction": "phone",
+   "type": 3,
+   "payload": "{\"t\":\"phone_batt\",\"level\":77,\"charging\":false}"
+  },
+  {
+   "name": "frame",
+   "direction": "phone",
+   "type": 4,
+   "payload": "{\"t\":\"frame\",\"epoch\":7}"
+  },
+  {
+   "name": "backend-google",
+   "direction": "phone",
+   "type": 5,
+   "payload": "{\"t\":\"backend\",\"routing\":\"google\",\"search\":\"google\",\"name\":\"Google\",\"attribution\":\"Google\",\"traffic\":true,\"two_wheeler\":true}"
+  },
+  {
+   "name": "backend-osm-offline",
+   "direction": "phone",
+   "type": 5,
+   "payload": "{\"t\":\"backend\",\"routing\":\"osm_offline\",\"search\":\"osm\",\"name\":\"OSM (offline)\",\"attribution\":\"© OpenStreetMap contributors\",\"traffic\":false,\"two_wheeler\":false}"
+  },
+  {
+   "name": "event-fallback",
+   "direction": "phone",
+   "type": 6,
+   "payload": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\",\"reason\":\"quota\"}"
+  },
+  {
+   "name": "event-reroute",
+   "direction": "phone",
+   "type": 6,
+   "payload": "{\"t\":\"event\",\"kind\":\"reroute\"}"
+  },
+  {
+   "name": "event-cost",
+   "direction": "phone",
+   "type": 6,
+   "payload": "{\"t\":\"event\",\"kind\":\"cost_warning\",\"backend\":\"google\",\"percent\":80}"
+  },
+  {
+   "name": "nav",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"left\",\"exit\":0,\"dist_m\":250,\"street\":\"MG Road\",\"rem_s\":540,\"rem_m\":4200,\"flags\":[]}"
+  },
+  {
+   "name": "nav-roundabout",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"roundabout\",\"exit\":2,\"dist_m\":80,\"street\":\"\",\"rem_s\":300,\"rem_m\":2100,\"flags\":[\"rerouting\"]}"
+  },
+  {
+   "name": "nav-unknown-maneuver",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"teleport\",\"exit\":0,\"dist_m\":10,\"street\":\"\",\"rem_s\":1,\"rem_m\":10,\"flags\":[],\"future_key\":1}"
+  },
+  {
+   "name": "nav-devanagari",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"right\",\"exit\":0,\"dist_m\":400,\"street\":\"गांधी मार्ग\",\"rem_s\":600,\"rem_m\":5000,\"flags\":[]}"
+  },
+  {
+   "name": "nav-end",
+   "direction": "phone",
+   "type": 8,
+   "payload": "{\"t\":\"nav_end\",\"reason\":\"arrived\"}"
+  },
+  {
+   "name": "call",
+   "direction": "phone",
+   "type": 9,
+   "payload": "{\"t\":\"call\",\"phase\":\"ringing\",\"caller\":\"Contact A\"}"
+  },
+  {
+   "name": "media",
+   "direction": "phone",
+   "type": 10,
+   "payload": "{\"t\":\"media\",\"avail\":true,\"playing\":true,\"title\":\"Kesariya\",\"artist\":\"Arijit Singh\",\"pos_s\":25,\"dur_s\":268}"
+  },
+  {
+   "name": "chunk-ack",
+   "direction": "device",
+   "type": 16,
+   "payload": "{\"t\":\"chunk_ack\",\"stored\":[[0,11553,7334,20261018]],\"refused\":[[1,2888,1833,20261018,\"full\"]]}"
+  },
+  {
+   "name": "flow",
+   "direction": "device",
+   "type": 17,
+   "payload": "{\"t\":\"flow\",\"window\":32,\"consumed\":1}"
+  },
+  {
+   "name": "style",
+   "direction": "device",
+   "type": 18,
+   "payload": "{\"t\":\"style\",\"map\":\"hud\",\"layers\":[\"water\"]}"
+  },
+  {
+   "name": "call-action",
+   "direction": "device",
+   "type": 19,
+   "payload": "{\"t\":\"call_action\",\"action\":\"reject\"}"
+  },
+  {
+   "name": "media-cmd",
+   "direction": "device",
+   "type": 20,
+   "payload": "{\"t\":\"media_cmd\",\"cmd\":\"next\"}"
+  }
+ ],
+ "invalid": [
+  {
+   "name": "missing-field",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"left\",\"exit\":0,\"dist_m\":250,\"street\":\"\",\"rem_s\":1,\"rem_m\":1}",
+   "error": "invalid"
+  },
+  {
+   "name": "out-of-range",
+   "direction": "phone",
+   "type": 3,
+   "payload": "{\"t\":\"phone_batt\",\"level\":101,\"charging\":true}",
+   "error": "invalid"
+  },
+  {
+   "name": "wrong-type",
+   "direction": "phone",
+   "type": 3,
+   "payload": "{\"t\":\"phone_batt\",\"level\":\"77\",\"charging\":true}",
+   "error": "invalid"
+  },
+  {
+   "name": "street-too-long",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\": \"nav\", \"m\": \"left\", \"exit\": 0, \"dist_m\": 1, \"street\": \"मार्गमार्गमार्गमार्ग\", \"rem_s\": 1, \"rem_m\": 1, \"flags\": []}",
+   "error": "invalid"
+  },
+  {
+   "name": "type-mismatch",
+   "direction": "phone",
+   "type": 9,
+   "payload": "{\"t\":\"media\",\"avail\":false,\"playing\":false,\"title\":\"\",\"artist\":\"\",\"pos_s\":0,\"dur_s\":0}",
+   "error": "type_mismatch"
+  },
+  {
+   "name": "not-json",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",",
+   "error": "not_json"
+  },
+  {
+   "name": "not-object",
+   "direction": "phone",
+   "type": 4,
+   "payload": "[7]",
+   "error": "type_mismatch"
+  },
+  {
+   "name": "bad-enum",
+   "direction": "device",
+   "type": 19,
+   "payload": "{\"t\":\"call_action\",\"action\":\"answer\"}",
+   "error": "invalid"
+  },
+  {
+   "name": "fallback-without-reason",
+   "direction": "phone",
+   "type": 6,
+   "payload": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\"}",
+   "error": "invalid"
+  },
+  {
+   "name": "bad-time",
+   "direction": "phone",
+   "type": 2,
+   "payload": "{\"t\":\"time\",\"local\":\"31/10/2026 18:42\",\"utc_offset_min\":330}",
+   "error": "invalid"
+  },
+  {
+   "name": "too-long",
+   "direction": "phone",
+   "type": 10,
+   "payload": "{\"t\": \"media\", \"avail\": true, \"playing\": true, \"title\": \"a\", \"artist\": \"b\", \"pos_s\": 0, \"dur_s\": 0, \"pad\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+   "error": "too_long"
+  }
+ ]
+}

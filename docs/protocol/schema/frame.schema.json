@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/frame.schema.json",
+  "title": "frame",
+  "type": "object",
+  "properties": {
+    "t": {
+      "const": "frame"
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535
+    }
+  },
+  "required": [
+    "t",
+    "epoch"
+  ],
+  "additionalProperties": true
+}
