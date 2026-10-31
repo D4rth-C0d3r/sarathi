@@ -28,7 +28,7 @@ Facts below were checked on 2026-10-25 against the sources listed at the end. It
 | Item | Finding |
 |---|---|
 | Navigation SDK billing | SKU "Navigation Request": billed **per destination** in a route request (waypoints × price). Starting guidance, traffic reroutes and off-route reroutes are **not billed**. Requests that reach Google are billed even with `NO_ROUTE_FOUND`; client-side failures are not. |
-| Free tier | Global list: **1,000 destinations/month free**, then $25 per 1,000. India list: **7,000/month free**, then $8 per 1,000. The India list doesn't say who qualifies (**verify**: which list applies to the owner's billing account). |
+| Free tier | Global list: **1,000 destinations/month free**, then $25 per 1,000. India list: **7,000/month free**, then $8 per 1,000. The India list doesn't say who qualifies, and the owner couldn't find which list applies in the Console (2026-10-31), so **the cost guard uses the global limits**, the stricter ones. |
 | Access | Pay-as-you-go: enable the SDK on a project with billing and an API key. The docs mention "your service agreement" and Mobility terms but don't require a contract (**verify** at enablement). |
 | Two-wheeler | `RoutingOptions.TravelMode.TWO_WHEELER` ("motorcycles and scooters"). Regional availability isn't stated in the reference; two-wheeler routing is long established in India (**verify** routes differ from `DRIVING` on a test route). |
 | Headless | Google's "Nav SDK headless mode" guide: skip the navigation fragment and map; navigation runs "under the scenes", with location and all event callbacks still firing. Turn-by-turn data comes through the **turn-by-turn data feed**: a bound service receiving `NavInfo` about once a second (maneuver, road name, distance and time to the next step, lanes, remaining time and distance, `ENROUTE`/`REROUTING`/`STOPPED`). Background location needs "Allow all the time"; SDK 5.4.0+ handles Android 14's background rules. **Verify** with screen off and phone in a pocket for a full ride. |
@@ -57,7 +57,7 @@ Facts below were checked on 2026-10-25 against the sources listed at the end. It
 | Item | Finding |
 |---|---|
 | Search | **Photon** (komoot public instance): no published limits; "be fair, extensive usage will be throttled"; no availability guarantee. Supports typeahead. **Nominatim's public server forbids autocomplete** (bans) and allows 1 request/s with an identifying User-Agent, so it's only for occasional reverse geocoding, if at all. |
-| Online routing | **GraphHopper** free plan: 500 credits/day, **non-commercial only** (fits private use), forum support, no guarantees; motorcycle profile availability **verify**. **Valhalla** public server (FOSSGIS): a community demo for development and testing, fair use; the policy page blocked automated fetching (**verify** the FOSSGIS terms in a browser). Neither has traffic. |
+| Online routing | **GraphHopper** free plan: 500 credits/day, **non-commercial only** (fits private use), forum support, no guarantees; motorcycle profile availability **verify**. **Valhalla** public server (`valhalla1.openstreetmap.de`, FOSSGIS e.V.): terms read by the owner on 2026-10-31. Allowed for non-commercial use like ours, with conditions: at most **1 request/s** and **2 connections**; an identifying **User-Agent** (a library's default isn't enough); a Referer where possible; OSM attribution with a link to <https://www.openstreetmap.org/fixthemap>; the service URL **not hard-coded** (it's a setting with this default); no mass downloading; no availability guarantee, and access can be revoked. Neither has traffic. |
 | Offline routing | **GraphHopper on Android is no longer officially supported** (demo removed after 1.0; scoped-storage problems; apps moved away). **BRouter** (MIT, on F-Droid, maintained, offline engine for Locus Map and OsmAnd): 5°×5° segment files; car and custom profiles; integration through its service or local HTTP endpoint. **valhalla-mobile** (MIT): Valhalla compiled as an Android library, routes and map-matching on device tiles; Valhalla's OSRM-format output feeds Ferrostar directly. Size, speed and battery: **measure in a spike** (below). |
 | Traffic | None. |
 
@@ -169,7 +169,7 @@ interface RoutingProvider {
 
 | Part | How it stays alive | Verify |
 |---|---|---|
-| BLE link, guidance, location | One app foreground service (types `connectedDevice` and `location`) for the whole ride; "Allow all the time" location; battery-optimisation exemption requested (private app) | 1-hour ride, screen off, Doze, the owner's phone vendor |
+| BLE link, guidance, location | One app foreground service (types `connectedDevice` and `location`) for the whole ride; "Allow all the time" location; battery-optimisation exemption requested (private app) | 1-hour ride, screen off, Doze, on the owner's **Nothing Phone (1), Android 15** (Nothing OS; July 2026 security patch) |
 | Google Navigation SDK | Its own guidance service plus our turn-by-turn feed service | Feed keeps arriving with the screen off; no Activity needed after start |
 | Mappls Directions, GraphHopper, Valhalla (HTTP) | Called from our foreground service, which keeps network access in Doze | Reroute succeeds with the screen off |
 | Ferrostar, offline router | Run inside our foreground service | Off-route → reroute with the screen off |
@@ -252,7 +252,8 @@ a few dozen place lookups a month. That's about 10 % of the global Navigation ca
 
 ## Consequences
 
-- **The app gets more dependencies,** each needing approval when Phase 4 code starts:
+- **The app gets more dependencies,** approved by the owner on 2026-10-31 (each is still
+  flagged when it's added, with its exact version):
   - Google Navigation SDK and Places SDK (Play services)
   - Mappls Android SDK (search and directions only) and the Mappls Maven repository
   - Ferrostar
@@ -261,11 +262,11 @@ a few dozen place lookups a month. That's about 10 % of the global Navigation ca
 - **The app needs Google Play services** for the Google backend; OSM and Mappls work
   without it.
 - **One foreground service** owns the ride: BLE, guidance and location.
-- **Verification items** (marked above) gate Phase 4: India vs global caps, Mappls formats
-  (Mappls Pin lookup, `biking` with traffic, step format), the FOSSGIS terms, and headless
-  behaviour on the owner's phone. Done: the offline-router spike, and the Google Console
-  steps 1–5 and 7. Mappls quotas are unknowable up front and are handled by detection
-  instead.
+- **Verification items still open:** Mappls formats (Mappls Pin lookup, `biking` with
+  traffic, step format), checked when the Mappls provider is built; and headless behaviour on
+  the owner's phone, in the screen-off ride test. Done: the offline-router spike, the FOSSGIS
+  terms, the Google Console steps 1–5 and 7, and the price list (global limits, by default).
+  Mappls quotas are unknowable up front and are handled by detection instead.
 
 ## Sources (checked 2026-10-25)
 
