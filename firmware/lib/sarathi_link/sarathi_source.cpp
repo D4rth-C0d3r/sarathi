@@ -466,6 +466,7 @@ void SarathiSource::Poll(uint32_t now_ms, core::AppModel& model) {
   PollPairing(now_ms, model);
   bridge->Tick(now_ms, model, outbox);
   LogStats();
+  LogMotion(model);
 }
 
 // Reports what changed since the last poll, in order: a lost or replaced connection first.
@@ -519,6 +520,21 @@ void SarathiSource::PollPairing(uint32_t now_ms, core::AppModel& model) {
   if (paired_phones.load() != model.State().phone.paired_phones) {
     ProtocolBridge::OnPairedPhones(paired_phones.load(), model);
   }
+}
+
+// Each change of the moving lock's inputs, for testing it (ADR-0011).
+void SarathiSource::LogMotion(const core::AppModel& model) {
+  const core::RideState& ride = model.State().ride;
+  const auto now = static_cast<uint8_t>((ride.moving ? 1U : 0U) | (ride.speed_valid ? 2U : 0U) |
+                                        (ride.lock_enabled ? 4U : 0U));
+  if (now == motion_logged_) {
+    return;
+  }
+  motion_logged_ = now;
+  ESP_LOGI(kTag, "motion: %s at %u km/h, speed %s, lock %s, settings %s",
+           ride.moving ? "moving" : "stopped", static_cast<unsigned>(ride.speed_kmh),
+           ride.speed_valid ? "known" : "unknown", ride.lock_enabled ? "on" : "off",
+           model.SettingsLocked() ? "locked" : "unlocked");
 }
 
 void SarathiSource::LogStats() {

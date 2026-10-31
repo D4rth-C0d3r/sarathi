@@ -38,6 +38,7 @@ class SarathiSource final : public core::DataSource {
   void PollLink(core::AppModel& model);
   void PollPairing(uint32_t now_ms, core::AppModel& model);
   void LogStats();
+  void LogMotion(const core::AppModel& model);
 
   bool started_ = false;
   uint32_t generation_seen_ = 0;
@@ -49,6 +50,8 @@ class SarathiSource final : public core::DataSource {
   uint32_t refused_logged_ = 0;
   uint32_t dropped_logged_ = 0;
   uint16_t mtu_logged_ = 0;
+  // The moving lock as last logged (moving, speed known, lock on), to log each change.
+  uint8_t motion_logged_ = 0xFF;
 };
 
 }  // namespace sarathi::link

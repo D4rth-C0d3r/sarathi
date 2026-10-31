@@ -34,6 +34,7 @@ class PoseSender(
     private val builder = PoseBuilder()
     private var frameSent = false
     private var job: Job? = null
+    private var loggedKmh = -1.0
 
     @SuppressLint("MissingPermission") // checked just above the request
     fun start(): Boolean {
@@ -67,6 +68,11 @@ class PoseSender(
             )
         }
         val pose = builder.pose(location.toFix())
+        val kmh = pose.speedCms * CMS_TO_KMH
+        if (kotlin.math.abs(kmh - loggedKmh) >= 1) {
+            loggedKmh = kmh
+            Log.d(TAG, "pose speed %.1f km/h (accuracy %d m)".format(kmh, pose.accM))
+        }
         if (builder.frameChanged) frameSent = false
         if (!dash.ready.value) return
         val withFrame = !frameSent
@@ -96,5 +102,6 @@ class PoseSender(
         const val TAG = "RideLink"
         const val INTERVAL_MS = 1_000L
         const val NANOS_PER_MS = 1_000_000L
+        const val CMS_TO_KMH = 0.036
     }
 }

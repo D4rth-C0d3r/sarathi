@@ -46,6 +46,7 @@
     <string name="lock_move_s">… for (seconds)</string>
     <string name="lock_stop_kmh">Stopped below (km/h)</string>
     <string name="lock_stop_s">… for (seconds)</string>
+    <string name="lock_hint_order">\"Stopped below\" must stay under \"Moving from\". To lower \"Moving from\", lower \"Stopped below\" first; to raise \"Stopped below\", raise \"Moving from\" first.</string>
     <string name="lock_off_note">Off: the dash\'s settings stay unlocked while riding.</string>
     <string name="lock_warning_title">Turn off the settings lock?</string>
     <string name="lock_warning">The dash will let you change settings while you ride. Looking down and turning the knob at speed is dangerous: change settings only when you\'ve stopped.</string>

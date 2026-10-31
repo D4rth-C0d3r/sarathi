@@ -57,6 +57,10 @@ fun LockCard(
                     onLock(lock.copy(stopKmh = it))
                 }
                 Stepper(stringResource(R.string.lock_stop_s), lock.stopS, Lock.STOP_S) { onLock(lock.copy(stopS = it)) }
+                // The two speeds are neighbours: neither can pass the other, so say why.
+                if (lock.moveKmh - lock.stopKmh == 1) {
+                    Text(stringResource(R.string.lock_hint_order), style = MaterialTheme.typography.bodySmall)
+                }
             } else {
                 Text(stringResource(R.string.lock_off_note), color = MaterialTheme.colorScheme.error)
             }

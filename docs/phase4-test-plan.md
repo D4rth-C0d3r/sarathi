@@ -92,4 +92,10 @@ The dash on the `crowpanel21-phone` build (protocol 1.1), the phone with the deb
 - **E1-E6 pass:** music shows and the dash's controls work; calls show the name, and accept and
   reject from the dash work; the app sends `lock` on connect and position (123 fixes in the first
   11 minutes, indoors).
-- **E7, E8 not tested yet** (they need walking or riding).
+- **The settings reach the dash at once:** every tap in the lock card was sent as `lock`
+  within a second.
+- **E7, E8 left for a ride.** An indoor walk can't test them: indoors the phone only gets Wi-Fi
+  and cell fixes (20-200 m accuracy, one every 5-50 s), so the dash, correctly, marks the speed
+  unknown between fixes and never decides "moving". Outdoors, GPS gives a fix a second. The
+  dash logs every change (`[link] motion: ...`) and the phone the speed it sends
+  (`pose speed ... km/h`), so a ride's logs show how the lock behaved.
