@@ -205,7 +205,9 @@ bool StartBle(const char* name) {
   NimBLEService* service = server->createService(kServiceUuid);
   NimBLECharacteristic* rx = service->createCharacteristic(
       kRxUuid,
-      NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN,
+      // Write for the phone's hello, Write Without Response for the rest (protocol.md).
+      NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_ENC |
+          NIMBLE_PROPERTY::WRITE_AUTHEN,
       kMaxFrame);
   tx_characteristic = service->createCharacteristic(
       kTxUuid, NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::READ_ENC | NIMBLE_PROPERTY::READ_AUTHEN,
