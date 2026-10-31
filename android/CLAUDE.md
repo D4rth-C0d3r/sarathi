@@ -11,7 +11,8 @@ that keeps the dash connected with the screen off (ADR-0010). `:core:protocol` i
 protocol v1; `:core:ble` the session and the Bluetooth transport. Navigation, calls and music
 come in later steps. Step E adds `:feature:calls` and `:feature:media` (they talk to the dash only
 through `core:ble`'s `DashChannel`, and never to each other), position (`PoseSender`) and the
-moving lock's settings (ADR-0011). Don't add features or permissions unasked.
+moving lock's settings (ADR-0011). Step F adds the maps backends (ADR-0006, ADR-0008): F1 the
+interfaces, settings and cost guard; F2 search. Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -32,11 +33,14 @@ Before finishing any Android change, run both check lines and report the result.
 | `:app` | Android application | Activity, Compose UI, navigation, ViewModels, wiring |
 | `:core:protocol` | **pure Kotlin/JVM** | Message types, JSON encode/decode, protocol version |
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
-| `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard (ADR-0006) |
+| `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard, search service, recents and saved places (ADR-0006, ADR-0008) |
+| `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
+| `:feature:destination` | Android library | Search screen, recents and saved places (ADR-0008) |
 | `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
 | `:feature:*` (later) | Android library | `navigation`, `ota` |
 
-- Dependencies point inward: `app → feature → core:ble → core:protocol`. Features never
+- Dependencies point inward: `app → feature → core:ble → core:protocol`, and
+  `app → maps:* → core:maps`. Features use backends only through `core:maps` interfaces. Features never
   depend on each other or on `:app`. `core:protocol` depends on nothing in this repo.
 - **`core:protocol` stays pure Kotlin.** No `android.*` imports, no Android plugin. Its tests
   run on the JVM against the golden vectors in `docs/protocol/vectors/`, the same files the

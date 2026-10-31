@@ -39,4 +39,4 @@ repos:
     rev: v2.4.3
     hooks:
       - id: codespell
-        args: [--ignore-words-list=sarathi]
+        args: [--ignore-words-list=sarathi, '--ignore-regex=@OptIn\b']  # Kotlin's @OptIn annotation

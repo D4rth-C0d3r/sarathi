@@ -23,11 +23,18 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
 import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
+import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
+import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
+import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationViewModel
+import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
 import io.github.d4rthc0d3r.sarathi.maps.Keys
+import io.github.d4rthc0d3r.sarathi.maps.LastLocation
+import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
@@ -57,10 +64,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SarathiTheme {
-                var showMaps by rememberSaveable { mutableStateOf(false) }
-                if (showMaps) {
-                    BackHandler { showMaps = false }
-                    MapsSettings(onBack = { showMaps = false })
+                var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+                if (screen != Screen.HOME) {
+                    val home = { screen = Screen.HOME }
+                    BackHandler(onBack = home)
+                    when (screen) {
+                        Screen.MAPS -> MapsSettings(onBack = home)
+                        else -> Destination(onBack = home)
+                    }
                     return@SarathiTheme
                 }
                 val setup = model.setup.collectAsStateWithLifecycle()
@@ -78,7 +89,8 @@ class MainActivity : ComponentActivity() {
                             onAutoStart = model::setAutoStart,
                             onForget = model::forgetDash,
                             onLock = model::setLock,
-                            onMapsSettings = { showMaps = true },
+                            onMapsSettings = { screen = Screen.MAPS },
+                            onWhereTo = { screen = Screen.DESTINATION },
                         ),
                 )
             }
@@ -94,11 +106,40 @@ class MainActivity : ComponentActivity() {
             MapsStatus(
                 googleKey = Keys.google != null,
                 graphHopperKey = Keys.graphHopper != null,
-                mapplsConfigured = false, // the Mappls SDK and its config files arrive with its provider (F2)
+                mapplsConfigured = Keys.mapplsConfigured,
                 meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
             )
         MapsSettingsScreen(settings.value, status, store::update, onBack)
     }
+
+    @Composable
+    private fun Destination(onBack: () -> Unit) {
+        val context = applicationContext
+        val model =
+            viewModel {
+                DestinationViewModel(
+                    MapsRegistry.get(context).search,
+                    FilePlacesStore(context),
+                    { LastLocation.get(context) },
+                )
+            }
+        val ui = model.ui.collectAsStateWithLifecycle()
+        DestinationScreen(
+            ui.value,
+            DestinationActions(
+                onQuery = model::onQuery,
+                onSuggestion = model::onSuggestion,
+                onKept = model::onKept,
+                onSave = model::save,
+                onRemoveRecent = model::removeRecent,
+                onRemoveSaved = model::removeSaved,
+                onClearChosen = model::clearChosen,
+                onBack = onBack,
+            ),
+        )
+    }
+
+    private enum class Screen { HOME, MAPS, DESTINATION }
 
     override fun onResume() {
         super.onResume()

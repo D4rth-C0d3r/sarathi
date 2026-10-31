@@ -1,6 +1,19 @@
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
 
+// Mappls's config-file plugin (ADR-0006). Its plugin marker on Mappls's repository has no jar,
+// so it comes on the build classpath, as Mappls documents; :app applies it when the files exist.
+buildscript {
+    repositories {
+        maven("https://maven.mappls.com/repository/mappls/") {
+            content { includeGroupByRegex("com\\.mappls.*") }
+        }
+    }
+    dependencies {
+        classpath(libs.mappls.services.plugin)
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false

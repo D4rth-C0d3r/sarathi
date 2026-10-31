@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Mappls's SDK bundles an analytics client; with these it installs no crash reporter,
+             sends no app-open event and doesn't geolocate by IP. MapplsSearch also opts out. -->
+        <meta-data android:name="com.mappls.android.MapplsAnalyticsConfig.DisableExceptionHandler" android:value="true" />
+        <meta-data android:name="com.mappls.android.MapplsAnalyticsConfig.DisableAppOpenEvent" android:value="true" />
+        <meta-data android:name="com.mappls.android.MapplsAnalyticsConfig.UseIpAddressForGeolocation" android:value="false" />
+    </application>
+</manifest>

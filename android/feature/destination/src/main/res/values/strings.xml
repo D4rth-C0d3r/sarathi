@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dest_title">Where to?</string>
+    <string name="dest_back">Back</string>
+    <string name="dest_search_hint">Search for a place or a Mappls Pin</string>
+    <string name="dest_clear">Clear</string>
+    <string name="dest_searching">Searching…</string>
+    <string name="dest_no_results">No places found</string>
+    <string name="dest_searched_with">Search by %1$s</string>
+    <string name="dest_skipped">%1$s skipped: %2$s</string>
+    <string name="dest_failed">Search didn\'t work: %1$s</string>
+    <string name="dest_saved">Saved places</string>
+    <string name="dest_recents">Recent destinations</string>
+    <string name="dest_empty">Search above. Places you choose show up here, and you can save them as Home, Work or a favourite.</string>
+    <string name="dest_remove">Remove</string>
+    <string name="dest_looking_up">Looking up the place…</string>
+    <string name="dest_chosen">Destination</string>
+    <string name="dest_from">From %1$s</string>
+    <string name="dest_save_home">Save as Home</string>
+    <string name="dest_save_work">Save as Work</string>
+    <string name="dest_save_favourite">Save as favourite</string>
+    <string name="dest_favourite_name">Name for this favourite</string>
+    <string name="dest_save">Save</string>
+    <string name="dest_routes_later">Routes and starting a ride come in later steps (F4, F7).</string>
+    <string name="dest_home">Home</string>
+    <string name="dest_work">Work</string>
+    <string name="dest_needs_lookup">looked up again when chosen</string>
+    <string name="reason_no_key">no key in this build</string>
+    <string name="reason_no_terms">terms not accepted</string>
+    <string name="reason_over_quota">over its free allowance</string>
+    <string name="reason_account">account problem (billing)</string>
+    <string name="reason_offline">no network</string>
+    <string name="reason_no_data">no offline data</string>
+    <string name="reason_no_route">no route</string>
+    <string name="reason_timeout">no answer in time</string>
+    <string name="reason_error">an error</string>
+</resources>

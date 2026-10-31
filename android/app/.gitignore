@@ -1,0 +1,6 @@
+# Mappls SDK config files are credentials (ADR-0006): kept in ~/sarathi-secrets/mappls/ and
+# copied here only while the build reads them.
+*.a.conf
+*.a.olf
+# ...and the plugin writes what it derives from them into each variant's assets.
+src/*/assets/mappls-conf.txt

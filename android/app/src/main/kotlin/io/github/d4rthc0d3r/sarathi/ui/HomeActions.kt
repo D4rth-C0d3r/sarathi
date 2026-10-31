@@ -11,4 +11,5 @@ data class HomeActions(
     val onForget: () -> Unit = {},
     val onLock: (Lock) -> Unit = {},
     val onMapsSettings: () -> Unit = {},
+    val onWhereTo: () -> Unit = {},
 )

@@ -175,6 +175,24 @@ interface RoutingProvider {
 - **Google key** restricted to the app's package and signing-certificate SHA-1, and to the
   Navigation SDK and Places API (New) only.
 
+### Mappls SDK integration (added 2026-10-31, step F2)
+
+- **Only the REST part:** `com.mappls.sdk:rest-apis` (search and routing calls) with
+  `mappls-core`, not the map SDK `mappls-android-sdk` (which depends on the same `rest-apis`).
+  No map renderer is shipped.
+- **Config files:** Mappls's Gradle plugin `com.mappls.services:mappls-services` turns the
+  `.a.conf`/`.a.olf` files into resources. It's on the build classpath (its plugin marker on
+  Mappls's repository has no jar), applied only when the files exist in `~/sarathi-secrets`,
+  and its task is marked incompatible with the configuration cache (it uses `Task.project`
+  while running). The files are copied into `android/app/` only while that task runs. The
+  plugin also writes a derived `src/<variant>/assets/mappls-conf.txt`; both are gitignored in
+  `android/app/.gitignore`.
+- **Analytics off:** `mappls-core` starts a usage-analytics client (`mappls-lms`, a Mixpanel
+  fork: device model, OS, app name and version, and a crash handler). The app opts out through
+  its public `optOutTracking()` before Mappls starts, and the `:maps:mappls` manifest disables
+  its crash handler, app-open event and IP geolocation. Verified on the phone: the opt-out is
+  stored and the event queue stays empty, while search still works.
+
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)
 
 | Part | How it stays alive | Verify |

@@ -55,6 +55,7 @@
     <!-- Maps settings (ADR-0006) -->
     <string name="back">Back</string>
     <string name="maps_settings">Maps settings</string>
+    <string name="where_to">Where to?</string>
     <string name="maps_title">Maps</string>
     <string name="maps_backend">Maps backend</string>
     <string name="maps_backend_reason">Used for searching places and for routes. If it can\'t be used (no key, over quota, no network), the next one in the fallback order takes over.</string>

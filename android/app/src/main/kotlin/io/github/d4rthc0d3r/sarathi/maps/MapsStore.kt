@@ -79,4 +79,5 @@ class MapsStore private constructor(
 object Keys {
     val google: String? get() = BuildConfig.GOOGLE_API_KEY.ifEmpty { null }
     val graphHopper: String? get() = BuildConfig.GRAPHHOPPER_API_KEY.ifEmpty { null }
+    val mapplsConfigured: Boolean get() = BuildConfig.MAPPLS_CONFIGURED
 }

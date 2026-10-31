@@ -7,6 +7,8 @@
          BLUETOOTH_SCAN and no location use for scanning. -->
 
     <!-- Connect to the dash (Android 12+: "Nearby devices"). -->
+    <!-- Search and routing backends online (ADR-0006): Google, Mappls, Photon, Valhalla. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- The same on Android 8-11, where it's granted at install. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
