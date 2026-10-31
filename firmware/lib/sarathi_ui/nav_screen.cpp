@@ -8,6 +8,7 @@
 #include "format.h"
 #include "layout.h"
 #include "maneuver_arrow.h"
+#include "nav_status.h"
 #include "nav_zoom.h"
 #include "ring_gauge.h"
 #include "route_view.h"
@@ -18,8 +19,6 @@
 namespace sarathi::ui::nav_screen {
 namespace {
 
-// Route data older than this is shown as stale, never silently frozen (CLAUDE.md).
-constexpr uint32_t kStaleAfterMs = 3000;
 // The ring fills over the last stretch before a maneuver.
 constexpr float kRingRangeM = 500.0F;
 
@@ -36,7 +35,11 @@ constexpr int32_t kRowY = -140;  // arrow and distance share this row
 constexpr int32_t kDistanceX = 40;
 constexpr int32_t kDistanceWidth = 220;
 constexpr int32_t kStreetY = -76;
+// The status spot (core::NavStatus): one note at a time. The stopped-only attribution panel
+// wraps to three lines there; at that height its corners stay inside the ring.
 constexpr int32_t kRouteStatusY = 60;
+constexpr int32_t kAttributionWidth = 380;
+constexpr int32_t kAttributionLines = 3;
 // Low enough to clear the rider chevron (+142), high enough that the label's bottom corners
 // stay inside the ring gauge's inner edge (~225 px from the centre).
 constexpr int32_t kEtaY = 172;
@@ -59,8 +62,10 @@ RingGauge ring;
 lv_obj_t* card = nullptr;
 ManeuverArrow arrow;
 BigValue distance;
-StaticLabel<49> street;  // NavState::street plus its terminator
-StaticLabel<32> route_status;
+StaticLabel<49> street;        // NavState::street plus its terminator
+StaticLabel<32> route_status;  // warnings
+StaticLabel<40> notice;        // "Now: <backend>"
+StaticLabel<96> attribution;   // stopped only
 StaticLabel<24> eta;
 ManeuverArrow big_arrow;
 BigValue big_distance;
@@ -90,6 +95,14 @@ void SetBubble(StaticLabel<N>& label, const char* text) {
   SetVisible(label.Obj(), text[0] != '\0');
 }
 
+// Shows the note in its own label (each has its role's style); hides the others.
+void ShowNote(const core::NavNote& note) {
+  using Kind = core::NavNoteKind;
+  SetBubble(route_status, note.kind == Kind::kWarning ? note.text.CStr() : "");
+  SetBubble(notice, note.kind == Kind::kNotice ? note.text.CStr() : "");
+  SetBubble(attribution, note.kind == Kind::kAttribution ? note.text.CStr() : "");
+}
+
 // One layout or the other; the hidden one keeps its state for when it comes back.
 void ShowArrowMode(bool on) {
   arrow_mode = on;
@@ -104,16 +117,11 @@ void ShowArrowMode(bool on) {
   route.SetVisible(!on);
   if (on) {
     route.Clear();
-    SetBubble(route_status, "");
+    ShowNote(core::NavNote{});
     SetBubble(eta, "");
   } else {
     SetBubble(arrow_eta, "");
   }
-}
-
-// Shown when nothing is being navigated, in either layout.
-const char* IdleText(const core::AppState& state) {
-  return state.phone.connected ? "No navigation" : "Phone not connected";
 }
 
 void UpdateArrowMode(const core::AppState& state) {
@@ -122,7 +130,7 @@ void UpdateArrowMode(const core::AppState& state) {
     big_arrow.SetIcon(core::ManeuverIcon{});
     big_arrow.Set(core::Maneuver{});
     big_distance.SetValue("");
-    instruction.Set("%s", IdleText(state));
+    instruction.Set("%s", core::NavIdleText(state));
     SetBubble(arrow_eta, "");
     return;
   }
@@ -166,6 +174,12 @@ lv_obj_t* Create() {
 
   route_status.Create(screen, theme::Text::kWarning, kRouteStatusY);
   lv_obj_add_style(route_status.Obj(), theme::CardStyle(), 0);
+  notice.Create(screen, theme::Text::kSupporting, kRouteStatusY);
+  lv_obj_add_style(notice.Obj(), theme::CardStyle(), 0);
+  attribution.Create(screen, theme::Text::kStoppedOnly, kRouteStatusY, kAttributionWidth);
+  lv_obj_add_style(attribution.Obj(), theme::CardStyle(), 0);
+  const lv_font_t* small = lv_obj_get_style_text_font(attribution.Obj(), LV_PART_MAIN);
+  lv_obj_set_height(attribution.Obj(), kAttributionLines * lv_font_get_line_height(small));
   eta.Create(screen, theme::Text::kSupporting, kEtaY);
   lv_obj_add_style(eta.Obj(), theme::CardStyle(), 0);
 
@@ -192,10 +206,10 @@ void Update(const core::AppState& state, uint32_t now_ms) {
   if (!nav.active) {
     arrow.Set(core::Maneuver{});
     distance.SetValue("");
-    street.Set("%s", IdleText(state));
+    street.Set("%s", core::NavIdleText(state));
     ring.Set(0.0F);
     route.Clear();
-    SetBubble(route_status, "");
+    ShowNote(core::NavNote{});
     SetBubble(eta, "");
     return;
   }
@@ -215,12 +229,12 @@ void Update(const core::AppState& state, uint32_t now_ms) {
   std::snprintf(eta_text.data(), eta_text.size(), "ETA %s", text.data());
   SetBubble(eta, eta_text.data());
 
+  ShowNote(core::NavStatus(state, now_ms));
   if (!nav.has_window) {
     route.Clear();
-    SetBubble(route_status, "No route data");
     return;
   }
-  const bool stale = now_ms - nav.window_received_ms > kStaleAfterMs;
+  const bool stale = now_ms - nav.window_received_ms > core::kPositionStaleMs;
   const float zoom = core::NavMetresPerPx(nav.distance_m);
 #ifdef SARATHI_NAV_STRESS
   // Worst case for smooth rotation: re-project and redraw the map on every update.
@@ -231,13 +245,6 @@ void Update(const core::AppState& state, uint32_t now_ms) {
 #else
   route.Set(nav.window, stale, zoom);
 #endif
-  if (stale) {
-    std::snprintf(text.data(), text.size(), "Route stale %us",
-                  static_cast<unsigned>((now_ms - nav.window_received_ms) / 1000));
-    SetBubble(route_status, text.data());
-  } else {
-    SetBubble(route_status, "");
-  }
 }
 
 }  // namespace sarathi::ui::nav_screen

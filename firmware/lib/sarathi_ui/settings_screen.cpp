@@ -5,6 +5,7 @@
 
 #include "layout.h"
 #include "list_menu.h"
+#include "nav_status.h"
 #include "static_label.h"
 #include "theme_binding.h"
 #include "theme_registry.h"
@@ -36,6 +37,7 @@ size_t timeout_row = 0;
 size_t knob_row = 0;
 size_t wifi_row = 0;
 size_t forget_row = 0;
+size_t link_row = 0;    // "Phone: connected": only with BLE pairing, like the next row
 size_t phones_row = 0;  // Forget phones: only with BLE pairing (Chronos build)
 std::array<char, 40> version_text{};
 std::array<size_t, ListMenu::kMaxRows> theme_indices{};
@@ -176,6 +178,8 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& action
   wifi_row = main_menu.AddAction("Wi-Fi", StartWifiSetup, nullptr);
   main_menu.AddAction("Check for update", CheckForUpdate, nullptr);
   forget_row = main_menu.AddAction("Forget Wi-Fi", ForgetWifi, nullptr);
+  link_row = main_menu.AddAction("Phone", Nothing, nullptr);
+  main_menu.SetHidden(link_row, true);
   phones_row = main_menu.AddAction("Forget phones", ForgetPhones, nullptr);
   main_menu.SetHidden(phones_row, true);
   std::snprintf(version_text.data(), version_text.size(), "Version %.*s",
@@ -209,8 +213,13 @@ void Update(const core::AppState& state, bool locked, const core::WifiSetup& wif
   }
   RefreshSettingTexts(state.settings);  // SetText skips unchanged text
   RefreshWifiTexts(wifi);
+  main_menu.SetHidden(link_row, !state.caps.phone_pairing);
   main_menu.SetHidden(phones_row, !state.caps.phone_pairing);
   std::array<char, 40> text{};
+  // The Chronos build reports only connected or not; ours also says why not.
+  std::snprintf(text.data(), text.size(), "Phone: %s",
+                state.phone.connected ? "connected" : core::LinkText(state.phone.link));
+  main_menu.SetText(link_row, text.data());
   if (state.phone.paired_phones > 0) {
     std::snprintf(text.data(), text.size(), "Forget phones (%u)",
                   static_cast<unsigned>(state.phone.paired_phones));

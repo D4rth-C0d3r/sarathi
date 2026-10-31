@@ -201,11 +201,19 @@ void ProtocolBridge::OnJson(const proto::PhoneMessage& message, uint32_t now_ms,
         } else if constexpr (std::is_same_v<T, proto::FrameEpoch>) {
           OnFrameEpoch(m.epoch, model);
         } else if constexpr (std::is_same_v<T, proto::Backend>) {
+          const core::BackendState& before = model.State().backend;
           core::BackendState backend;
           backend.valid = true;
           AssignText(backend.name, m.name.View());
           AssignText(backend.attribution, m.attribution.View());
           backend.traffic = m.traffic;
+          if (before.valid && before.name != backend.name) {
+            backend.switched = true;  // shown for a moment (nav_status)
+            backend.switched_ms = now_ms;
+          } else {
+            backend.switched = before.switched;  // a repeat doesn't cut the notice short
+            backend.switched_ms = before.switched_ms;
+          }
           model.SetBackend(backend);
         } else if constexpr (std::is_same_v<T, proto::Event>) {
           // The phone follows a fallback with `backend` and a reroute with `route` and `nav`;

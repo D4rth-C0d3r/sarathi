@@ -206,6 +206,9 @@ struct BackendState {
   FixedString<24> name;
   FixedString<64> attribution;
   bool traffic = false;
+  // The phone switched from another backend (a fallback, ADR-0006), and when.
+  bool switched = false;
+  uint32_t switched_ms = 0;
 };
 
 // A phone asks to pair: the rider compares the code with the phone's and confirms with the

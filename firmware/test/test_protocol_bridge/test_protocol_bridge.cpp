@@ -217,6 +217,12 @@ void TestCallMediaBatteryBackend() {
   TEST_ASSERT_EQUAL_STRING("OSM (offline)", f.model.State().backend.name.CStr());
   TEST_ASSERT_EQUAL_STRING("\xC2\xA9 OpenStreetMap contributors",
                            f.model.State().backend.attribution.CStr());
+  TEST_ASSERT_FALSE(f.model.State().backend.switched);  // the first backend isn't a switch
+  f.SendJson(0x05, VectorPayload("backend-google"), 900);
+  TEST_ASSERT_TRUE(f.model.State().backend.switched);
+  TEST_ASSERT_EQUAL(900, f.model.State().backend.switched_ms);
+  f.SendJson(0x05, VectorPayload("backend-google"), 950);  // a repeat keeps the notice's start
+  TEST_ASSERT_EQUAL(900, f.model.State().backend.switched_ms);
   f.SendJson(0x02, VectorPayload("time"));  // 18:42:05
   f.bridge.Tick(60000, f.model, f.out);
   TEST_ASSERT_EQUAL(18 * 60 + 43, f.model.State().clock.minutes_of_day);
