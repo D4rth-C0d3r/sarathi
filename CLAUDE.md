@@ -66,7 +66,10 @@ Classic Bluetooth audio on the device.
   terms read, share-link fixtures recorded (`docs/fixtures/share-links.json`). Test phone:
   Nothing Phone (1), Android 15. Dependencies approved; each is still flagged with its exact
   version when added. Protocol v1 is implemented (step B): `sarathi_proto` and
-  `:core:protocol` pass the shared golden vectors, without new dependencies.
+  `:core:protocol` pass the shared golden vectors, without new dependencies. Step C: the
+  `crowpanel21-phone` build carries it over its own BLE service (knob-confirmed pairing,
+  link status, backend and attribution on Nav); `tools/ble_client.py` is a fake phone that
+  replays the demo ride. On-device checks: `docs/phase4-test-plan.md`.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -109,6 +112,7 @@ vendor/crowpanel-2.1/   Elecrow examples (git submodule, shallow), READ-ONLY
 pio run -e crowpanel21              # build for the device
 pio run -e crowpanel21 -t upload    # flash over the USB IN port (demo ride)
 pio run -e crowpanel21-chronos -t upload   # the Chronos phone link (ADR-0005); releases ship this
+pio run -e crowpanel21-phone -t upload     # our own link, protocol v1 (ADR-0007)
 pio device monitor                  # serial log (115200, native USB CDC)
 pio device monitor -f esp32_exception_decoder   # only when decoding a crash
 pio test -e native                  # host unit tests (core + proto)
@@ -130,7 +134,7 @@ pio run -e sim -t exec              # build and run it (arrows/wheel = knob, Ent
 git submodule update --init --depth 1   # fetch vendor/ after a fresh clone
 source .venv/bin/activate               # Windows: .venv\Scripts\Activate.ps1
 pre-commit run --all-files              # formatting and lint hooks
-python tools/ble_client.py --help       # talk to the device from a PC (bleak)
+python tools/ble_client.py ride         # fake phone: replay the demo ride over BLE (bleak)
 ```
 
 Python: repo tools run from the project `.venv` only; add their deps to

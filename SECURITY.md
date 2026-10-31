@@ -94,8 +94,32 @@ release that trusts it, which devices that trust only the lost key can't install
 
 ## Phone link (BLE)
 
-From Phase 3, the device's phone link is the Chronos app (ADR-0005). The ChronosESP32 library
-it's built on has no BLE security of its own, so sārathi adds it:
+There are two phone links, chosen at build time. Both pair the same way and listen only to a
+paired phone.
+
+### Our own link (protocol v1, `crowpanel21-phone`)
+
+The link the sārathi app will use (ADR-0007, `docs/protocol/protocol.md`):
+
+- **Pairing is confirmed on the dash.** LE Secure Connections with numeric comparison: the
+  phone and the dash show the same 6-digit code, and the rider confirms with a knob press
+  (focus starts on Cancel). A link that ends up without MITM protection ("Just Works") is
+  disconnected.
+- **Nothing moves before pairing.** Both characteristics require an encrypted, authenticated
+  link at the ATT level, so an unpaired phone can't write or even subscribe. The device also
+  refuses any write that doesn't come over an encrypted, bonded and authenticated link, and
+  sends nothing until the link is secured, subscribed and its MTU raised.
+- **One phone at a time.** A second phone that connects is disconnected.
+- **Checked input.** Every frame and message is checked against the spec (lengths, CRC,
+  ranges, UTF-8) before it's used; the same checks run against golden vectors in CI. Positions
+  arrive only in the ride's local frame, never as latitude and longitude.
+- **Paired phones reconnect silently.** Settings → **Forget phones** deletes every bond.
+- **No updates over BLE** yet; OTA messages are reserved for Phase 5.
+
+### The Chronos app (Phase 3, `crowpanel21-chronos`)
+
+The interim link through the Chronos app (ADR-0005). The ChronosESP32 library it's built on
+has no BLE security of its own, so sārathi adds it:
 
 - **Pairing is confirmed on the dash.** When a new phone connects, the device asks it to
   pair with numeric comparison: the phone and the dash show the same 6-digit code, and the
@@ -127,6 +151,8 @@ it's built on has no BLE security of its own, so sārathi adds it:
 - **Pairing prompts from strangers:** anyone in range can ask to pair, which shows the
   pairing screen. They can't pair without a knob press on the device, but they can make the
   prompt appear again after each Cancel. It's an annoyance, not access.
-- **Data before encryption:** in the second or two before a bonded phone's link is
-  encrypted, the device may send the library's watch-info and battery notifications
-  unencrypted. They carry nothing personal.
+- **Data before encryption (Chronos build only):** in the second or two before a bonded
+  phone's link is encrypted, the Chronos library may send its watch-info and battery
+  notifications unencrypted. They carry nothing personal. Our own link (protocol v1) closes
+  this: its characteristics require an authenticated, encrypted link, and the device sends
+  nothing before that.

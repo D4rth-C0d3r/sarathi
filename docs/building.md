@@ -68,6 +68,7 @@ All commands run from `firmware/`.
 pio run                                       # build the device image (default env: crowpanel21)
 pio run -t upload                             # build and flash over the USB IN port
 pio run -e crowpanel21-chronos -t upload      # the same with the Chronos phone link (below)
+pio run -e crowpanel21-phone -t upload        # the same with our own phone link (protocol v1)
 pio device monitor                            # serial log (native USB CDC; Ctrl+C to quit)
 pio device monitor -f esp32_exception_decoder # only when decoding a crash backtrace
 pio test -e native                            # host unit tests for sarathi_core / sarathi_proto
@@ -81,6 +82,8 @@ pio run -t clean                              # remove build outputs
     the Arduino `main.cpp` on the host. It runs the scripted demo ride.
   - `crowpanel21-chronos` is the same device with the Chronos app as its phone link
     (ADR-0005). Releases ship this one.
+  - `crowpanel21-phone` is the same device with our own phone link, protocol v1 (ADR-0007).
+    Until the Android app speaks it, `tools/ble_client.py` plays the phone (below).
   - `native` only runs tests; it doesn't build `src/` and ignores the hardware libraries.
 - **First build** downloads the pinned platform and toolchain (about 10 minutes on a
   typical connection). Later builds take seconds.
@@ -146,6 +149,35 @@ pio run -e crowpanel21-chronos -t upload
   watch as disconnected; it reconnects a few seconds after.
 - **Reconnecting after a restart** can take up to about 20 s: Android throttles background
   scanning. Opening the Chronos app usually makes it connect at once.
+
+### Phone link: protocol v1 and the fake phone (Phase 4)
+
+The `crowpanel21-phone` build talks protocol v1 (`docs/protocol/protocol.md`, ADR-0007) over
+its own BLE service. Until the sārathi app speaks it, a computer with Bluetooth plays the
+phone: `tools/ble_client.py` replays the demo ride over BLE.
+
+```bash
+cd firmware && pio run -e crowpanel21-phone -t upload && cd ..
+source .venv/bin/activate
+python tools/ble_client.py scan                  # is the dash advertising?
+python tools/ble_client.py ride                  # pair if needed, then replay the demo ride
+python tools/ble_client.py ride --backend osm --speed 4 --fallback-at 30
+python tools/ble_client.py forget                # remove the pairing on this computer
+```
+
+- **Pairing (once per computer):** the dash shows a 6-digit code, and so does the computer
+  (on a Linux desktop, a system dialog; without one, add `--agent` to confirm it in the
+  terminal). If they match, turn the knob to **Pair** and click, then confirm on the
+  computer. Nothing moves over the link until both have.
+- **What it sends:** `hello`, then time, battery, the ride frame, the backend and its
+  attribution, the route and traffic, then `nav` every second and `pose` five times a second,
+  the call at 60 s of ride time, and a playlist. Accept, reject and the music controls on the
+  dash come back to it and change what it sends.
+- **Options:** `--backend google|mappls|osm|offline` (the name and attribution the dash
+  shows when stopped), `--speed N` (replay faster), `--fallback-at S` (switch backend at S
+  seconds of ride time: the dash shows "Now: ..." for 10 s), `--address` (pick a device).
+- **Needs:** BlueZ on Linux (or macOS, Windows), and `bleak` and `dbus-fast` from
+  `tools/requirements.txt`.
 
 ### On-device tests
 
@@ -302,7 +334,7 @@ GitHub Actions runs on every pull request and every push to `main`:
 
 | Workflow | Jobs | Same as running locally |
 |---|---|---|
-| `firmware` | **native tests** (include `sarathi_proto` against `docs/protocol/vectors`); **build crowpanel21** (also builds `crowpanel21-chronos`; caches `~/.platformio`); **build simulator**; **OTA manifest vectors** (also the protocol vectors) | `pio test -e native`; `pio run -e crowpanel21` and `pio run -e crowpanel21-chronos`; `pio run -e sim`; `python tools/ota_manifest.py check-vectors docs/ota/vectors` and `python tools/protocol_vectors.py check-vectors docs/protocol/vectors` |
+| `firmware` | **native tests** (include `sarathi_proto` against `docs/protocol/vectors`); **build crowpanel21** (also builds `crowpanel21-chronos` and `crowpanel21-phone`; caches `~/.platformio`); **build simulator**; **OTA manifest vectors** (also the protocol vectors) | `pio test -e native`; `pio run -e crowpanel21`, `-e crowpanel21-chronos` and `-e crowpanel21-phone`; `pio run -e sim`; `python tools/ota_manifest.py check-vectors docs/ota/vectors` and `python tools/protocol_vectors.py check-vectors docs/protocol/vectors` |
 | `pre-commit` | all hooks on all files | `pre-commit run --all-files` |
 | `android` | lint, unit tests, debug APK, ktlint, detekt | see [Android](#android) |
 
