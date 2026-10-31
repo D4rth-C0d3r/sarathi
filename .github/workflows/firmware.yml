@@ -127,6 +127,15 @@ jobs:
           python ../tools/check_image_size.py .pio/build/crowpanel21-chronos/firmware.bin
           partitions.csv
 
+      # Our own phone link (ADR-0007), built and size-checked like the others.
+      - name: Build (phone link)
+        run: pio run -e crowpanel21-phone
+
+      - name: Check image size (phone link)
+        run: >-
+          python ../tools/check_image_size.py .pio/build/crowpanel21-phone/firmware.bin
+          partitions.csv
+
       - name: Short commit SHA
         id: sha
         run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"

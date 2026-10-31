@@ -147,8 +147,7 @@ class ProtocolBridge {
   std::array<char, proto::kMaxJson> json_out_{};
 
   bool secured_ = false;
-  bool hello_ = false;  // the phone's hello, with our major version
-  uint8_t next_msg_id_ = 0;
+  bool hello_ = false;     // the phone's hello, with our major version
   uint32_t consumed_ = 0;  // frames taken since the connection started
   uint32_t flow_consumed_ = 0;
   uint32_t flow_sent_ms_ = 0;

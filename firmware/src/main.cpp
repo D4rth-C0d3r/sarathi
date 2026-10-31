@@ -1,8 +1,9 @@
 // sārathi firmware entry point: constructs the modules and wires them together.
 //
 // The UI shell (Nav, Music, Settings, Call, Input test) is fed by a data source chosen at
-// build time: the scripted demo ride (env crowpanel21) or the Chronos app over BLE (env
-// crowpanel21-chronos, ADR-0005). Also logs chip, flash and PSRAM info at boot.
+// build time: the scripted demo ride (env crowpanel21), the Chronos app over BLE (env
+// crowpanel21-chronos, ADR-0005), or our own phone link (env crowpanel21-phone, ADR-0007). Also
+// logs chip, flash and PSRAM info at boot.
 
 #include <cinttypes>
 #include <cstdint>
@@ -22,8 +23,10 @@
 #include "board_pins.h"
 #include "boot_confirm.h"
 #include "boot_health.h"
-#ifdef SARATHI_BACKEND_CHRONOS
+#if defined(SARATHI_BACKEND_CHRONOS)
 #include "chronos_source.h"
+#elif defined(SARATHI_BACKEND_PHONE)
+#include "sarathi_source.h"
 #else
 #include "demo_ride.h"
 #endif
@@ -111,6 +114,14 @@ bool BeginSource() { return chronos.Begin("sarathi"); }
 void SetBlePaused(bool paused) { chronos.SetBlePaused(paused); }
 bool BleStopped() { return chronos.BleStopped(); }
 bool BleUp() { return chronos.BleUp(); }
+#elif defined(SARATHI_BACKEND_PHONE)
+constexpr bool kHasBle = true;
+sarathi::link::SarathiSource phone;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+core::DataSource& source = phone;
+bool BeginSource() { return phone.Begin("sarathi"); }
+void SetBlePaused(bool paused) { phone.SetBlePaused(paused); }
+bool BleStopped() { return phone.BleStopped(); }
+bool BleUp() { return phone.BleUp(); }
 #else
 constexpr bool kHasBle = false;
 core::DemoRide demo_ride;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
