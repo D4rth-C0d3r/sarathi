@@ -75,11 +75,11 @@ bool ValidUtf8(std::string_view s) {
 // bounded by the token limit.
 class SyntaxChecker {
  public:
-  explicit SyntaxChecker(std::string_view s) : s_(s) {}
+  SyntaxChecker(std::string_view s, bool object_only) : s_(s), object_only_(object_only) {}
 
   bool Run() {
     SkipSpace();
-    if (Peek() != '{' || !Value(0)) {
+    if ((object_only_ && Peek() != '{') || !Value(0)) {
       return false;
     }
     SkipSpace();
@@ -236,6 +236,7 @@ class SyntaxChecker {
   }
 
   std::string_view s_;
+  bool object_only_;
   size_t pos_ = 0;
 };
 
@@ -336,7 +337,7 @@ bool SameString(std::string_view a, std::string_view b) {
 bool JsonReader::Parse(std::string_view json) {
   count_ = 0;
   json_ = json;
-  if (!ValidUtf8(json) || !SyntaxChecker(json).Run()) {
+  if (!ValidUtf8(json) || !SyntaxChecker(json, true).Run()) {
     return false;
   }
   std::array<jsmntok_t, kMaxJsonTokens> raw{};
@@ -374,31 +375,75 @@ bool JsonReader::Parse(std::string_view json) {
   return true;
 }
 
-int JsonReader::FindValue(std::string_view name) const {
-  for (int i = 1; i + 1 < count_; ++i) {
+const Token* JsonReader::At(int token) const {
+  return token >= 0 && token < count_ ? &tokens_.at(static_cast<size_t>(token)) : nullptr;
+}
+
+int JsonReader::FindValue(std::string_view name) const { return Member(kRootToken, name); }
+
+int JsonReader::Member(int object, std::string_view name) const {
+  if (!IsObject(object)) {
+    return kNoToken;
+  }
+  for (int i = object + 1; i + 1 < count_; ++i) {
     const Token& t = tokens_.at(static_cast<size_t>(i));
-    if (t.parent == 0 && t.type == JSMN_STRING && SameString(RawText(json_, t), name)) {
+    if (t.parent == object && t.type == JSMN_STRING && SameString(RawText(json_, t), name)) {
       return i + 1;  // jsmn puts a member's value right after its name
     }
   }
-  return -1;
+  return kNoToken;
+}
+
+int JsonReader::Element(int array, int index) const {
+  if (!IsArray(array) || index < 0) {
+    return kNoToken;
+  }
+  int seen = 0;
+  for (int i = array + 1; i < count_; ++i) {
+    if (tokens_.at(static_cast<size_t>(i)).parent == array && seen++ == index) {
+      return i;
+    }
+  }
+  return kNoToken;
+}
+
+int JsonReader::Count(int container) const {
+  return IsObject(container) || IsArray(container) ? At(container)->size : 0;
+}
+
+bool JsonReader::IsObject(int token) const {
+  const Token* t = At(token);
+  return t != nullptr && t->type == JSMN_OBJECT;
+}
+
+bool JsonReader::IsArray(int token) const {
+  const Token* t = At(token);
+  return t != nullptr && t->type == JSMN_ARRAY;
+}
+
+bool JsonReader::IsNull(int token) const {
+  const Token* t = At(token);
+  return t != nullptr && t->type == JSMN_PRIMITIVE && RawText(json_, *t) == "null";
 }
 
 bool JsonReader::Has(std::string_view name) const { return FindValue(name) >= 0; }
 
 JsonGet JsonReader::String(std::string_view name, char* out, size_t capacity,
                            size_t* length) const {
-  const int index = FindValue(name);
-  if (index < 0) {
+  return StringAt(FindValue(name), out, capacity, length);
+}
+
+JsonGet JsonReader::StringAt(int token, char* out, size_t capacity, size_t* length) const {
+  const Token* t = At(token);
+  if (t == nullptr) {
     return JsonGet::kMissing;
   }
-  const Token& t = tokens_.at(static_cast<size_t>(index));
-  if (t.type != JSMN_STRING) {
+  if (t->type != JSMN_STRING) {
     return JsonGet::kWrongType;
   }
   // First the whole value must be ASCII without NUL; only then does its length matter.
   size_t n = 0;
-  CodePoints check(RawText(json_, t));
+  CodePoints check(RawText(json_, *t));
   for (int32_t cp = check.Next(); cp >= 0; cp = check.Next()) {
     if (cp == 0 || cp > 0x7F) {
       return JsonGet::kWrongType;
@@ -408,7 +453,7 @@ JsonGet JsonReader::String(std::string_view name, char* out, size_t capacity,
   if (n + 1 > capacity) {
     return JsonGet::kTooLong;
   }
-  CodePoints copy(RawText(json_, t));
+  CodePoints copy(RawText(json_, *t));
   size_t i = 0;
   for (int32_t cp = copy.Next(); cp >= 0; cp = copy.Next()) {
     out[i++] = static_cast<char>(cp);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
@@ -420,14 +465,65 @@ JsonGet JsonReader::String(std::string_view name, char* out, size_t capacity,
   return JsonGet::kOk;
 }
 
-JsonGet JsonReader::Uint(std::string_view name, uint64_t* out) const {
-  const int index = FindValue(name);
-  if (index < 0) {
+JsonGet JsonReader::Utf8At(int token, char* out, size_t capacity, size_t* length) const {
+  const Token* t = At(token);
+  if (t == nullptr) {
     return JsonGet::kMissing;
   }
-  const Token& t = tokens_.at(static_cast<size_t>(index));
-  const std::string_view text = RawText(json_, t);
-  if (t.type != JSMN_PRIMITIVE || text.empty() || (text.size() > 1 && text[0] == '0')) {
+  if (t->type != JSMN_STRING) {
+    return JsonGet::kWrongType;
+  }
+  size_t n = 0;
+  CodePoints check(RawText(json_, *t));
+  for (int32_t cp = check.Next(); cp >= 0; cp = check.Next()) {
+    if (cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) {
+      return JsonGet::kWrongType;  // NUL, or an escaped surrogate without its pair
+    }
+    n += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  }
+  if (n + 1 > capacity) {
+    return JsonGet::kTooLong;
+  }
+  CodePoints copy(RawText(json_, *t));
+  size_t i = 0;
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  for (int32_t c = copy.Next(); c >= 0; c = copy.Next()) {
+    const auto cp = static_cast<uint32_t>(c);
+    if (cp < 0x80) {
+      out[i++] = static_cast<char>(cp);
+    } else if (cp < 0x800) {
+      out[i++] = static_cast<char>(0xC0U | (cp >> 6U));
+      out[i++] = static_cast<char>(0x80U | (cp & 0x3FU));
+    } else if (cp < 0x10000) {
+      out[i++] = static_cast<char>(0xE0U | (cp >> 12U));
+      out[i++] = static_cast<char>(0x80U | ((cp >> 6U) & 0x3FU));
+      out[i++] = static_cast<char>(0x80U | (cp & 0x3FU));
+    } else {
+      out[i++] = static_cast<char>(0xF0U | (cp >> 18U));
+      out[i++] = static_cast<char>(0x80U | ((cp >> 12U) & 0x3FU));
+      out[i++] = static_cast<char>(0x80U | ((cp >> 6U) & 0x3FU));
+      out[i++] = static_cast<char>(0x80U | (cp & 0x3FU));
+    }
+  }
+  out[i] = '\0';
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  if (length != nullptr) {
+    *length = i;
+  }
+  return JsonGet::kOk;
+}
+
+JsonGet JsonReader::Uint(std::string_view name, uint64_t* out) const {
+  return UintAt(FindValue(name), out);
+}
+
+JsonGet JsonReader::UintAt(int token, uint64_t* out) const {
+  const Token* t = At(token);
+  if (t == nullptr) {
+    return JsonGet::kMissing;
+  }
+  const std::string_view text = RawText(json_, *t);
+  if (t->type != JSMN_PRIMITIVE || text.empty() || (text.size() > 1 && text[0] == '0')) {
     return JsonGet::kWrongType;
   }
   uint64_t value = 0;
@@ -442,6 +538,51 @@ JsonGet JsonReader::Uint(std::string_view name, uint64_t* out) const {
   }
   *out = value;
   return JsonGet::kOk;
+}
+
+JsonGet JsonReader::IntAt(int token, int64_t* out) const {
+  const Token* t = At(token);
+  if (t == nullptr) {
+    return JsonGet::kMissing;
+  }
+  if (t->type != JSMN_PRIMITIVE) {
+    return JsonGet::kWrongType;
+  }
+  const std::string_view text = RawText(json_, *t);
+  const bool negative = !text.empty() && text[0] == '-';
+  const std::string_view digits = negative ? text.substr(1) : text;
+  if (digits.empty() || (digits.size() > 1 && digits[0] == '0')) {
+    return JsonGet::kWrongType;
+  }
+  uint64_t value = 0;
+  for (const char c : digits) {
+    if (!IsDigit(c)) {
+      return JsonGet::kWrongType;
+    }
+    value = (value * 10) + static_cast<uint64_t>(c - '0');
+    if (value > kMaxJsonInteger) {
+      return JsonGet::kWrongType;
+    }
+  }
+  *out = negative ? -static_cast<int64_t>(value) : static_cast<int64_t>(value);
+  return JsonGet::kOk;
+}
+
+JsonGet JsonReader::BoolAt(int token, bool* out) const {
+  const Token* t = At(token);
+  if (t == nullptr) {
+    return JsonGet::kMissing;
+  }
+  const std::string_view text = RawText(json_, *t);
+  if (t->type != JSMN_PRIMITIVE || (text != "true" && text != "false")) {
+    return JsonGet::kWrongType;
+  }
+  *out = text == "true";
+  return JsonGet::kOk;
+}
+
+bool JsonReader::IsValidJson(std::string_view json) {
+  return ValidUtf8(json) && SyntaxChecker(json, false).Run();
 }
 
 }  // namespace sarathi::core

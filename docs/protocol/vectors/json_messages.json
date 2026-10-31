@@ -4,139 +4,176 @@
    "name": "hello-phone",
    "direction": "phone",
    "type": 1,
-   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"app\":\"0.1.0\",\"caps\":[\"google\",\"traffic\",\"calls\",\"media\"]}"
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"app\":\"0.1.0\",\"caps\":[\"google\",\"traffic\",\"calls\",\"media\"]}",
+   "canonical": "{\"t\":\"hello\",\"proto\":[1,0],\"app\":\"0.1.0\",\"caps\":[\"google\",\"traffic\",\"calls\",\"media\"]}"
   },
   {
    "name": "hello-device",
    "direction": "device",
    "type": 1,
-   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\",\"hud\",\"racing\",\"minimal\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":{\"id\":3,\"v\":2},\"epoch\":7}"
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\",\"hud\",\"racing\",\"minimal\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":{\"id\":3,\"v\":2},\"epoch\":7}",
+   "canonical": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\",\"hud\",\"racing\",\"minimal\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":{\"id\":3,\"v\":2},\"epoch\":7}"
   },
   {
    "name": "hello-device-empty",
    "direction": "device",
    "type": 1,
-   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":null,\"epoch\":null}"
+   "payload": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":null,\"epoch\":null}",
+   "canonical": "{\"t\":\"hello\",\"proto\":[1,0],\"fw\":\"0.5.0\",\"seq\":500,\"caps\":{\"styles\":[\"classic\"],\"chunk_kb\":1536,\"max_msg\":15360},\"route\":null,\"epoch\":null}"
   },
   {
    "name": "time",
    "direction": "phone",
    "type": 2,
-   "payload": "{\"t\":\"time\",\"local\":\"2026-10-31T18:42:05\",\"utc_offset_min\":330}"
+   "payload": "{\"t\":\"time\",\"local\":\"2026-10-31T18:42:05\",\"utc_offset_min\":330}",
+   "canonical": "{\"t\":\"time\",\"local\":\"2026-10-31T18:42:05\",\"utc_offset_min\":330}"
   },
   {
    "name": "phone-batt",
    "direction": "phone",
    "type": 3,
-   "payload": "{\"t\":\"phone_batt\",\"level\":77,\"charging\":false}"
+   "payload": "{\"t\":\"phone_batt\",\"level\":77,\"charging\":false}",
+   "canonical": "{\"t\":\"phone_batt\",\"level\":77,\"charging\":false}"
   },
   {
    "name": "frame",
    "direction": "phone",
    "type": 4,
-   "payload": "{\"t\":\"frame\",\"epoch\":7}"
+   "payload": "{\"t\":\"frame\",\"epoch\":7}",
+   "canonical": "{\"t\":\"frame\",\"epoch\":7}"
   },
   {
    "name": "backend-google",
    "direction": "phone",
    "type": 5,
-   "payload": "{\"t\":\"backend\",\"routing\":\"google\",\"search\":\"google\",\"name\":\"Google\",\"attribution\":\"Google\",\"traffic\":true,\"two_wheeler\":true}"
+   "payload": "{\"t\":\"backend\",\"routing\":\"google\",\"search\":\"google\",\"name\":\"Google\",\"attribution\":\"Google\",\"traffic\":true,\"two_wheeler\":true}",
+   "canonical": "{\"t\":\"backend\",\"routing\":\"google\",\"search\":\"google\",\"name\":\"Google\",\"attribution\":\"Google\",\"traffic\":true,\"two_wheeler\":true}"
   },
   {
    "name": "backend-osm-offline",
    "direction": "phone",
    "type": 5,
-   "payload": "{\"t\":\"backend\",\"routing\":\"osm_offline\",\"search\":\"osm\",\"name\":\"OSM (offline)\",\"attribution\":\"© OpenStreetMap contributors\",\"traffic\":false,\"two_wheeler\":false}"
+   "payload": "{\"t\":\"backend\",\"routing\":\"osm_offline\",\"search\":\"osm\",\"name\":\"OSM (offline)\",\"attribution\":\"© OpenStreetMap contributors\",\"traffic\":false,\"two_wheeler\":false}",
+   "canonical": "{\"t\":\"backend\",\"routing\":\"osm_offline\",\"search\":\"osm\",\"name\":\"OSM (offline)\",\"attribution\":\"© OpenStreetMap contributors\",\"traffic\":false,\"two_wheeler\":false}"
   },
   {
    "name": "event-fallback",
    "direction": "phone",
    "type": 6,
-   "payload": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\",\"reason\":\"quota\"}"
+   "payload": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\",\"reason\":\"quota\"}",
+   "canonical": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\",\"reason\":\"quota\"}"
   },
   {
    "name": "event-reroute",
    "direction": "phone",
    "type": 6,
-   "payload": "{\"t\":\"event\",\"kind\":\"reroute\"}"
+   "payload": "{\"t\":\"event\",\"kind\":\"reroute\"}",
+   "canonical": "{\"t\":\"event\",\"kind\":\"reroute\"}"
   },
   {
    "name": "event-cost",
    "direction": "phone",
    "type": 6,
-   "payload": "{\"t\":\"event\",\"kind\":\"cost_warning\",\"backend\":\"google\",\"percent\":80}"
+   "payload": "{\"t\":\"event\",\"kind\":\"cost_warning\",\"backend\":\"google\",\"percent\":80}",
+   "canonical": "{\"t\":\"event\",\"kind\":\"cost_warning\",\"backend\":\"google\",\"percent\":80}"
   },
   {
    "name": "nav",
    "direction": "phone",
    "type": 7,
-   "payload": "{\"t\":\"nav\",\"m\":\"left\",\"exit\":0,\"dist_m\":250,\"street\":\"MG Road\",\"rem_s\":540,\"rem_m\":4200,\"flags\":[]}"
+   "payload": "{\"t\":\"nav\",\"m\":\"left\",\"exit\":0,\"dist_m\":250,\"street\":\"MG Road\",\"rem_s\":540,\"rem_m\":4200,\"flags\":[]}",
+   "canonical": "{\"t\":\"nav\",\"m\":\"left\",\"exit\":0,\"dist_m\":250,\"street\":\"MG Road\",\"rem_s\":540,\"rem_m\":4200,\"flags\":[]}"
   },
   {
    "name": "nav-roundabout",
    "direction": "phone",
    "type": 7,
-   "payload": "{\"t\":\"nav\",\"m\":\"roundabout\",\"exit\":2,\"dist_m\":80,\"street\":\"\",\"rem_s\":300,\"rem_m\":2100,\"flags\":[\"rerouting\"]}"
+   "payload": "{\"t\":\"nav\",\"m\":\"roundabout\",\"exit\":2,\"dist_m\":80,\"street\":\"\",\"rem_s\":300,\"rem_m\":2100,\"flags\":[\"rerouting\"]}",
+   "canonical": "{\"t\":\"nav\",\"m\":\"roundabout\",\"exit\":2,\"dist_m\":80,\"street\":\"\",\"rem_s\":300,\"rem_m\":2100,\"flags\":[\"rerouting\"]}"
   },
   {
    "name": "nav-unknown-maneuver",
    "direction": "phone",
    "type": 7,
-   "payload": "{\"t\":\"nav\",\"m\":\"teleport\",\"exit\":0,\"dist_m\":10,\"street\":\"\",\"rem_s\":1,\"rem_m\":10,\"flags\":[],\"future_key\":1}"
+   "payload": "{\"t\":\"nav\",\"m\":\"teleport\",\"exit\":0,\"dist_m\":10,\"street\":\"\",\"rem_s\":1,\"rem_m\":10,\"flags\":[],\"future_key\":1}",
+   "canonical": "{\"t\":\"nav\",\"m\":\"teleport\",\"exit\":0,\"dist_m\":10,\"street\":\"\",\"rem_s\":1,\"rem_m\":10,\"flags\":[]}"
   },
   {
    "name": "nav-devanagari",
    "direction": "phone",
    "type": 7,
-   "payload": "{\"t\":\"nav\",\"m\":\"right\",\"exit\":0,\"dist_m\":400,\"street\":\"गांधी मार्ग\",\"rem_s\":600,\"rem_m\":5000,\"flags\":[]}"
+   "payload": "{\"t\":\"nav\",\"m\":\"right\",\"exit\":0,\"dist_m\":400,\"street\":\"गांधी मार्ग\",\"rem_s\":600,\"rem_m\":5000,\"flags\":[]}",
+   "canonical": "{\"t\":\"nav\",\"m\":\"right\",\"exit\":0,\"dist_m\":400,\"street\":\"गांधी मार्ग\",\"rem_s\":600,\"rem_m\":5000,\"flags\":[]}"
+  },
+  {
+   "name": "nav-flags-unordered",
+   "direction": "phone",
+   "type": 7,
+   "payload": "{\"t\":\"nav\",\"m\":\"arrive\",\"exit\":0,\"dist_m\":0,\"street\":\"\",\"rem_s\":0,\"rem_m\":0,\"flags\":[\"arrived\",\"off_route\",\"arrived\"]}",
+   "canonical": "{\"t\":\"nav\",\"m\":\"arrive\",\"exit\":0,\"dist_m\":0,\"street\":\"\",\"rem_s\":0,\"rem_m\":0,\"flags\":[\"off_route\",\"arrived\"]}"
   },
   {
    "name": "nav-end",
    "direction": "phone",
    "type": 8,
-   "payload": "{\"t\":\"nav_end\",\"reason\":\"arrived\"}"
+   "payload": "{\"t\":\"nav_end\",\"reason\":\"arrived\"}",
+   "canonical": "{\"t\":\"nav_end\",\"reason\":\"arrived\"}"
   },
   {
    "name": "call",
    "direction": "phone",
    "type": 9,
-   "payload": "{\"t\":\"call\",\"phase\":\"ringing\",\"caller\":\"Contact A\"}"
+   "payload": "{\"t\":\"call\",\"phase\":\"ringing\",\"caller\":\"Contact A\"}",
+   "canonical": "{\"t\":\"call\",\"phase\":\"ringing\",\"caller\":\"Contact A\"}"
+  },
+  {
+   "name": "call-escapes",
+   "direction": "phone",
+   "type": 9,
+   "payload": "{\"t\":\"call\",\"phase\":\"active\",\"caller\":\"Dr \\\"K\\\" \\\\ A\\tB\\u0001\"}",
+   "canonical": "{\"t\":\"call\",\"phase\":\"active\",\"caller\":\"Dr \\\"K\\\" \\\\ A\\tB\\u0001\"}"
   },
   {
    "name": "media",
    "direction": "phone",
    "type": 10,
-   "payload": "{\"t\":\"media\",\"avail\":true,\"playing\":true,\"title\":\"Kesariya\",\"artist\":\"Arijit Singh\",\"pos_s\":25,\"dur_s\":268}"
+   "payload": "{\"t\":\"media\",\"avail\":true,\"playing\":true,\"title\":\"Kesariya\",\"artist\":\"Arijit Singh\",\"pos_s\":25,\"dur_s\":268}",
+   "canonical": "{\"t\":\"media\",\"avail\":true,\"playing\":true,\"title\":\"Kesariya\",\"artist\":\"Arijit Singh\",\"pos_s\":25,\"dur_s\":268}"
   },
   {
    "name": "chunk-ack",
    "direction": "device",
    "type": 16,
-   "payload": "{\"t\":\"chunk_ack\",\"stored\":[[0,11553,7334,20261018]],\"refused\":[[1,2888,1833,20261018,\"full\"]]}"
+   "payload": "{\"t\":\"chunk_ack\",\"stored\":[[0,11553,7334,20261018]],\"refused\":[[1,2888,1833,20261018,\"full\"]]}",
+   "canonical": "{\"t\":\"chunk_ack\",\"stored\":[[0,11553,7334,20261018]],\"refused\":[[1,2888,1833,20261018,\"full\"]]}"
   },
   {
    "name": "flow",
    "direction": "device",
    "type": 17,
-   "payload": "{\"t\":\"flow\",\"window\":32,\"consumed\":1}"
+   "payload": "{\"t\":\"flow\",\"window\":32,\"consumed\":1}",
+   "canonical": "{\"t\":\"flow\",\"window\":32,\"consumed\":1}"
   },
   {
    "name": "style",
    "direction": "device",
    "type": 18,
-   "payload": "{\"t\":\"style\",\"map\":\"hud\",\"layers\":[\"water\"]}"
+   "payload": "{\"t\":\"style\",\"map\":\"hud\",\"layers\":[\"water\"]}",
+   "canonical": "{\"t\":\"style\",\"map\":\"hud\",\"layers\":[\"water\"]}"
   },
   {
    "name": "call-action",
    "direction": "device",
    "type": 19,
-   "payload": "{\"t\":\"call_action\",\"action\":\"reject\"}"
+   "payload": "{\"t\":\"call_action\",\"action\":\"reject\"}",
+   "canonical": "{\"t\":\"call_action\",\"action\":\"reject\"}"
   },
   {
    "name": "media-cmd",
    "direction": "device",
    "type": 20,
-   "payload": "{\"t\":\"media_cmd\",\"cmd\":\"next\"}"
+   "payload": "{\"t\":\"media_cmd\",\"cmd\":\"next\"}",
+   "canonical": "{\"t\":\"media_cmd\",\"cmd\":\"next\"}"
   }
  ],
  "invalid": [

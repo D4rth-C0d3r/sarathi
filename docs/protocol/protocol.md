@@ -136,6 +136,24 @@ Unknown types are ignored (versioning, section 6).
   गांधी मार्ग" (53 B) is truncated by the phone.
 - The schemas in `schema/<name>.schema.json` are normative for types and ranges. Each uses
   `x-maxBytes` for byte limits (JSON Schema's `maxLength` counts characters).
+- Senders never repeat a key in an object, and never send U+0000 or an unpaired surrogate
+  in a string; a receiver may drop such a message (`invalid`).
+- **Lists of names are sets** (`caps`, `flags`, `layers`): order and repeats carry no meaning.
+- **Canonical encoding.** Receivers accept any valid JSON, but every sender writes the
+  canonical form, so both implementations are tested byte for byte against the same
+  vectors (`canonical` in `vectors/json_messages.json`):
+  - only the keys the schema defines, in the order of the tables below (the schema's
+    `properties` order), nested objects too; `null` written out where allowed;
+  - sets in the order of the schema's `enum`, each value once;
+  - no whitespace; integers in plain decimal;
+  - strings as raw UTF-8, escaping only `"` and `\` (as `\"`, `\\`) and U+0000–U+001F
+    (`\b`, `\t`, `\n`, `\f`, `\r`, otherwise `\u00xx` in lower-case hex).
+- **Text the device shows** (`street`, `caller`, `title`, `artist`, `name`, `attribution`):
+  the protocol carries UTF-8, but the device's fonts cover only printable ASCII plus `°` and
+  `•` (LVGL's built-in Montserrat, ADR-0003). The phone therefore asks its
+  backends for English or Latin-script names where it can, strips accents (`é` → `e`) and
+  replaces `©` with `(c)`; text with nothing left to show (an all-Devanagari street) is sent as
+  an empty string. Any other character shows as LVGL's placeholder box on the device.
 
 ### Phone → device
 

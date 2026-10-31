@@ -453,6 +453,27 @@ def _json_bytes(obj: dict) -> bytes:
     return json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def _canonical_value(value, schema: dict):
+    if isinstance(value, dict):
+        props = schema.get("properties", {})
+        if not props:  # oneOf (hello.route): use the object branch
+            props = next((s["properties"] for s in schema.get("oneOf", []) if "properties" in s), {})
+        return {k: _canonical_value(value[k], props[k]) for k in props if k in value}
+    if isinstance(value, list):
+        items = schema.get("items")
+        if isinstance(items, dict) and "enum" in items:  # a set: enum order, each once
+            return [e for e in items["enum"] if e in value]
+        return list(value)
+    return value
+
+
+def canonical_json(name: str, direction: str, obj: dict) -> bytes:
+    """The canonical encoding (protocol.md section 3): only the keys the schema knows, in
+    schema order (the order of protocol.md's tables); sets in enum order, each value once;
+    compact; raw UTF-8, escaping only quote, backslash and U+0000-U+001F."""
+    return _json_bytes(_canonical_value(obj, schema_for(name, direction)))
+
+
 def _city_chunk() -> dict:
     """A synthetic dense L0 chunk, deterministic: a street grid with bends, like a city
     centre (about the size of the Pune chunk measured for ADR-0009)."""
@@ -494,8 +515,11 @@ JSON_VALID = [
                                        "rem_m": 10, "flags": [], "future_key": 1}),
     ("nav-devanagari", "phone", {"t": "nav", "m": "right", "exit": 0, "dist_m": 400, "street": "गांधी मार्ग",
                                  "rem_s": 600, "rem_m": 5000, "flags": []}),
+    ("nav-flags-unordered", "phone", {"t": "nav", "m": "arrive", "exit": 0, "dist_m": 0, "street": "", "rem_s": 0,
+                                      "rem_m": 0, "flags": ["arrived", "off_route", "arrived"]}),
     ("nav-end", "phone", {"t": "nav_end", "reason": "arrived"}),
     ("call", "phone", {"t": "call", "phase": "ringing", "caller": "Contact A"}),
+    ("call-escapes", "phone", {"t": "call", "phase": "active", "caller": "Dr \"K\" \\ A\tB\u0001"}),
     ("media", "phone", {"t": "media", "avail": True, "playing": True, "title": "Kesariya", "artist": "Arijit Singh",
                         "pos_s": 25, "dur_s": 268}),
     ("chunk-ack", "device", {"t": "chunk_ack", "stored": [[0, 11553, 7334, 20261018]], "refused": [[1, 2888, 1833, 20261018, "full"]]}),
@@ -632,7 +656,8 @@ def make_vectors(out: Path) -> dict:
             {"input": s.encode().hex(), "crc": f"0x{crc16(s.encode()):04X}"} for s in ("123456789", "", "sārathi")]},
         "framing.json": framing_vectors(),
         "json_messages.json": {
-            "valid": [{"name": n, "direction": d, "type": CODES[o["t"]], "payload": _json_bytes(o).decode()} for n, d, o in JSON_VALID],
+            "valid": [{"name": n, "direction": d, "type": CODES[o["t"]], "payload": _json_bytes(o).decode(),
+                       "canonical": canonical_json(o["t"], d, o).decode()} for n, d, o in JSON_VALID],
             "invalid": [{"name": n, "direction": d, "type": t, "payload": p, "error": e} for n, d, t, p, e in JSON_INVALID]},
         "binary_messages.json": {
             "valid": [{"name": n, "type": CODES[t], "hex": encode_binary(t, m).hex(), "decoded": m} for n, t, m in binary_valid()],
@@ -682,6 +707,10 @@ def check_vectors(directory: Path) -> int:
             validate_json(v["type"], v["payload"].encode(), v["direction"])
         except Invalid as e:
             fail(f"json valid {v['name']}: {e}")
+            continue
+        obj = json.loads(v["payload"])
+        if canonical_json(obj["t"], v["direction"], obj).decode() != v["canonical"]:
+            fail(f"json canonical {v['name']}")
     for v in js["invalid"]:
         try:
             validate_json(v["type"], v["payload"].encode(), v["direction"])
