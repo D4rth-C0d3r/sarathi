@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
+import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 
 /** Each setup step, in the order the app asks for them. */
@@ -17,6 +18,7 @@ enum class SetupStep {
     BATTERY,
     PAIR,
     MUSIC,
+    CALLS,
 }
 
 /** What's done, read fresh from Android every time the app comes to the front. */
@@ -78,6 +80,10 @@ data class SetupState(
 
                 SetupStep.MUSIC -> {
                     NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+                }
+
+                SetupStep.CALLS -> {
+                    CallsFeature.allowed(context)
                 }
             }
 

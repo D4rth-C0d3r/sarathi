@@ -17,6 +17,7 @@ import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
@@ -102,6 +103,10 @@ class MainActivity : ComponentActivity() {
 
             SetupStep.MUSIC -> {
                 systemScreen.launch(notificationAccess())
+            }
+
+            SetupStep.CALLS -> {
+                permissions.launch(CallsFeature.PERMISSIONS)
             }
         }
     }

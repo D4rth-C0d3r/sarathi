@@ -8,6 +8,7 @@ import io.github.d4rthc0d3r.sarathi.core.ble.DashChannel
 import io.github.d4rthc0d3r.sarathi.core.protocol.JsonMessage
 import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneCap
 import io.github.d4rthc0d3r.sarathi.core.protocol.TimeSync
+import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.feature.media.MediaFeature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -34,10 +35,12 @@ class RideSession(
             send(it)
         }
     private var media: MediaFeature? = null
+    private var calls: CallsFeature? = null
 
     fun start() {
         batteryWatcher.start()
         media = MediaFeature(context, listenerComponent(context), dash, scope).takeIf { it.start() }
+        calls = CallsFeature(context, dash, scope, CallNotifications.current).takeIf { it.start() }
         jobs += scope.launch { dash.received.collect { Log.i(TAG, "from the dash: $it") } }
         jobs +=
             scope.launch {
@@ -55,6 +58,8 @@ class RideSession(
     fun stop() {
         media?.stop()
         media = null
+        calls?.stop()
+        calls = null
         batteryWatcher.stop()
         jobs.forEach { it.cancel() }
         jobs.clear()
@@ -95,6 +100,7 @@ class RideSession(
                 if (NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)) {
                     add(PhoneCap.MEDIA)
                 }
+                if (CallsFeature.allowed(context)) add(PhoneCap.CALLS)
             }
     }
 }

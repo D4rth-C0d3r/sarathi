@@ -44,5 +44,9 @@ object SetupTexts {
             SetupStep.MUSIC -> {
                 Texts(R.string.setup_music, R.string.setup_music_reason, R.string.open_settings)
             }
+
+            SetupStep.CALLS -> {
+                Texts(R.string.setup_calls, R.string.setup_calls_reason, R.string.allow)
+            }
         }
 }
