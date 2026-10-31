@@ -123,8 +123,13 @@ class DashLink(
         _state.value = LinkState.Connecting
         val mtu = connection.raiseMtu()
         if (mtu < MIN_MTU) fail(LinkProblem.SETUP_FAILED, "MTU $mtu, below $MIN_MTU")
-        val (rx, tx) = connection.discover()
-        connection.enableNotifications(tx)
+        var (rx, tx) = connection.discover()
+        if (!connection.enableNotifications(tx)) {
+            // The services changed (a firmware change at this address): look again, once.
+            val again = connection.discover()
+            rx = again.first
+            if (!connection.enableNotifications(again.second)) fail(LinkProblem.SETUP_FAILED, "services keep changing")
+        }
         return runSession(connection, PhoneLinkSession(connection.port(rx, mtu), appVersion, caps))
     }
 

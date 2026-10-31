@@ -103,6 +103,7 @@ class RideLinkService : LifecycleService() {
             LocationManagerCompat.isLocationEnabled(getSystemService(LocationManager::class.java))
 
     private fun onLinkState(state: LinkState) {
+        Log.i(TAG, "link: $state")
         LinkRepository.update { it.copy(link = state) }
         getSystemService(
             NotificationManager::class.java,

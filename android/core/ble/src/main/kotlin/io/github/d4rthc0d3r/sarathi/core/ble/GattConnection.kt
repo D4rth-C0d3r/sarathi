@@ -59,11 +59,20 @@ internal class GattConnection(
         return await<Event.Mtu>().mtu
     }
 
-    /** Finds the dash's service; returns `rx` and `tx`. */
+    /**
+     * Finds the dash's service; returns `rx` and `tx`. Android answers from its cache for a
+     * bonded device, which can predate a firmware change at this address (the Chronos build);
+     * the dash then sends Service Changed, and the second look finds the service.
+     */
     suspend fun discover(): Pair<BluetoothGattCharacteristic, BluetoothGattCharacteristic> {
         val g = checkNotNull(gatt)
         g.discoverServices()
         await<Event.Services>()
+        if (g.getService(DashGatt.SERVICE) == null) {
+            withTimeoutOrNull(SERVICE_CHANGED_WAIT_MS) { await<Event.ServiceChanged>() }
+            g.discoverServices()
+            await<Event.Services>()
+        }
         val service = g.getService(DashGatt.SERVICE) ?: throw setupFailed("no sarathi service")
         val rx = service.getCharacteristic(DashGatt.RX)
         val tx = service.getCharacteristic(DashGatt.TX)
@@ -71,8 +80,11 @@ internal class GattConnection(
         return rx to tx
     }
 
-    /** Turns on notifications from `tx`. */
-    suspend fun enableNotifications(tx: BluetoothGattCharacteristic) {
+    /**
+     * Turns on notifications from `tx`. False if the dash said its services changed meanwhile
+     * (Android then re-reads them): discover again and retry.
+     */
+    suspend fun enableNotifications(tx: BluetoothGattCharacteristic): Boolean {
         val g = checkNotNull(gatt)
         g.setCharacteristicNotification(tx, true)
         val descriptor = tx.getDescriptor(DashGatt.CCCD) ?: throw setupFailed("no notification descriptor")
@@ -85,8 +97,10 @@ internal class GattConnection(
             @Suppress("DEPRECATION")
             g.writeDescriptor(descriptor)
         }
-        val status = await<Event.Descriptor>().status
+        val event = await<Event>(setOf(Event.Descriptor::class, Event.ServiceChanged::class))
+        val status = (event as? Event.Descriptor)?.status ?: return false
         if (status != BluetoothGatt.GATT_SUCCESS) throw setupFailed("notifications not enabled ($status)")
+        return true
     }
 
     /** After setup: suspends until the link drops, passing write completions to [port]. */
@@ -108,6 +122,18 @@ internal class GattConnection(
     override fun close() {
         gatt?.close()
     }
+
+    /** Waits for the first event of any of [kinds]; throws [SetupFailure] on a drop or timeout. */
+    private suspend fun <T : Event> await(kinds: Set<kotlin.reflect.KClass<out T>>): T =
+        withTimeoutOrNull(SETUP_TIMEOUT_MS) {
+            val event =
+                events.receiveAsFlow().first { e ->
+                    kinds.any { it.isInstance(e) } ||
+                        (e is Event.Connection && !e.connected)
+                }
+            @Suppress("UNCHECKED_CAST") // matched one of kinds just above
+            if (event is Event.Connection) null else event as T
+        } ?: throw SetupFailure(LinkState.Failed(LinkProblem.OTHER, DROPPED_DETAIL))
 
     private suspend inline fun <reified T : Event> await(): T =
         withTimeoutOrNull(SETUP_TIMEOUT_MS) {
@@ -172,6 +198,8 @@ internal class GattConnection(
 
         data object Services : Event
 
+        data object ServiceChanged : Event
+
         data class Descriptor(
             val status: Int,
         ) : Event
@@ -203,6 +231,10 @@ internal class GattConnection(
             status: Int,
         ) {
             events.trySend(Event.Services)
+        }
+
+        override fun onServiceChanged(gatt: BluetoothGatt) {
+            events.trySend(Event.ServiceChanged)
         }
 
         override fun onDescriptorWrite(
@@ -241,6 +273,7 @@ internal class GattConnection(
 
     private companion object {
         const val SETUP_TIMEOUT_MS = 10_000L
+        const val SERVICE_CHANGED_WAIT_MS = 2_000L
         const val WRITE_TIMEOUT_MS = 5_000L
         const val BUSY_RETRIES = 50
         const val BUSY_DELAY_MS = 10L
