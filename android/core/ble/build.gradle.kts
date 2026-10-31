@@ -1,4 +1,5 @@
-// BLE transport to the device (scan, bond, GATT). Android library; empty until Phase 4.
+// The phone's side of the link to the dash (ADR-0007): the protocol session (pure Kotlin, JVM
+// tests) and the Android Bluetooth transport under it.
 
 plugins {
     alias(libs.plugins.android.library)
@@ -25,5 +26,9 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:protocol"))
+    api(project(":core:protocol"))
+    api(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
