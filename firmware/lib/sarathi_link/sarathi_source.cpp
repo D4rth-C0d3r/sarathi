@@ -72,6 +72,12 @@ std::atomic<bool> secured{false};
 std::atomic<bool> subscribed{false};
 std::atomic<uint16_t> mtu{0};
 std::atomic<bool> mtu_wanted{false};
+// Set when a link becomes secured: the link task tells the phone the services may have changed,
+// once per phone per boot (the services only change with a firmware update, which reboots).
+std::atomic<bool> service_changed_wanted{false};
+constexpr size_t kMaxToldPhones = 8;
+std::array<NimBLEAddress, kMaxToldPhones> told_phones{};  // link task only
+size_t told_count = 0;
 std::atomic<uint32_t> rx_overflow{0};
 std::atomic<uint32_t> rx_refused{0};    // writes from a link that isn't bonded with MITM
 std::atomic<uint32_t> extra_phones{0};  // second connections turned away
@@ -174,6 +180,7 @@ class ServerCallbacks final : public NimBLEServerCallbacks {
     // phone may retry pairing on it (BlueZ does, after the device's own request fails).
     if (info.getConnHandle() == conn_handle.load()) {
       secured.store(Secure(info));
+      service_changed_wanted.store(Secure(info));
     }
   }
 };
@@ -183,6 +190,27 @@ RxCallbacks rx_callbacks;
 TxCallbacks tx_callbacks;
 ServerCallbacks server_callbacks;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+// A phone bonded with an older firmware at this address (the Chronos build, or an update that
+// changes the services) keeps its cached service list until told it changed. Once per phone per
+// boot: telling it on every connection made Android re-read the services while the app was
+// still setting up, which failed the setup (Phase 4 step D test).
+void TellServicesChanged() {
+  NimBLEServer* server = NimBLEDevice::getServer();
+  if (server == nullptr) {
+    return;
+  }
+  const NimBLEAddress phone = server->getPeerInfoByHandle(conn_handle.load()).getIdAddress();
+  for (size_t i = 0; i < told_count; ++i) {
+    if (told_phones.at(i) == phone) {
+      return;
+    }
+  }
+  if (told_count < told_phones.size()) {
+    told_phones.at(told_count++) = phone;
+  }
+  server->sendServiceChangedIndication();
+}
 
 void CountBonds() {
   const int bonds = NimBLEDevice::getNumBonds();
@@ -323,6 +351,9 @@ void LinkTask(void* arg) {
     } else {
       // Either side may start the MTU exchange; Android answers with its maximum at once
       // (docs/phase3-findings.md).
+      if (service_changed_wanted.exchange(false)) {
+        TellServicesChanged();
+      }
       if (mtu_wanted.exchange(false)) {
         const int rc = ble_gattc_exchange_mtu(conn_handle.load(), nullptr, nullptr);
         if (rc != 0) {
