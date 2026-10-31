@@ -15,6 +15,7 @@
 #include "binary_codec.h"
 #include "frame.h"
 #include "json_codec.h"
+#include "route_tracker.h"
 
 namespace sarathi::link {
 
@@ -70,7 +71,12 @@ struct BridgeStorage {
   size_t reassembly_size = 0;
   proto::Point* route_points = nullptr;
   size_t route_points_size = 0;
+  core::TrackerStorage tracker;  // as many points as route_points
 };
+
+// Below this speed (cm/s, about 3.6 km/h) the phone's heading is noise; the map follows the
+// route's direction instead.
+constexpr uint16_t kHeadingMinSpeedCms = 100;
 
 // Counters for the transport's log lines.
 struct BridgeStats {
@@ -123,6 +129,7 @@ class ProtocolBridge {
   void OnFrameEpoch(uint16_t epoch, core::AppModel& model);
   void OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppModel& model);
   void OnRoute(const proto::Route& route, core::AppModel& model);
+  void ForgetRoute(core::AppModel& model);
   void Disconnected(core::AppModel& model);
   void SendFlow(uint32_t now_ms, Outbox& out);
   void SendStyle(core::ThemeId theme, Outbox& out);
@@ -135,6 +142,8 @@ class ProtocolBridge {
   proto::Point* route_points_;
   size_t route_points_size_;
   std::array<proto::RouteMarker, proto::kMaxRouteMarkers> route_markers_{};
+  core::RouteTracker tracker_;
+  uint32_t window_sequence_ = 0;
   std::array<char, proto::kMaxJson> json_out_{};
 
   bool secured_ = false;
@@ -150,7 +159,6 @@ class ProtocolBridge {
   bool has_route_ = false;
   uint32_t route_id_ = 0;
   uint16_t route_version_ = 0;
-  uint8_t route_quantum_dm_ = 10;
 
   uint32_t nav_received_ms_ = 0;
 

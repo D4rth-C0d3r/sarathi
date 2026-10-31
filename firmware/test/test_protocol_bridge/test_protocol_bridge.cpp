@@ -52,12 +52,17 @@ class RecordingOutbox final : public Outbox {
 
 std::vector<uint8_t> g_reassembly(proto::kMaxMessage);
 std::vector<proto::Point> g_points(proto::kMaxRoutePoints);
+std::vector<sarathi::core::MetricPoint> g_tracked(proto::kMaxRoutePoints);
+std::vector<float> g_cumulative(proto::kMaxRoutePoints);
 
 // A bridge on a secured link, before the phone's hello.
 struct Fixture {
   Fixture()
-      : bridge(BridgeStorage{g_reassembly.data(), g_reassembly.size(), g_points.data(),
-                             g_points.size()}) {
+      : bridge(BridgeStorage{g_reassembly.data(),
+                             g_reassembly.size(),
+                             g_points.data(),
+                             g_points.size(),
+                             {g_tracked.data(), g_cumulative.data(), g_tracked.size()}}) {
     bridge.Begin(model);
     bridge.OnLinkEvent(LinkEvent::kConnected, model);
     bridge.OnLinkEvent(LinkEvent::kSecured, model);
@@ -300,6 +305,32 @@ void TestHelloReportsTheHeldRoute() {
                    std::string::npos);
 }
 
+// route + pose make the map's window; a new frame forgets them.
+void TestPoseOnTheRouteMakesAWindow() {
+  Fixture f;
+  f.Hello();
+  f.SendJson(0x04, VectorPayload("frame"));
+  f.Send(0x41, BinaryVector("route"));  // (0,0) (120,5) (240,300) ... in 1 m quanta
+  proto::Pose pose;
+  pose.epoch = 7;
+  pose.x_dm = 600;  // 60 m east, 2.5 m north: on the first segment
+  pose.y_dm = 25;
+  pose.speed_cms = 50;  // too slow for the phone's heading: the route's is used
+  std::vector<uint8_t> bytes(proto::kPoseSize);
+  TEST_ASSERT_EQUAL(proto::kPoseSize, proto::EncodeBinary(pose, bytes.data(), bytes.size()));
+  f.Send(0x40, bytes, 1234);
+  const auto& nav = f.model.State().nav;
+  TEST_ASSERT_TRUE(nav.has_window);
+  TEST_ASSERT_EQUAL(1234, nav.window_received_ms);
+  TEST_ASSERT_EQUAL(88, nav.window.heading_deg);  // along (120, 5): just north of east
+  TEST_ASSERT_TRUE(nav.window.count >= 2);
+  TEST_ASSERT_EQUAL(-60, nav.window.points[0].x_m);  // the route's start, behind the rider
+  TEST_ASSERT_TRUE(nav.window.has_maneuver_point);   // marker at point 2: left
+  TEST_ASSERT_EQUAL(180, nav.window.maneuver_point.x_m);
+  f.SendJson(0x04, R"({"t":"frame","epoch":8})");
+  TEST_ASSERT_FALSE(nav.has_window);
+}
+
 void TestBadMessagesAreCounted() {
   Fixture f;
   f.Hello();
@@ -330,6 +361,7 @@ int main() {
   RUN_TEST(TestStyleFollowsTheTheme);
   RUN_TEST(TestPoseNeedsTheFrame);
   RUN_TEST(TestHelloReportsTheHeldRoute);
+  RUN_TEST(TestPoseOnTheRouteMakesAWindow);
   RUN_TEST(TestBadMessagesAreCounted);
   return UNITY_END();
 }

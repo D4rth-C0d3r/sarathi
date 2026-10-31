@@ -26,6 +26,12 @@ struct RouteManeuver {
 
 constexpr size_t kMaxPathPoints = 128;
 
+// Route window settings (ADR-0002): how much route around the rider, and how closely the
+// simplified line follows it.
+constexpr float kWindowBehindM = 100.0F;
+constexpr float kWindowAheadM = 1500.0F;
+constexpr float kWindowToleranceM = 3.0F;
+
 class RoutePath {
  public:
   // `points` and `maneuvers` must outlive the path (typically constexpr tables). Up to
@@ -63,8 +69,12 @@ class RoutePath {
   std::array<float, kMaxPathPoints> cumulative_{};
 };
 
-// Douglas-Peucker on `points[0..count)`: marks the points to keep in `keep` (first and last
-// always kept). Returns how many are kept. Iterative, fixed-size stack, no heap.
+// The most points SimplifyPolyline takes (a full path plus interpolated window ends).
+constexpr size_t kMaxSimplifyPoints = kMaxPathPoints + 2;
+
+// Douglas-Peucker on `points[0..count)`, count <= kMaxSimplifyPoints: marks the points to keep
+// in `keep` (first and last always kept). Returns how many are kept. Iterative, fixed-size
+// stack, no heap.
 size_t SimplifyPolyline(const MetricPoint* points, size_t count, float tolerance_m, bool* keep);
 
 }  // namespace sarathi::core

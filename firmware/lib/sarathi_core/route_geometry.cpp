@@ -12,7 +12,7 @@ namespace {
 constexpr float kPi = 3.14159265358979F;
 constexpr float kDegPerRad = 180.0F / kPi;
 // Window extraction can add an interpolated start and end point to the path vertices.
-constexpr size_t kMaxWindowInput = kMaxPathPoints + 2;
+constexpr size_t kMaxWindowInput = kMaxSimplifyPoints;
 constexpr int kMaxSimplifyPasses = 12;
 
 float Distance(MetricPoint a, MetricPoint b) { return std::hypot(b.x - a.x, b.y - a.y); }

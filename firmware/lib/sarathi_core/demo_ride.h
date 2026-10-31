@@ -45,10 +45,7 @@ struct DemoScript {
 
 const DemoScript& DefaultDemoScript();
 
-// Route window settings (ADR-0002).
-constexpr float kWindowBehindM = 100.0F;
-constexpr float kWindowAheadM = 1500.0F;
-constexpr float kWindowToleranceM = 3.0F;
+// How often the demo ride cuts a new route window.
 constexpr uint32_t kWindowPeriodMs = 1000;
 
 // The demo clock starts at 18:55, so auto day/night switches to night five minutes in.

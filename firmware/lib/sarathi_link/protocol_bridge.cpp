@@ -91,7 +91,8 @@ uint32_t Digits(std::string_view s, size_t at) {
 ProtocolBridge::ProtocolBridge(const BridgeStorage& storage)
     : reassembler_(storage.reassembly, storage.reassembly_size),
       route_points_(storage.route_points),
-      route_points_size_(storage.route_points_size) {}
+      route_points_size_(storage.route_points_size),
+      tracker_(storage.tracker) {}
 
 void ProtocolBridge::Begin(core::AppModel& model) {
   model.SetCapabilities(kPhoneCapabilities);
@@ -213,7 +214,7 @@ void ProtocolBridge::OnJson(const proto::PhoneMessage& message, uint32_t now_ms,
           OnNav(m, now_ms, model);
         } else if constexpr (std::is_same_v<T, proto::NavEnd>) {
           model.EndNav();
-          has_route_ = false;
+          ForgetRoute(model);
         } else if constexpr (std::is_same_v<T, proto::Call>) {
           decltype(core::CallState::caller) caller;
           AssignText(caller, m.caller.View());
@@ -285,7 +286,12 @@ void ProtocolBridge::OnFrameEpoch(uint16_t epoch, core::AppModel& model) {
   }
   has_epoch_ = true;
   epoch_ = epoch;
+  ForgetRoute(model);
+}
+
+void ProtocolBridge::ForgetRoute(core::AppModel& model) {
   has_route_ = false;
+  tracker_.Clear();
   model.ClearRouteWindow();
 }
 
@@ -329,17 +335,50 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
   }
 }
 
-void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t /*now_ms*/, core::AppModel& model) {
+void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppModel& model) {
   // cm/s to km/h, rounded: 1 km/h = 27.78 cm/s.
   const uint32_t kmh = ((static_cast<uint32_t>(pose.speed_cms) * 36U) + 500U) / 1000U;
   model.SetSpeed(static_cast<uint16_t>(kmh));
+  if (!tracker_.HasRoute()) {
+    return;
+  }
+  constexpr float kMetresPerDm = 0.1F;
+  const core::MetricPoint rider{static_cast<float>(pose.x_dm) * kMetresPerDm,
+                                static_cast<float>(pose.y_dm) * kMetresPerDm};
+  const core::RouteFix fix = tracker_.Locate(rider);
+  constexpr uint16_t kCdegPerDeg = 100;
+  const uint16_t heading = pose.speed_cms >= kHeadingMinSpeedCms
+                               ? static_cast<uint16_t>(pose.heading_cdeg / kCdegPerDeg)
+                               : tracker_.HeadingAt(fix.along_m);
+  core::RouteWindow window;
+  tracker_.Window(rider, fix, heading, core::kWindowBehindM, core::kWindowAheadM,
+                  core::kWindowToleranceM, window);
+  window.sequence = ++window_sequence_;
+  model.SetRouteWindow(window, now_ms);
 }
 
-void ProtocolBridge::OnRoute(const proto::Route& route, core::AppModel& /*model*/) {
+// The route replaces the one held (a reroute has a new version). Positions arrive in quanta.
+void ProtocolBridge::OnRoute(const proto::Route& route, core::AppModel& model) {
+  constexpr float kMetresPerDm = 0.1F;
+  if (!tracker_.SetRoute(route.points, route.n_points,
+                         static_cast<float>(route.quantum_dm) * kMetresPerDm)) {
+    ForgetRoute(model);
+    DropMessage(static_cast<uint8_t>(proto::MsgType::kRoute), "no_room");
+    return;
+  }
+  for (size_t i = 0; i < route.n_markers; ++i) {
+    const proto::RouteMarker& marker = route.markers[i];  // NOLINT(*-pointer-arithmetic)
+    const auto m = static_cast<proto::Maneuver>(
+        marker.maneuver < proto::kManeuverCount ? marker.maneuver
+                                                : static_cast<uint8_t>(proto::Maneuver::kStraight));
+    core::Maneuver glyph;
+    glyph.type = Glyph(m);
+    glyph.roundabout_exit = m == proto::Maneuver::kRoundabout ? marker.exit : 0;
+    tracker_.AddManeuver(marker.point, glyph);  // the decoder checked the order
+  }
   has_route_ = true;
   route_id_ = route.route_id;
   route_version_ = route.version;
-  route_quantum_dm_ = route.quantum_dm;
 }
 
 void ProtocolBridge::Tick(uint32_t now_ms, core::AppModel& model, Outbox& out) {
