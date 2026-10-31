@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4rth-C0d3r/sarathi/docs/protocol/schema/lock.schema.json",
+  "title": "lock",
+  "description": "The moving lock's settings (protocol 1.1, ADR-0011). stop_kmh must be below move_kmh: JSON Schema can't say that, so codecs check it (protocol.md section 3).",
+  "type": "object",
+  "properties": {
+    "t": {"const": "lock"},
+    "enabled": {"type": "boolean"},
+    "move_kmh": {"type": "integer", "minimum": 1, "maximum": 50},
+    "move_s": {"type": "integer", "minimum": 0, "maximum": 30},
+    "stop_kmh": {"type": "integer", "minimum": 0, "maximum": 49},
+    "stop_s": {"type": "integer", "minimum": 0, "maximum": 60}
+  },
+  "required": ["t", "enabled", "move_kmh", "move_s", "stop_kmh", "stop_s"],
+  "additionalProperties": true
+}

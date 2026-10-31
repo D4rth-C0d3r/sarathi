@@ -37,7 +37,7 @@ NEXT_HEADER = 3
 
 TYPES = {
     0x01: "hello", 0x02: "time", 0x03: "phone_batt", 0x04: "frame", 0x05: "backend",
-    0x06: "event", 0x07: "nav", 0x08: "nav_end", 0x09: "call", 0x0A: "media",
+    0x06: "event", 0x07: "nav", 0x08: "nav_end", 0x09: "call", 0x0A: "media", 0x0B: "lock",
     0x10: "chunk_ack", 0x11: "flow", 0x12: "style", 0x13: "call_action", 0x14: "media_cmd",
     0x40: "pose", 0x41: "route", 0x42: "traffic", 0x43: "chunk", 0x44: "chunk_have",
 }
@@ -238,6 +238,9 @@ def validate_json(msg_type: int, payload: bytes, direction: str) -> dict:
         _check(obj, schema_for(TYPES[msg_type], direction), "$")
     except Invalid as e:
         raise Invalid(f"invalid ({e})") from None
+    # Rules a schema can't state (protocol.md section 3).
+    if obj["t"] == "lock" and obj["stop_kmh"] >= obj["move_kmh"]:
+        raise Invalid("invalid ($.stop_kmh: below move_kmh)")
     return obj
 
 
@@ -526,6 +529,8 @@ JSON_VALID = [
     ("call-escapes", "phone", {"t": "call", "phase": "active", "caller": "Dr \"K\" \\ A\tB\u0001"}),
     ("media", "phone", {"t": "media", "avail": True, "playing": True, "title": "Kesariya", "artist": "Arijit Singh",
                         "pos_s": 25, "dur_s": 268}),
+    ("lock-default", "phone", {"t": "lock", "enabled": True, "move_kmh": 5, "move_s": 2, "stop_kmh": 3, "stop_s": 5}),
+    ("lock-off", "phone", {"t": "lock", "enabled": False, "move_kmh": 10, "move_s": 0, "stop_kmh": 0, "stop_s": 60}),
     ("chunk-ack", "device", {"t": "chunk_ack", "stored": [[0, 11553, 7334, 20261018]], "refused": [[1, 2888, 1833, 20261018, "full"]]}),
     ("flow", "device", {"t": "flow", "window": 32, "consumed": 1}),
     ("style", "device", {"t": "style", "map": "hud", "layers": ["water"]}),
@@ -544,6 +549,10 @@ JSON_INVALID = [
     ("not-object", "phone", 0x04, '[7]', "type_mismatch"),
     ("bad-enum", "device", 0x13, '{"t":"call_action","action":"answer"}', "invalid"),
     ("fallback-without-reason", "phone", 0x06, '{"t":"event","kind":"fallback","from":"google","to":"mappls"}', "invalid"),
+    ("lock-stop-not-below-move", "phone", 0x0B,
+     '{"t":"lock","enabled":true,"move_kmh":5,"move_s":2,"stop_kmh":5,"stop_s":5}', "invalid"),
+    ("lock-too-fast", "phone", 0x0B,
+     '{"t":"lock","enabled":true,"move_kmh":51,"move_s":2,"stop_kmh":3,"stop_s":5}', "invalid"),
     ("bad-time", "phone", 0x02, '{"t":"time","local":"31/10/2026 18:42","utc_offset_min":330}', "invalid"),
     ("too-long", "phone", 0x0A, json.dumps({"t": "media", "avail": True, "playing": True, "title": "a", "artist": "b",
                                              "pos_s": 0, "dur_s": 0, "pad": "x" * 2100}), "too_long"),

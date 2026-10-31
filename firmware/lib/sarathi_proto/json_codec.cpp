@@ -217,6 +217,14 @@ bool DecodeMedia(const Fields& f, Media* m) {
          f.Uint(kRoot, "pos_s", 0, 86400, &m->pos_s) && f.Uint(kRoot, "dur_s", 0, 86400, &m->dur_s);
 }
 
+// stop_kmh below move_kmh: a rule the schema can't state (protocol.md section 3).
+bool DecodeLock(const Fields& f, Lock* m) {
+  return f.Bool(kRoot, "enabled", &m->enabled) && f.Uint(kRoot, "move_kmh", 1, 50, &m->move_kmh) &&
+         f.Uint(kRoot, "move_s", 0, 30, &m->move_s) &&
+         f.Uint(kRoot, "stop_kmh", 0, 49, &m->stop_kmh) &&
+         f.Uint(kRoot, "stop_s", 0, 60, &m->stop_s) && m->stop_kmh < m->move_kmh;
+}
+
 template <typename T>
 bool DecodeInto(const Fields& f, PhoneMessage* out, bool (*decode)(const Fields&, T*)) {
   T message{};
@@ -293,8 +301,7 @@ const char* JsonErrorName(JsonError error) {
 
 JsonError PhoneJsonDecoder::Decode(uint8_t type, const uint8_t* data, size_t size,
                                    PhoneMessage* out) {
-  if (type < static_cast<uint8_t>(MsgType::kHello) ||
-      type > static_cast<uint8_t>(MsgType::kMedia)) {
+  if (type < static_cast<uint8_t>(MsgType::kHello) || type > static_cast<uint8_t>(MsgType::kLock)) {
     return JsonError::kUnknownType;
   }
   if (size > kMaxJson) {
@@ -351,6 +358,9 @@ JsonError PhoneJsonDecoder::Decode(uint8_t type, const uint8_t* data, size_t siz
       break;
     case MsgType::kMedia:
       ok = DecodeInto(f, out, DecodeMedia);
+      break;
+    case MsgType::kLock:
+      ok = DecodeInto(f, out, DecodeLock);
       break;
     default:
       return JsonError::kUnknownType;
@@ -477,6 +487,21 @@ size_t EncodeJson(const Media& m, char* out, size_t capacity) {
   w.Uint(m.pos_s);
   w.Key("dur_s");
   w.Uint(m.dur_s);
+  return Done(w);
+}
+
+size_t EncodeJson(const Lock& m, char* out, size_t capacity) {
+  JsonWriter w = Begin(out, capacity, MsgType::kLock);
+  w.Key("enabled");
+  w.Bool(m.enabled);
+  w.Key("move_kmh");
+  w.Uint(m.move_kmh);
+  w.Key("move_s");
+  w.Uint(m.move_s);
+  w.Key("stop_kmh");
+  w.Uint(m.stop_kmh);
+  w.Key("stop_s");
+  w.Uint(m.stop_s);
   return Done(w);
 }
 

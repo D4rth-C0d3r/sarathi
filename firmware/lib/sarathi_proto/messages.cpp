@@ -33,6 +33,8 @@ std::string_view MsgTypeName(uint8_t type) {
       return "call";
     case MsgType::kMedia:
       return "media";
+    case MsgType::kLock:
+      return "lock";
     case MsgType::kChunkAck:
       return "chunk_ack";
     case MsgType::kFlow:

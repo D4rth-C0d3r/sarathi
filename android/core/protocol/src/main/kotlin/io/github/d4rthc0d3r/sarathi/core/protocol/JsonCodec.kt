@@ -19,6 +19,7 @@ object JsonCodec {
             MsgType.NAV_END to NavEnd::read,
             MsgType.CALL to Call::read,
             MsgType.MEDIA to Media::read,
+            MsgType.LOCK to Lock::read,
         )
 
     private val deviceReaders: Map<Int, (Fields) -> JsonMessage> =

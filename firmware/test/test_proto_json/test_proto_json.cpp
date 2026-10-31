@@ -70,6 +70,7 @@ JsonError Decode(uint8_t type, const std::string& payload, PhoneMessage* out) {
 std::map<std::string, std::string> DeviceMessages() {
   std::map<std::string, std::string> out;
   HelloDevice hello;
+  hello.proto_minor = 0;  // the vectors are a 1.0 dash
   hello.fw.Assign("0.5.0");
   hello.seq = 500;
   hello.styles.at(0).Assign("classic");
@@ -178,7 +179,7 @@ void TestDecodeRejects() {
   };
   // Device → phone types and unknown types are not the device's to decode.
   TEST_ASSERT_EQUAL_STRING("unknown_type", error(0x11, R"({"t":"flow"})").c_str());
-  TEST_ASSERT_EQUAL_STRING("unknown_type", error(0x0B, "{}").c_str());
+  TEST_ASSERT_EQUAL_STRING("unknown_type", error(0x0C, "{}").c_str());
   // An optional event field is still checked when present.
   TEST_ASSERT_EQUAL_STRING("invalid",
                            error(0x06, R"({"t":"event","kind":"reroute","percent":101})").c_str());

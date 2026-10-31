@@ -1,4 +1,4 @@
-# sārathi phone ↔ device protocol, version 1.0
+# sārathi phone ↔ device protocol, version 1.1
 
 The protocol between the sārathi Android app ("phone") and the dash ("device"), decided in
 ADR-0007. This file is the specification. JSON Schemas for the JSON messages are in
@@ -121,6 +121,7 @@ frag: bit 7 = FIRST, bit 6 = LAST, bits 0–5 = fragment index (0–63)
 | `0x08` | `nav_end` | phone → device | JSON | 3 |
 | `0x09` | `call` | phone → device | JSON | 3 |
 | `0x0A` | `media` | phone → device | JSON | 3 |
+| `0x0B` | `lock` | phone → device | JSON | 3 (since 1.1) |
 | `0x10` | `chunk_ack` | device → phone | JSON | 3 |
 | `0x11` | `flow` | device → phone | JSON | 3 |
 | `0x12` | `style` | device → phone | JSON | 3 |
@@ -170,7 +171,7 @@ Unknown types are ignored (versioning, section 6).
 
 | Message | Fields | When |
 |---|---|---|
-| `hello` | `proto` [major, minor] = [1, 0]; `app` app version (≤ 32 B); `caps` list of strings from `google`, `mappls`, `osm`, `offline`, `traffic`, `calls`, `media` | First message after connecting (Write with response) |
+| `hello` | `proto` [major, minor] = [1, 1]; `app` app version (≤ 32 B); `caps` list of strings from `google`, `mappls`, `osm`, `offline`, `traffic`, `calls`, `media` | First message after connecting (Write with response) |
 | `time` | `local` local time `YYYY-MM-DDTHH:MM:SS`; `utc_offset_min` −720…840 | After `hello`, then every 10 min |
 | `phone_batt` | `level` 0–100; `charging` bool | After `hello`, then on change |
 | `frame` | `epoch` 0–65,535 | At ride start and when re-anchoring (ADR-0009) |
@@ -180,6 +181,7 @@ Unknown types are ignored (versioning, section 6).
 | `nav_end` | `reason` `arrived`, `cancelled` or `error` | When navigation ends |
 | `call` | `phase` `ringing`, `active` or `idle`; `caller` (≤ 32 B, may be empty) | On change |
 | `media` | `avail` bool; `playing` bool; `title` (≤ 48 B); `artist` (≤ 48 B); `pos_s` 0–86,400; `dur_s` 0–86,400 (0 = unknown) | On change, and every 5 s while playing |
+| `lock` (1.1) | The moving lock (settings locked while moving, section 5): `enabled` bool, **false turns the lock off entirely** (the owner's choice, ADR-0011); `move_kmh` 1–50 and `move_s` 0–30: moving once `pose` speed is at least `move_kmh` for `move_s`; `stop_kmh` 0–49, **below `move_kmh`**, and `stop_s` 0–60: stopped once speed is below `stop_kmh` for `stop_s` | After `hello`, and on change |
 
 **Maneuvers:** the `m` strings, with numeric codes used by the binary `route` message.
 Codes 12–19 have no glyph of their own yet; the device draws the fallback until they do.
@@ -203,7 +205,7 @@ An unknown `m` (a newer minor version) is drawn as `straight`.
 
 | Message | Fields | When |
 |---|---|---|
-| `hello` | `proto` [1, 0]; `fw` firmware version (≤ 16 B); `seq` firmware seq; `caps`: `styles` (list of map style names), `chunk_kb` chunk cache size, `max_msg` (15,360); `route`: `{ "id", "v" }` of the route it holds, or `null`; `epoch` it holds, or `null` | Reply to the phone's `hello` |
+| `hello` | `proto` [1, 1]; `fw` firmware version (≤ 16 B); `seq` firmware seq; `caps`: `styles` (list of map style names), `chunk_kb` chunk cache size, `max_msg` (15,360); `route`: `{ "id", "v" }` of the route it holds, or `null`; `epoch` it holds, or `null` | Reply to the phone's `hello` |
 | `flow` | `window` 1–64 frames; `consumed` u32 | See section 1 |
 | `style` | `map` active map style (`classic`, `hud`, `racing`, `minimal`); `layers` list from `water`, `parks` | After `hello`, then on change |
 | `chunk_ack` | `stored` list of keys `[level, tile_x, tile_y, data_version]`; `refused` list of `[level, tile_x, tile_y, data_version, reason]`, reason `full`, `invalid`, `epoch` | After receiving chunks (batched, at most every 500 ms) |
@@ -327,6 +329,12 @@ what's near.
 Single-frame messages are sent between the fragments of a multi-frame `chunk`. A `route`
 may abandon an unfinished `chunk` by starting its own multi-frame message.
 
+**Moving** (the settings lock, CLAUDE.md "Rider safety"): the device follows `pose` speed
+with the `lock` thresholds, or until a `lock` arrives the defaults: moving at 5 km/h for 2 s,
+stopped below 3 km/h for 5 s, enabled. With no `pose` for 5 s, it falls back to the rule for
+a source without speed: settings locked while navigating. With `enabled` false, settings never
+lock for movement.
+
 **Device staleness rules** (shown on screen, never silent):
 - **No `pose`:** for 3 s shows "Position stale"; dead-reckoning stops after 5 s.
 - **No `nav`:** for 10 s while navigating shows "Navigation stale".
@@ -342,12 +350,14 @@ may abandon an unfinished `chunk` by starting its own multi-frame message.
   Receivers ignore unknown types and keys, and handle unknown enum values as each table
   says.
 - **Binary layouts change only with a new `ver` byte.**
+- **History:** 1.0 (2026-10-31), the first version. 1.1 (2026-10-31) adds `lock`; a 1.0 peer
+  ignores it and the device keeps its defaults.
 
 ## 7. Rates (typical)
 
 | Message | Rate |
 |---|---|
-| `pose` | 2 Hz |
+| `pose` | 2 Hz while navigating; 1 Hz otherwise |
 | `nav` | 1 Hz, plus on change |
 | `traffic` | On change, at most every 30 s |
 | `media` | On change; every 5 s while playing |

@@ -332,3 +332,51 @@ data class Media(
             )
     }
 }
+
+/**
+ * The moving lock's settings (protocol 1.1, ADR-0011): moving once speed is at least [moveKmh]
+ * for [moveS], stopped once below [stopKmh] for [stopS]. [enabled] false turns the lock off
+ * entirely, the owner's choice; the app warns before sending it.
+ */
+data class Lock(
+    val enabled: Boolean = true,
+    val moveKmh: Int = DEFAULT_MOVE_KMH,
+    val moveS: Int = DEFAULT_MOVE_S,
+    val stopKmh: Int = DEFAULT_STOP_KMH,
+    val stopS: Int = DEFAULT_STOP_S,
+) : JsonMessage {
+    override val type get() = MsgType.LOCK
+
+    init {
+        require(moveKmh in MOVE_KMH && moveS in MOVE_S && stopKmh in STOP_KMH && stopS in STOP_S) { "lock range" }
+        require(stopKmh < moveKmh) { "stop_kmh: below move_kmh" }
+    }
+
+    override fun write(w: CanonicalJsonWriter) {
+        w.field("enabled", enabled)
+        w.field("move_kmh", moveKmh.toLong())
+        w.field("move_s", moveS.toLong())
+        w.field("stop_kmh", stopKmh.toLong())
+        w.field("stop_s", stopS.toLong())
+    }
+
+    companion object {
+        const val DEFAULT_MOVE_KMH = 5
+        const val DEFAULT_MOVE_S = 2
+        const val DEFAULT_STOP_KMH = 3
+        const val DEFAULT_STOP_S = 5
+        val MOVE_KMH = 1..50
+        val MOVE_S = 0..30
+        val STOP_KMH = 0..49
+        val STOP_S = 0..60
+
+        fun read(f: Fields) =
+            Lock(
+                f.bool("enabled"),
+                f.int("move_kmh", MOVE_KMH),
+                f.int("move_s", MOVE_S),
+                f.int("stop_kmh", STOP_KMH),
+                f.int("stop_s", STOP_S),
+            )
+    }
+}

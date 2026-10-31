@@ -25,8 +25,8 @@ enum class JsonError : uint8_t {
 
 [[nodiscard]] const char* JsonErrorName(JsonError error);
 
-using PhoneMessage =
-    std::variant<HelloPhone, Time, PhoneBatt, FrameEpoch, Backend, Event, Nav, NavEnd, Call, Media>;
+using PhoneMessage = std::variant<HelloPhone, Time, PhoneBatt, FrameEpoch, Backend, Event, Nav,
+                                  NavEnd, Call, Media, Lock>;
 
 // Holds the tokenizer (a few KB), so it is meant to be allocated once, not on a small stack.
 class PhoneJsonDecoder {
@@ -49,6 +49,7 @@ size_t EncodeJson(const Nav& m, char* out, size_t capacity);
 size_t EncodeJson(const NavEnd& m, char* out, size_t capacity);
 size_t EncodeJson(const Call& m, char* out, size_t capacity);
 size_t EncodeJson(const Media& m, char* out, size_t capacity);
+size_t EncodeJson(const Lock& m, char* out, size_t capacity);
 size_t EncodeJson(const HelloDevice& m, char* out, size_t capacity);
 size_t EncodeJson(const ChunkAck& m, char* out, size_t capacity);
 size_t EncodeJson(const Flow& m, char* out, size_t capacity);

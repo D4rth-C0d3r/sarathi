@@ -32,14 +32,19 @@ class DashLink(
     private val appVersion: String,
     private val scope: CoroutineScope,
     private val caps: Set<PhoneCap> = emptySet(),
-) {
+) : DashChannel {
     private val _state = MutableStateFlow<LinkState>(LinkState.Stopped)
     val state: StateFlow<LinkState> = _state.asStateFlow()
 
     private val _received = MutableSharedFlow<JsonMessage>(extraBufferCapacity = BUFFER)
+    override val received: SharedFlow<JsonMessage> = _received.asSharedFlow()
 
-    /** Messages from the dash (call_action, media_cmd, style, ...). */
-    val received: SharedFlow<JsonMessage> = _received.asSharedFlow()
+    private val _ready = MutableStateFlow(false)
+    override val ready: StateFlow<Boolean> = _ready.asStateFlow()
+
+    init {
+        scope.launch { state.collect { _ready.value = it is LinkState.Ready } }
+    }
 
     private var job: Job? = null
     private var session: PhoneLinkSession? = null
@@ -58,9 +63,9 @@ class DashLink(
     }
 
     /** Sends to the dash once it's ready; throws [LinkClosedException] or IllegalStateException if not. */
-    suspend fun send(message: JsonMessage) = checkNotNull(session) { "not connected" }.send(message)
+    override suspend fun send(message: JsonMessage) = checkNotNull(session) { "not connected" }.send(message)
 
-    suspend fun send(message: BinaryMessage) = checkNotNull(session) { "not connected" }.send(message)
+    override suspend fun send(message: BinaryMessage) = checkNotNull(session) { "not connected" }.send(message)
 
     private suspend fun runForever() {
         var earlyDrops = 0

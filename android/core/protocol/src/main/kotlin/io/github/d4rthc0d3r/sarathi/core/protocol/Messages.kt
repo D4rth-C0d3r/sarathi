@@ -12,6 +12,7 @@ object MsgType {
     const val NAV_END = 0x08
     const val CALL = 0x09
     const val MEDIA = 0x0A
+    const val LOCK = 0x0B // since 1.1
     const val CHUNK_ACK = 0x10
     const val FLOW = 0x11
     const val STYLE = 0x12
@@ -35,6 +36,7 @@ object MsgType {
             NAV_END to "nav_end",
             CALL to "call",
             MEDIA to "media",
+            LOCK to "lock",
             CHUNK_ACK to "chunk_ack",
             FLOW to "flow",
             STYLE to "style",
@@ -53,7 +55,7 @@ object MsgType {
 
 object ProtocolVersion {
     const val MAJOR = 1
-    const val MINOR = 0
+    const val MINOR = 1
 }
 
 /** Which side sends a message; the vectors' `direction`. */

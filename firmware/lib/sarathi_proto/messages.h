@@ -26,6 +26,7 @@ enum class MsgType : uint8_t {
   kNavEnd = 0x08,
   kCall = 0x09,
   kMedia = 0x0A,
+  kLock = 0x0B,  // since 1.1
   kChunkAck = 0x10,
   kFlow = 0x11,
   kStyle = 0x12,
@@ -42,7 +43,7 @@ enum class MsgType : uint8_t {
 [[nodiscard]] std::string_view MsgTypeName(uint8_t type);
 
 constexpr uint8_t kProtoMajor = 1;
-constexpr uint8_t kProtoMinor = 0;
+constexpr uint8_t kProtoMinor = 1;
 constexpr size_t kMaxJson = 2048;
 
 enum class Routing : uint8_t { kGoogle, kMappls, kOsmOnline, kOsmOffline };
@@ -163,6 +164,15 @@ struct Media {
   FixedString<48> artist;
   uint32_t pos_s = 0;
   uint32_t dur_s = 0;
+};
+
+// The moving lock's settings (1.1, ADR-0011). The defaults apply until the phone sends its own.
+struct Lock {
+  bool enabled = true;  // false: settings never lock for movement (the owner's choice)
+  uint8_t move_kmh = 5;
+  uint8_t move_s = 2;
+  uint8_t stop_kmh = 3;  // below move_kmh
+  uint8_t stop_s = 5;
 };
 
 // ---- Device → phone.

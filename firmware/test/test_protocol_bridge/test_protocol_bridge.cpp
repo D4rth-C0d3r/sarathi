@@ -125,7 +125,7 @@ void TestHelloRepliesHelloFlowStyle() {
   TEST_ASSERT_EQUAL(3, f.out.sent.size());
   TEST_ASSERT_EQUAL(0x01, f.out.sent[0].type);
   TEST_ASSERT_EQUAL_STRING(
-      R"({"t":"hello","proto":[1,0],"fw":"0.0.0-dev","seq":0,"caps":{"styles":["classic","hud","racing"],"chunk_kb":0,"max_msg":15360},"route":null,"epoch":null})",
+      R"({"t":"hello","proto":[1,1],"fw":"0.0.0-dev","seq":0,"caps":{"styles":["classic","hud","racing"],"chunk_kb":0,"max_msg":15360},"route":null,"epoch":null})",
       f.out.sent[0].text.c_str());
   TEST_ASSERT_EQUAL_STRING(R"({"t":"flow","window":32,"consumed":1})", f.out.sent[1].text.c_str());
   TEST_ASSERT_EQUAL_STRING(R"({"t":"style","map":"classic","layers":[]})",

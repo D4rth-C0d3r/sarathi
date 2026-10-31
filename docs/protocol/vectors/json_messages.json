@@ -141,6 +141,20 @@
    "canonical": "{\"t\":\"media\",\"avail\":true,\"playing\":true,\"title\":\"Kesariya\",\"artist\":\"Arijit Singh\",\"pos_s\":25,\"dur_s\":268}"
   },
   {
+   "name": "lock-default",
+   "direction": "phone",
+   "type": 11,
+   "payload": "{\"t\":\"lock\",\"enabled\":true,\"move_kmh\":5,\"move_s\":2,\"stop_kmh\":3,\"stop_s\":5}",
+   "canonical": "{\"t\":\"lock\",\"enabled\":true,\"move_kmh\":5,\"move_s\":2,\"stop_kmh\":3,\"stop_s\":5}"
+  },
+  {
+   "name": "lock-off",
+   "direction": "phone",
+   "type": 11,
+   "payload": "{\"t\":\"lock\",\"enabled\":false,\"move_kmh\":10,\"move_s\":0,\"stop_kmh\":0,\"stop_s\":60}",
+   "canonical": "{\"t\":\"lock\",\"enabled\":false,\"move_kmh\":10,\"move_s\":0,\"stop_kmh\":0,\"stop_s\":60}"
+  },
+  {
    "name": "chunk-ack",
    "direction": "device",
    "type": 16,
@@ -238,6 +252,20 @@
    "direction": "phone",
    "type": 6,
    "payload": "{\"t\":\"event\",\"kind\":\"fallback\",\"from\":\"google\",\"to\":\"mappls\"}",
+   "error": "invalid"
+  },
+  {
+   "name": "lock-stop-not-below-move",
+   "direction": "phone",
+   "type": 11,
+   "payload": "{\"t\":\"lock\",\"enabled\":true,\"move_kmh\":5,\"move_s\":2,\"stop_kmh\":5,\"stop_s\":5}",
+   "error": "invalid"
+  },
+  {
+   "name": "lock-too-fast",
+   "direction": "phone",
+   "type": 11,
+   "payload": "{\"t\":\"lock\",\"enabled\":true,\"move_kmh\":51,\"move_s\":2,\"stop_kmh\":3,\"stop_s\":5}",
    "error": "invalid"
   },
   {
