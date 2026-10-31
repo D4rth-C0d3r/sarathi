@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import androidx.core.app.NotificationManagerCompat
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 
 /** Each setup step, in the order the app asks for them. */
@@ -15,6 +16,7 @@ enum class SetupStep {
     BACKGROUND_LOCATION,
     BATTERY,
     PAIR,
+    MUSIC,
 }
 
 /** What's done, read fresh from Android every time the app comes to the front. */
@@ -72,6 +74,10 @@ data class SetupState(
 
                 SetupStep.PAIR -> {
                     association.address() != null
+                }
+
+                SetupStep.MUSIC -> {
+                    NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
                 }
             }
 

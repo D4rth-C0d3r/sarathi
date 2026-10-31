@@ -2,7 +2,9 @@ package io.github.d4rthc0d3r.sarathi
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -16,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
+import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
 import io.github.d4rthc0d3r.sarathi.ui.MainViewModel
@@ -96,8 +99,22 @@ class MainActivity : ComponentActivity() {
             SetupStep.PAIR -> {
                 findDash()
             }
+
+            SetupStep.MUSIC -> {
+                systemScreen.launch(notificationAccess())
+            }
         }
     }
+
+    private fun notificationAccess(): Intent =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                ComponentName(this, DashNotificationListener::class.java).flattenToString(),
+            )
+        } else {
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        }
 
     private fun findDash() {
         DashAssociation(this).request(

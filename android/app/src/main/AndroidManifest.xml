@@ -62,6 +62,17 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location" />
 
+        <!-- Notification access: music reads the phone's media sessions through it. -->
+        <service
+            android:name=".link.DashNotificationListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Android binds this when the dash appears or disappears (auto-start, Android 12+). -->
         <service
             android:name=".link.DashPresenceService"

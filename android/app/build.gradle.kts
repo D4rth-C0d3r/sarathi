@@ -48,6 +48,7 @@ android {
 dependencies {
     implementation(project(":core:protocol"))
     implementation(project(":core:ble"))
+    implementation(project(":feature:media"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.service)

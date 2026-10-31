@@ -16,31 +16,18 @@ import androidx.lifecycle.lifecycleScope
 import io.github.d4rthc0d3r.sarathi.core.ble.DashGatt
 import io.github.d4rthc0d3r.sarathi.core.ble.DashLink
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
-import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneBattery
-import io.github.d4rthc0d3r.sarathi.core.protocol.TimeSync
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * The ride link: a foreground service that keeps the dash connected with the screen off and the
- * phone in Doze (ADR-0010). Types connectedDevice and, when Android allows it, location. It
- * sends the time every 10 minutes and the phone's battery on change; navigation, calls and
- * music arrive in later steps.
+ * phone in Doze (ADR-0010). Types connectedDevice and, when Android allows it, location. What
+ * flows over the link is [RideSession]'s.
  */
 class RideLinkService : LifecycleService() {
     private var link: DashLink? = null
     private var startedByPresence = false
     private var locationCheck: LocationCheck? = null
-    private var clock: Job? = null
-    private var battery: PhoneBattery? = null
-    private val batteryWatcher =
-        BatteryWatcher(this) {
-            battery = it
-            send(it)
-        }
+    private var session: RideSession? = null
 
     override fun onStartCommand(
         intent: Intent?,
@@ -66,10 +53,10 @@ class RideLinkService : LifecycleService() {
         goForeground(LinkState.Waiting)
         if (link == null) {
             val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
-            link = DashLink(this, address, versionName, lifecycleScope).also { it.start() }
-            batteryWatcher.start()
-            lifecycleScope.launch { link?.state?.collect { onLinkState(it) } }
-            lifecycleScope.launch { link?.received?.collect { Log.i(TAG, "from the dash: $it") } }
+            val dash = DashLink(this, address, versionName, lifecycleScope, RideSession.caps(this)).also { it.start() }
+            link = dash
+            session = RideSession(this, dash, lifecycleScope).also { it.start() }
+            lifecycleScope.launch { dash.state.collect { onLinkState(it) } }
         }
         return START_STICKY
     }
@@ -105,40 +92,17 @@ class RideLinkService : LifecycleService() {
     private fun onLinkState(state: LinkState) {
         Log.i(TAG, "link: $state")
         LinkRepository.update { it.copy(link = state) }
-        getSystemService(
-            NotificationManager::class.java,
-        ).notify(NOTIFICATION_ID, RideNotification.build(this, state, stopIntent()))
-        clock?.cancel()
-        if (state is LinkState.Ready) {
-            clock = lifecycleScope.launch { sendTimeEvery10Minutes() }
-            battery?.let { send(it) }
-        }
-    }
-
-    private suspend fun sendTimeEvery10Minutes() {
-        while (true) {
-            val now = ZonedDateTime.now()
-            send(TimeSync(now.format(LOCAL_TIME), now.offset.totalSeconds / SECONDS_PER_MINUTE))
-            delay(TIME_PERIOD_MS)
-        }
-    }
-
-    private fun send(message: io.github.d4rthc0d3r.sarathi.core.protocol.JsonMessage) {
-        val dash = link ?: return
-        if (dash.state.value !is LinkState.Ready) return
-        lifecycleScope.launch {
-            runCatching { dash.send(message) }
-                .onSuccess { Log.d(TAG, "sent $message") }
-                .onFailure { Log.w(TAG, "send failed: ${it.message}") }
-        }
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, RideNotification.build(this, state, stopIntent()))
     }
 
     private fun stopLink(): Int {
+        session?.stop()
+        session = null
         link?.stop()
         link = null
         locationCheck?.stop()
         locationCheck = null
-        batteryWatcher.stop()
         LinkRepository.update { LinkRepository.Status() }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -148,6 +112,7 @@ class RideLinkService : LifecycleService() {
     private fun stopIntent(): Intent = Intent(this, RideLinkService::class.java).setAction(ACTION_STOP)
 
     override fun onDestroy() {
+        session?.stop()
         link?.stop()
         locationCheck?.stop()
         LinkRepository.update { LinkRepository.Status() }
@@ -160,9 +125,6 @@ class RideLinkService : LifecycleService() {
         private const val ACTION_STOP = "io.github.d4rthc0d3r.sarathi.STOP"
         private const val ACTION_PRESENCE_GONE = "io.github.d4rthc0d3r.sarathi.PRESENCE_GONE"
         private const val EXTRA_FROM_PRESENCE = "from_presence"
-        private const val TIME_PERIOD_MS = 10 * 60 * 1000L
-        private const val SECONDS_PER_MINUTE = 60
-        private val LOCAL_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
         /** Starts (or keeps) the ride link. From the app, or from auto-start ([fromPresence]). */
         fun start(

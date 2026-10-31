@@ -25,3 +25,4 @@ rootProject.name = "sarathi"
 include(":app")
 include(":core:protocol")
 include(":core:ble")
+include(":feature:media")

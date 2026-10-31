@@ -36,6 +36,8 @@
     <string name="setup_battery_reason">Let the app run without battery restrictions, so Android doesn\'t stop the link to the dash mid-ride. It uses little battery while connected.</string>
     <string name="setup_pair">Pair with your dash</string>
     <string name="setup_pair_reason">Turn the dash on nearby. Pick \"sarathi\" in the list, then compare the 6-digit code on the phone and on the dash: if they match, turn the knob to Pair and click.</string>
+    <string name="setup_music">Music on the dash</string>
+    <string name="setup_music_reason">Turn on notification access for sārathi, so the dash can show what\'s playing and skip tracks. sārathi only reads the playing music; it doesn\'t read or keep other apps\' notifications.</string>
     <string name="pair_failed">Could not look for the dash: %1$s</string>
 
     <!-- Ride link -->

@@ -40,5 +40,9 @@ object SetupTexts {
             SetupStep.PAIR -> {
                 Texts(R.string.setup_pair, R.string.setup_pair_reason, R.string.find_dash)
             }
+
+            SetupStep.MUSIC -> {
+                Texts(R.string.setup_music, R.string.setup_music_reason, R.string.open_settings)
+            }
         }
 }
