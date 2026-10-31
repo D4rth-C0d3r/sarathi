@@ -2,6 +2,42 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Every permission and why (ADR-0010, SECURITY.md). The app never scans for Bluetooth
+         devices itself: the system's companion chooser finds the dash, so there is no
+         BLUETOOTH_SCAN and no location use for scanning. -->
+
+    <!-- Connect to the dash (Android 12+: "Nearby devices"). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- The same on Android 8-11, where it's granted at install. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- The ride link's ongoing notification (Android 13+ asks). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The ride link runs as a foreground service with the screen off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Navigation needs the phone's position during the ride. "All the time", so the ride works
+         with the phone locked in a pocket and survives a restart by Android (ADR-0010). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Companion device: start the ride link from the background, and (optional auto-start)
+         be woken when the dash appears nearby. -->
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+
+    <!-- Ask to be exempt from battery optimisation (the rider confirms in a system dialog). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <uses-feature android:name="android.software.companion_device_setup" android:required="true" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -13,12 +49,28 @@
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".link.RideLinkService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
+
+        <!-- Android binds this when the dash appears or disappears (auto-start, Android 12+). -->
+        <service
+            android:name=".link.DashPresenceService"
+            android:exported="true"
+            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE">
+            <intent-filter>
+                <action android:name="android.companion.CompanionDeviceService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

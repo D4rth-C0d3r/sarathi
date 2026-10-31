@@ -1,5 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">sārathi</string>
-    <string name="status_not_connected">Not connected</string>
+
+    <!-- Ride link notification -->
+    <string name="channel_ride_link">Ride link</string>
+    <string name="action_stop">Stop</string>
+
+    <!-- Link state -->
+    <string name="link_stopped">Not running</string>
+    <string name="link_waiting">Looking for sārathi</string>
+    <string name="link_pairing">Pairing: compare the codes, then Pair on the dash with the knob</string>
+    <string name="link_connecting">Connecting to sārathi</string>
+    <string name="link_ready">Connected to sārathi</string>
+    <string name="link_update_app">The dash needs a newer app</string>
+    <string name="link_update_dash">The dash needs a firmware update</string>
+    <string name="problem_no_permission">Allow Nearby devices to connect to the dash</string>
+    <string name="problem_bluetooth_off">Bluetooth is off</string>
+    <string name="problem_pairing_failed">Pairing didn\'t finish; trying again</string>
+    <string name="problem_stale_pairing">The dash doesn\'t know this phone any more. Forget sārathi in Bluetooth settings, then pair again</string>
+    <string name="problem_other">Connection problem; trying again</string>
+
+    <!-- Setup: each step says what the rider gets -->
+    <string name="allow">Allow</string>
+    <string name="open_settings">Open settings</string>
+    <string name="find_dash">Find the dash</string>
+    <string name="setup_nearby">Nearby devices</string>
+    <string name="setup_nearby_reason">To connect to your sārathi dash over Bluetooth. The app only talks to the dash you pair; it never scans for other devices.</string>
+    <string name="setup_notifications">Notifications</string>
+    <string name="setup_notifications_reason">Android shows a small ongoing notification while the dash is connected, so you can see the link is running and stop it.</string>
+    <string name="setup_location">Location</string>
+    <string name="setup_location_reason">Navigation needs your position during the ride. It stays on this phone and the dash; the dash only ever gets it as distances from the start of the ride.</string>
+    <string name="setup_background_location">Location: allow all the time</string>
+    <string name="setup_background_location_reason">Your phone stays locked in your pocket for the whole ride. Choose \"Allow all the time\" so navigation keeps working with the screen off, and comes back by itself if Android restarts the app.</string>
+    <string name="setup_battery">Battery</string>
+    <string name="setup_battery_reason">Let the app run without battery restrictions, so Android doesn\'t stop the link to the dash mid-ride. It uses little battery while connected.</string>
+    <string name="setup_pair">Pair with your dash</string>
+    <string name="setup_pair_reason">Turn the dash on nearby. Pick \"sarathi\" in the list, then compare the 6-digit code on the phone and on the dash: if they match, turn the knob to Pair and click.</string>
+    <string name="pair_failed">Could not look for the dash: %1$s</string>
+
+    <!-- Ride link -->
+    <string name="ride_link">Ride link</string>
+    <string name="start_link">Start</string>
+    <string name="stop_link">Stop</string>
+    <string name="dash_firmware">Dash firmware %1$s</string>
+    <plurals name="location_fixes">
+        <item quantity="one">Location working: %1$d fix</item>
+        <item quantity="other">Location working: %1$d fixes</item>
+    </plurals>
+    <string name="location_off">Location not running: allow location \"all the time\", or open the app to start the link</string>
+    <string name="auto_start">Start when the dash turns on</string>
+    <string name="auto_start_reason">The phone connects by itself when your dash is nearby and on, even locked in your pocket.</string>
+    <string name="forget_dash">Forget this dash</string>
+
+    <!-- Battery guidance per phone maker (dontkillmyapp.com) -->
+    <string name="battery_title">Keep the link alive on this phone</string>
+    <string name="battery_more">More for your phone: dontkillmyapp.com</string>
+    <string name="oem_nothing">Nothing OS: Settings, Apps, sārathi, Battery: Unrestricted. Don\'t swipe the app away from Recents during a ride.</string>
+    <string name="oem_samsung">Samsung: Settings, Apps, sārathi, Battery: Unrestricted. Also Settings, Battery, Background usage limits: take sārathi off \"Sleeping apps\" and \"Deep sleeping apps\".</string>
+    <string name="oem_xiaomi">Xiaomi, Redmi, POCO: Settings, Apps, sārathi: Autostart on, Battery saver: No restrictions. In Recents, long-press sārathi and lock it.</string>
+    <string name="oem_oneplus">OnePlus: Settings, Apps, sārathi, Battery: Unrestricted (or \"Allow background activity\"). In Recents, lock sārathi.</string>
+    <string name="oem_oppo">OPPO, realme: Settings, Apps, sārathi, Battery: allow background activity and auto launch. In Recents, lock sārathi.</string>
+    <string name="oem_vivo">vivo, iQOO: Settings, Battery, Background power consumption: allow sārathi. Settings, Apps, sārathi: Autostart on.</string>
+    <string name="oem_huawei">Huawei, Honor: Settings, Battery, App launch: sārathi to \"Manage manually\" with all three switches on.</string>
+    <string name="oem_google">Pixel: the Battery step above is enough.</string>
+    <string name="oem_other">If the link stops mid-ride, look for battery or background settings for sārathi on this phone and allow it to run unrestricted.</string>
 </resources>
