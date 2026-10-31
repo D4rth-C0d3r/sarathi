@@ -476,7 +476,7 @@ symlink `pio` into `~/.local/bin`.
 Chronos has no notification access: Android Settings → Apps → Special app access →
 Notification access → Chronos → on. Then play a track, or start navigating, again.
 
-**Chronos: "Phone not connected" for a long time after a restart.**
+**Chronos: "No phone" for a long time after a restart.**
 Android scans for watches in the background only now and then. Open the Chronos app; it
 reconnects within seconds. If it never does, check the phone's Bluetooth is on and that
 "sarathi" is paired in Chronos (not only in Android's Bluetooth settings).

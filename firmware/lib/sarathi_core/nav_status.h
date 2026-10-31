@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "app_state.h"
@@ -34,7 +35,9 @@ struct NavNote {
 // navigating (the idle text says why).
 [[nodiscard]] NavNote NavStatus(const AppState& state, uint32_t now_ms);
 
-// The Nav screen's text when nothing is being navigated.
+// The Nav screen's text when nothing is being navigated. It shares the card's street line
+// (320 px at 34 px), so each is at most kMaxIdleTextChars (measured: all fit with room).
+constexpr size_t kMaxIdleTextChars = 16;
 [[nodiscard]] const char* NavIdleText(const AppState& state);
 
 // The phone link in a few words, for Settings ("Phone: ...").

@@ -331,7 +331,7 @@ may abandon an unfinished `chunk` by starting its own multi-frame message.
 - **No `pose`:** for 3 s shows "Position stale"; dead-reckoning stops after 5 s.
 - **No `nav`:** for 10 s while navigating shows "Navigation stale".
 - **Traffic** older than 5 minutes is drawn as unknown.
-- **A disconnect** shows "Phone not connected".
+- **A disconnect** shows that the phone is gone ("No phone").
 
 ## 6. Versioning
 

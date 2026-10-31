@@ -2,6 +2,7 @@
 // switch notice for 10 s, attribution only while stopped and only at the stopped-only size.
 
 #include <cstdint>
+#include <cstring>
 
 #include <unity.h>
 
@@ -117,13 +118,27 @@ void TestNotesKeepTheLegibilityRules() {
   }
 }
 
+// Every idle text fits the card's street line (the Phase 4 test found "Phone not connected"
+// cut to "Phone not...").
+void TestIdleTextsFitTheCard() {
+  AppState s;
+  for (int link = 0; link <= static_cast<int>(LinkStatus::kUpdateFirmware); ++link) {
+    s.phone.link = static_cast<LinkStatus>(link);
+    for (const bool connected : {false, true}) {
+      s.phone.connected = connected;
+      TEST_ASSERT_TRUE_MESSAGE(std::strlen(NavIdleText(s)) <= sarathi::core::kMaxIdleTextChars,
+                               NavIdleText(s));
+    }
+  }
+}
+
 void TestIdleTextFollowsTheLink() {
   AppState s;
-  TEST_ASSERT_EQUAL_STRING("Phone not connected", NavIdleText(s));
+  TEST_ASSERT_EQUAL_STRING("No phone", NavIdleText(s));
   s.phone.link = LinkStatus::kSecuring;
   TEST_ASSERT_EQUAL_STRING("Securing link", NavIdleText(s));
   s.phone.link = LinkStatus::kWaitingForApp;
-  TEST_ASSERT_EQUAL_STRING("Waiting for the app", NavIdleText(s));
+  TEST_ASSERT_EQUAL_STRING("Waiting for app", NavIdleText(s));
   s.phone.link = LinkStatus::kUpdateApp;
   TEST_ASSERT_EQUAL_STRING("Update the app", NavIdleText(s));
   s.phone.link = LinkStatus::kOff;
@@ -143,5 +158,6 @@ int main() {
   RUN_TEST(TestWarningsComeFirst);
   RUN_TEST(TestNotesKeepTheLegibilityRules);
   RUN_TEST(TestIdleTextFollowsTheLink);
+  RUN_TEST(TestIdleTextsFitTheCard);
   return UNITY_END();
 }

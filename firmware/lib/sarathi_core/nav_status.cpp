@@ -74,16 +74,16 @@ const char* NavIdleText(const AppState& state) {
     case LinkStatus::kSecuring:
       return "Securing link";
     case LinkStatus::kWaitingForApp:
-      return "Waiting for the app";
+      return "Waiting for app";
     case LinkStatus::kUpdateApp:
       return "Update the app";
     case LinkStatus::kUpdateFirmware:
-      return "Update the firmware";
+      return "Update firmware";
     case LinkStatus::kWaiting:
     case LinkStatus::kReady:
       break;
   }
-  return "Phone not connected";
+  return "No phone";
 }
 
 const char* LinkText(LinkStatus status) {
