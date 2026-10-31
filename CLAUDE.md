@@ -71,8 +71,10 @@ Classic Bluetooth audio on the device.
   link status, backend and attribution on Nav); `tools/ble_client.py` is a fake phone that
   replays the demo ride. Step D: the Android app pairs through CompanionDeviceManager and
   keeps the ride link in a foreground service through Doze (ADR-0010), tested on the phone;
-  auto-start on dash power-on is deferred (Android never reported the dash as gone). On-device
-  checks: `docs/phase4-test-plan.md`.
+  auto-start on dash power-on is deferred (Android never reported the dash as gone). Step E:
+  calls (`:feature:calls`) and music (`:feature:media`) on the dash, position once a second
+  (`pose`), and the moving lock from GPS speed (protocol 1.1 `lock`, ADR-0011), tested on the
+  phone. On-device checks: `docs/phase4-test-plan.md`.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -294,7 +296,9 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
 - One-second-glance UI: large type, high contrast, at most one primary item per screen.
 - Content stays inside the 480 px circle. Keep a safe margin from the edge.
 - Settings menus are locked while moving. That includes changing the theme. Without a
-  speed source (Chronos), they lock while navigating instead (ADR-0005).
+  speed source (Chronos), they lock while navigating instead (ADR-0005). With our app, moving
+  comes from GPS speed with hysteresis; the rider can adjust it, or turn the lock off after a
+  warning: the owner's explicit choice (ADR-0011). Keep that switch and its warning.
 - Don't add features that encourage interacting with the device while riding.
 - On the nav screen the next maneuver and its distance are the primary item; the map is
   supporting context. Stale or missing route data must be shown, never silently frozen.

@@ -128,6 +128,8 @@ Each permission and why (ADR-0010; the manifest says the same):
 | Foreground service (connected device, location) | Keep the link and location running with the screen off. |
 | Companion device (start in background, run in background, observe presence) | Restart the link when Android needs to, and optional auto-start. |
 | Ignore battery optimisation | Asked for once, confirmed by the rider in a system dialog. |
+| Notification access | Music: read the playing media sessions. Calls: the caller's name from the call notification, and an internet call's own Answer and Decline buttons. Nothing else is read, and nothing is kept. |
+| Phone (`ANSWER_PHONE_CALLS`, `READ_PHONE_STATE`) | Answer or reject a call from the dash, and know when a call rings, is answered or ends. **No contacts or call-log permission**: the name comes from the call notification your phone already shows. |
 
 The app talks only to the dash it paired, over the bonded, authenticated link described above.
 Backup and device transfer are off: bonds and settings stay on the phone.

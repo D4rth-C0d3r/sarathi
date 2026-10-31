@@ -71,3 +71,25 @@ build, `adb logcat -v time 'RideLink:V' 'BluetoothGatt:V' '*:S'` running.
   minutes unplugged), so there was no "appeared" to start the link. Deferred: auto-start that
   keeps the link waiting all the time (ADR-0010).
 - **D9 not done yet** (indoors the check only saw Wi-Fi and cell fixes, about one every 4 s).
+
+## Step E: calls, music, position and the moving lock
+
+The dash on the `crowpanel21-phone` build (protocol 1.1), the phone with the debug app.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| E1 | Setup | Music and Calls steps | Notification access and the Phone permission granted, each with its reason |
+| E2 | Music | Play in a music app; play/pause, next, previous on the dash | Title, artist and time on the dash; the controls work |
+| E3 | Cellular call, accept | Call the phone from another; Accept on the dash | The caller's name as the phone shows it; the call is answered |
+| E4 | Cellular call, reject | Again; Reject on the dash | The call is rejected; Reject during a call hangs up |
+| E5 | Internet call | A WhatsApp call; accept and reject on the dash | The name; WhatsApp answers or declines |
+| E6 | Position | `adb shell dumpsys location` | The app receives fixes; the service has types `0x18` |
+| E7 | Moving lock | Lock card: moving from 2 km/h; walk with the phone, then stand still | Dash settings lock after about 2 s of walking and unlock about 5 s after stopping |
+| E8 | Lock off | Turn the switch off (warning shown), walk again | The settings stay unlocked; the card says it's off |
+
+### Results, 2026-10-31 (Nothing Phone (1), Android 15)
+
+- **E1-E6 pass:** music shows and the dash's controls work; calls show the name, and accept and
+  reject from the dash work; the app sends `lock` on connect and position (123 fixes in the first
+  11 minutes, indoors).
+- **E7, E8 not tested yet** (they need walking or riding).

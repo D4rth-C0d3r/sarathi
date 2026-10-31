@@ -9,7 +9,9 @@ are in `docs/building.md`.
 Phase 4 step D: setup (permissions, companion pairing) and the ride link, a foreground service
 that keeps the dash connected with the screen off (ADR-0010). `:core:protocol` implements
 protocol v1; `:core:ble` the session and the Bluetooth transport. Navigation, calls and music
-come in later steps. Don't add features or permissions unasked.
+come in later steps. Step E adds `:feature:calls` and `:feature:media` (they talk to the dash only
+through `core:ble`'s `DashChannel`, and never to each other), position (`PoseSender`) and the
+moving lock's settings (ADR-0011). Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -30,7 +32,8 @@ Before finishing any Android change, run both check lines and report the result.
 | `:app` | Android application | Activity, Compose UI, navigation, ViewModels, wiring |
 | `:core:protocol` | **pure Kotlin/JVM** | Message types, JSON encode/decode, protocol version |
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
-| `:feature:*` (later) | Android library | `navigation`, `media`, `calls`, `ota` |
+| `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
+| `:feature:*` (later) | Android library | `navigation`, `ota` |
 
 - Dependencies point inward: `app → feature → core:ble → core:protocol`. Features never
   depend on each other or on `:app`. `core:protocol` depends on nothing in this repo.

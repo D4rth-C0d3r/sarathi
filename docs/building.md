@@ -401,6 +401,7 @@ no Gradle install needed). Modules:
 | `:app` | Android application | Setup and the ride link (Compose, Material 3): companion pairing, the foreground service, permissions (ADR-0010) |
 | `:core:protocol` | Kotlin/JVM library, no dependencies | Protocol v1 framing and message codecs, tested against `docs/protocol/vectors/` |
 | `:core:ble` | Android library | The protocol session (JVM-tested) and the Bluetooth transport to the dash |
+| `:feature:media`, `:feature:calls` | Android library | Music (media sessions) and calls (call state, TelecomManager, call notifications) on the dash |
 
 Versions are in `android/gradle/libs.versions.toml`.
 
@@ -456,8 +457,11 @@ adb shell dumpsys companiondevice                          # the association and
 ```
 
 **First use:** the app asks for Nearby devices, notifications, location, location all the
-time, and the battery exemption, one at a time; then **Find the dash** (the dash on, nearby):
-pick sarathi, compare the codes, and Pair on the dash with the knob. A phone that was paired
+time, the battery exemption, notification access (music and calls) and the Phone permission
+(calls), one at a time; then **Find the dash** (the dash on, nearby):
+pick sarathi, compare the codes, and Pair on the dash with the knob. An app installed from a
+downloaded APK (not over adb) may find notification access marked "restricted setting":
+allow it from the app's info page (⋮ menu, "Allow restricted settings"). A phone that was paired
 with the dash's Chronos build keeps working: the dash tells it the services changed.
 
 `testDebugUnitTest` also runs `:core:protocol`'s JVM tests. The debug APK is written to
