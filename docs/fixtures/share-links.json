@@ -1,0 +1,78 @@
+{
+  "description": "Real share-sheet output from the owner's phone (Nothing Phone (1), Android 15), recorded 2026-10-31 for the link parser (ADR-0008). Public landmarks in Goa only. 'resolved' is where the short link redirects (Location headers only, no page content); Google's tracking parameters (g_ep, coh, utm_source, entry, g_st) are stripped. 'expect' is what the parser must produce.",
+  "fixtures": [
+    {
+      "id": "google-place",
+      "shared_text": "https://maps.app.goo.gl/VHHR9qEiTznWY9Cu7?g_st=ac",
+      "resolved": "https://www.google.com/maps/place/Basilica+of+Bom+Jesus,+Old+Goa+Road,+Old+Goa,+Goa+403402/data=!4m2!3m1!1s0x3bbfbef2b99b0289:0x1e8056689f15a7b8!18m1!1e1",
+      "expect": {"kind": "place", "name": "Basilica of Bom Jesus, Old Goa Road, Old Goa, Goa 403402", "coordinates": null, "google_feature_id": "0x3bbfbef2b99b0289:0x1e8056689f15a7b8", "needs": "search by name"}
+    },
+    {
+      "id": "google-dropped-pin",
+      "shared_text": "https://maps.app.goo.gl/qjrgNm7GieAG1k2c6",
+      "resolved": "https://www.google.com/maps/place/Tiswadi,+Goa+403004/data=!4m6!3m5!1s0x3bbfc72e8c3986bb:0x5a82911aafdb268a!7e2!8m2!3d15.450743999999998!4d73.8031579!18m1!1e1",
+      "expect": {"kind": "place", "name": "Tiswadi, Goa 403004", "coordinates": [15.450744, 73.8031579]}
+    },
+    {
+      "id": "google-route-two-wheeler",
+      "shared_text": "https://maps.app.goo.gl/TTkh7BWccdFQuH9p6",
+      "resolved": "https://www.google.com/maps/dir/Panaji+KTC+Bus+Stand/Mapusa+Municipal+Market/Calangute+Beach/data=!4m22!4m21!1m5!1m4!1s0x3bbfc0833c738247:0x737914192cce51ba!8m2!3d15.4953203!4d73.8370972!1m5!1m4!1s0x3bbfeae6a993c713:0x498aeb574a55d27d!8m2!3d15.5885135!4d73.8130369!1m5!1m4!1s0x3bbfea0148f4ed2b:0xcb592fad5d257d17!8m2!3d15.549441!4d73.7534857!2m1!11b1!3e9",
+      "expect": {"kind": "route", "travel_mode": "two_wheeler", "stops": [
+        {"name": "Panaji KTC Bus Stand", "coordinates": [15.4953203, 73.8370972]},
+        {"name": "Mapusa Municipal Market", "coordinates": [15.5885135, 73.8130369]},
+        {"name": "Calangute Beach", "coordinates": [15.549441, 73.7534857]}]}
+    },
+    {
+      "id": "google-route-car",
+      "shared_text": "https://maps.app.goo.gl/2DeJGN9syocrxoLx8?g_st=ac",
+      "resolved": "https://www.google.com/maps/dir/Panaji+KTC+Bus+Stand/Mapusa+Municipal+Market/Calangute+Beach/data=!4m22!4m21!1m5!1m4!1s0x3bbfc0833c738247:0x737914192cce51ba!8m2!3d15.4953203!4d73.8370972!1m5!1m4!1s0x3bbfeae6a993c713:0x498aeb574a55d27d!8m2!3d15.5885135!4d73.8130369!1m5!1m4!1s0x3bbfea0148f4ed2b:0xcb592fad5d257d17!8m2!3d15.549441!4d73.7534857!2m1!11b1!3e0",
+      "expect": {"kind": "route", "travel_mode": "driving", "stops": [
+        {"name": "Panaji KTC Bus Stand", "coordinates": [15.4953203, 73.8370972]},
+        {"name": "Mapusa Municipal Market", "coordinates": [15.5885135, 73.8130369]},
+        {"name": "Calangute Beach", "coordinates": [15.549441, 73.7534857]}]}
+    },
+    {
+      "id": "mappls-pin",
+      "shared_text": "Mappls Pin: st5t6t\nhttps://mappls.com/st5t6t\n\nBasilica of Bom Jesus\nNH 748, Old Goa Road, Bainguinim, Near Gandhi Circle, Corlim, Goa, 403402",
+      "resolved": "https://www.mappls.com/st5t6t",
+      "expect": {"kind": "place", "mappls_pin": "st5t6t", "name": "Basilica of Bom Jesus", "address": "NH 748, Old Goa Road, Bainguinim, Near Gandhi Circle, Corlim, Goa, 403402", "coordinates": null, "needs": "Mappls Pin lookup"}
+    },
+    {
+      "id": "mappls-map-pin",
+      "shared_text": "I want you to check out a place on Mappls!\nhttps://mappls.com/pom/15.500944651730109%2C73.91203603260558",
+      "resolved": "https://www.mappls.com/pom/15.500944651730109%2C73.91203603260558",
+      "expect": {"kind": "place", "name": null, "coordinates": [15.500944651730109, 73.91203603260558]}
+    },
+    {
+      "id": "osm-map-view",
+      "shared_text": "https://www.openstreetmap.org/#map=17/15.491618/73.774014",
+      "resolved": null,
+      "expect": {"kind": "place", "name": null, "coordinates": [15.491618, 73.774014], "note": "map view centre, no marker"}
+    },
+    {
+      "id": "osm-marker",
+      "shared_text": "https://www.openstreetmap.org/?mlat=15.491618&mlon=73.774014#map=17/15.491618/73.774014",
+      "resolved": null,
+      "expect": {"kind": "place", "name": null, "coordinates": [15.491618, 73.774014]}
+    },
+    {
+      "id": "osm-short",
+      "shared_text": "https://osm.org/go/yzQqaBktN-",
+      "resolved": "https://www.openstreetmap.org/#map=17/15.491617172956467/73.77401411533356",
+      "expect": {"kind": "place", "name": null, "coordinates": [15.491617, 73.774014], "tolerance_m": 2, "note": "the short code decodes offline to exactly the resolved coordinates"}
+    },
+    {
+      "id": "osm-short-marker",
+      "shared_text": "https://osm.org/go/yzQqaBktN-?m=",
+      "resolved": null,
+      "expect": {"kind": "place", "name": null, "coordinates": [15.491617, 73.774014], "tolerance_m": 2}
+    },
+    {
+      "id": "organic-maps",
+      "shared_text": "Fort Aguada\n15.491932, 73.774094\nhttps://omaps.app/0xzgVlC5B3/Fort_Aguada",
+      "resolved": "https://omaps.app/0xzgVlC5B3/Fort_Aguada",
+      "expect": {"kind": "place", "name": "Fort Aguada", "coordinates": [15.491932, 73.774094], "tolerance_m": 2, "note": "coordinates in the text; the ge0 code 0xzgVlC5B3 decodes offline to 15.4919318, 73.7740938"}
+    }
+  ],
+  "not_available": ["Google Maps search results: no Share option on the owner's phone", "geo: URIs: not produced by these apps"]
+}

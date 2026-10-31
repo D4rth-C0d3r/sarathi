@@ -71,6 +71,36 @@ Nothing about the destination is entered on the device (no interaction while rid
   - The parser is pure Kotlin in `:core:links` with JVM tests over the fixtures. The network
     redirect step is mocked in tests.
 
+### Recorded formats (2026-10-31)
+
+Shared from the owner's Nothing Phone (1) (Android 15): public landmarks in Goa, stored with
+the expected parse in `docs/fixtures/share-links.json`. Short links were resolved from
+`Location` headers only.
+
+- **Google place links have no coordinates.** `maps.app.goo.gl/<id>` redirects to
+  `/maps/place/<name, address>/data=…!1s0x…:0x…`, with a name, address and Google feature ID
+  only.
+  - The app looks the name up with the search backend. With Google that's Text Search
+    (IDs only, free), then Place Details (counted by the cost guard).
+  - A **dropped pin** does carry `!3d<lat>!4d<lng>`.
+- **Google routes:** `/maps/dir/<stop>/<stop>/<stop>/data=…`. Each stop has its own
+  `!3d`/`!4d`, origin included. **`!3e9` = two-wheeler, `!3e0` = car**; other modes are still
+  unrecorded.
+- **Google's resolved links carry tracking parameters** (`g_ep`, `coh`, `utm_source`,
+  `entry`, `g_st`). The parser ignores them, and fixtures store them stripped.
+- **Google search results** have no Share option on the owner's phone, so that format isn't
+  needed.
+- **Mappls:**
+  - `mappls.com/<Pin>` (redirects to `www.`), with the name and address in the shared text;
+    the coordinates come from a Mappls Pin lookup.
+  - `mappls.com/pom/<lat>%2C<lng>` for a map pin carries its coordinates.
+- **OSM:** `#map=z/lat/lon`, `?mlat=…&mlon=…`, and `osm.org/go/<code>[?m=]`. The short code
+  decodes offline (OSM's quadtile encoding) to exactly the coordinates osm.org redirects to.
+- **Organic Maps:** the shared text includes plain coordinates. `omaps.app/<code>/<name>`
+  doesn't redirect; its ge0 code also decodes offline (to within 1 m here).
+- **No network needed** for any of these except Google place links (name lookup) and Mappls
+  Pins (Pin lookup).
+
 ### A shared Google route
 
 - **Origin, waypoints and travel mode are kept,** and routed with the **selected routing
