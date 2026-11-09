@@ -60,4 +60,12 @@ class TrafficTest {
         // Panaji KTC to Calangute Beach in a straight line: about 10.8 km.
         assertEquals(10_770.0, Geo.distanceM(LatLng(15.4953203, 73.8370972), LatLng(15.549441, 73.7534857)), 100.0)
     }
+
+    @Test
+    fun remainingTimeFollowsTraffic() {
+        // Mappls on the phone (F5): 48 min free flow, 57 with traffic; half the ride left.
+        assertEquals(1710L, Traffic.withTraffic(1440, 2880, 3420))
+        assertEquals(1440L, Traffic.withTraffic(1440, 2880, null)) // no traffic time
+        assertEquals(1440L, Traffic.withTraffic(1440, 0, 3420)) // nonsense route time
+    }
 }

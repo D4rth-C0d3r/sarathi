@@ -11,6 +11,7 @@ import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
+import io.github.d4rthc0d3r.sarathi.core.maps.Traffic
 import io.github.d4rthc0d3r.sarathi.core.maps.TrafficScript
 import io.github.d4rthc0d3r.sarathi.core.maps.TrafficUpdate
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryMessage
@@ -219,7 +220,7 @@ class RideNavigation(
 
         private fun onState(g: GuidanceState) {
             ActiveRide.publish(g)
-            val nav = RideMessages.nav(g)
+            val nav = RideMessages.nav(withTraffic(g, route, lastTraffic))
             val previous = lastNav
             lastNav = nav
             val changed =
@@ -290,5 +291,22 @@ class RideNavigation(
                 RoutingBackend.OSM_GRAPHHOPPER -> "OSM (GraphHopper)"
                 RoutingBackend.OSM_OFFLINE -> "OSM offline"
             }
+    }
+}
+
+/**
+ * The remaining time with traffic (ADR-0009, step G5). Google's guidance already includes it; for
+ * the others, guidance's free-flow time scales by the route's time with traffic.
+ */
+private fun withTraffic(
+    g: GuidanceState,
+    route: Route,
+    traffic: TrafficUpdate?,
+): GuidanceState {
+    val eta = traffic?.etaS
+    return if (route.backend == RoutingBackend.GOOGLE || eta == null) {
+        g
+    } else {
+        g.copy(remainingS = Traffic.withTraffic(g.remainingS, route.durationS, eta))
     }
 }

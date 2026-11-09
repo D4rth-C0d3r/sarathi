@@ -58,6 +58,22 @@ object Traffic {
             else -> TrafficLevel.UNKNOWN
         }
 
+    /**
+     * The remaining time with traffic, for guidance whose own estimate is free-flow (Ferrostar on
+     * Mappls, OSM): scaled by the route's time with traffic over its time without. Unchanged
+     * without a traffic time, or with nonsense inputs.
+     */
+    fun withTraffic(
+        remainingS: Long,
+        routeS: Long,
+        trafficEtaS: Long?,
+    ): Long =
+        if (trafficEtaS == null || trafficEtaS <= 0 || routeS <= 0) {
+            remainingS
+        } else {
+            Math.round(remainingS.toDouble() * trafficEtaS / routeS)
+        }
+
     /** Metres at each level, for summaries. */
     fun totals(stretches: List<TrafficStretch>): Map<TrafficLevel, Double> =
         stretches.groupBy { it.level }.mapValues { (_, s) -> s.sumOf { it.lengthM } }
