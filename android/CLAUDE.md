@@ -40,7 +40,7 @@ Before finishing any Android change, run both check lines and report the result.
 | `:core:links` | **pure Kotlin/JVM** | Shared links and text: parsing, offline short codes, redirect rules (ADR-0008) |
 | `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
 | `:feature:destination` | Android library | Search screen, recents and saved places, shared links to places and routes (ADR-0008) |
-| `:feature:navigation` | Android library | Guidance engines (Ferrostar; Google's from F6.3) behind `core:maps`' `GuidanceEngine` |
+| `:feature:navigation` | Android library | Ferrostar's guidance engine behind `core:maps`' `GuidanceEngine` (Google's lives in `:maps:google`) |
 | `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
 | `:feature:*` (later) | Android library | `navigation`, `ota` |
 

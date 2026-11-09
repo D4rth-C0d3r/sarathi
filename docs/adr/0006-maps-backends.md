@@ -122,6 +122,15 @@ interface RoutingProvider {
     "rerouting" meanwhile. Checked on the phone with the route simulator: a Mappls ride to
     Calangute advanced through its 34 steps to "arrived"; a forced 400 m detour rerouted on
     Mappls (4 times, as the simulator's detour runs off any road) and arrived.
+  - **Google, as built (step F6.3):** `GoogleGuidance` starts guidance on the route the
+    routing step set (no second destination), registers `GoogleNavUpdatesService` for the
+    turn-by-turn feed (`NavInfo` about once a second: next step, distance, remaining time and
+    distance, rerouting), silences voice, vibration and heads-up notifications, and lets
+    Google reroute. Google's 66 maneuver codes map onto the protocol's (`GoogleManeuvers`).
+    Checked on the phone with Google's simulator along the existing route (no extra
+    destination): e.g. "roundabout (exit 2) onto National Hwy 4A Bypass Rd in 3315 m", through
+    to arrival. **Open:** no traffic callback came during 7 minutes of simulated guidance; the
+    provider now logs each one (tag `GoogleNav`), to be read after the first real ride.
 
 ### Settings
 

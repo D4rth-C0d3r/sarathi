@@ -22,8 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class RouteUi(
     val routing: Boolean = false,
@@ -141,22 +143,45 @@ class RouteViewModel(
                                 simulation =
                                     u.simulation?.copy(
                                         reroutes = u.simulation.reroutes + 1,
-                                        steps =
-                                            r?.steps?.size ?: 0,
+                                        steps = r.steps.size,
                                     ),
                             )
                         }
                     }
                 }
-                for (fix in sim.fixes()) {
-                    ride.update(fix)
-                    if (ride.state.value?.arrived == true) break
-                    delay(MS_PER_FIX / SPEEDUP)
+                drive(ride, sim)
+                // The last state (arrived) may not have reached the collector before the ride stops.
+                val last = ride.state.value
+                _ui.update { u ->
+                    u.copy(
+                        simulation =
+                            u.simulation?.copy(
+                                running = false,
+                                guidance =
+                                    last ?: u.simulation.guidance,
+                            ),
+                    )
                 }
-                _ui.update { it.copy(simulation = it.simulation?.copy(running = false)) }
                 ride.stop()
                 coroutineContext.cancelChildren()
             }
+    }
+
+    /** Feeds the simulator's fixes, or waits for an engine that drives itself (Google) to arrive. */
+    private suspend fun drive(
+        ride: RideGuidance,
+        sim: RouteSimulator,
+    ) {
+        if (ride.tracksItsOwnPosition) {
+            // Google drives its own simulator along the route: wait for it to arrive.
+            withTimeoutOrNull(OWN_SIMULATION_MS) { ride.state.first { it?.arrived == true } }
+        } else {
+            for (fix in sim.fixes()) {
+                ride.update(fix)
+                if (ride.state.value?.arrived == true) break
+                delay(MS_PER_FIX / SPEEDUP)
+            }
+        }
     }
 
     private fun simulator(
@@ -179,5 +204,6 @@ class RouteViewModel(
         const val DETOUR_AT = 0.3
         const val DETOUR_LENGTH_M = 400.0
         const val DETOUR_OFFSET_M = 120.0
+        const val OWN_SIMULATION_MS = 15 * 60_000L
     }
 }

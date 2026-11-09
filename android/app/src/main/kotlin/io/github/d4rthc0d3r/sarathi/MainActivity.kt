@@ -43,6 +43,7 @@ import io.github.d4rthc0d3r.sarathi.maps.Keys
 import io.github.d4rthc0d3r.sarathi.maps.LastLocation
 import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
+import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleNavRouting
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
@@ -180,8 +181,17 @@ class MainActivity : ComponentActivity() {
         val routeModel =
             viewModel {
                 RouteViewModel(MapsRegistry.get(context).routing, { LastLocation.get(context) }) { route, request ->
-                    // Google's own guidance comes with step F6.3.
-                    if (route.backend == RoutingBackend.GOOGLE) null else FerrostarGuidance(request)
+                    // The desk test: Google's guidance drives Google's own simulator along the route.
+                    if (route.backend == RoutingBackend.GOOGLE) {
+                        GoogleGuidance(
+                            context,
+                            MapsRegistry.get(context).googleRouting,
+                            simulate = true,
+                            speedMultiplier = 10f,
+                        )
+                    } else {
+                        FerrostarGuidance(request)
+                    }
                 }
             }
         val route = routeModel.ui.collectAsStateWithLifecycle()

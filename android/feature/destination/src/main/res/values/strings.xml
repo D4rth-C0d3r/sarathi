@@ -48,9 +48,9 @@
     <string name="sim_ride">Simulate ride (desk test)</string>
     <string name="sim_detour">Simulate with a detour</string>
     <string name="sim_stop">Stop the simulation</string>
-    <string name="sim_unsupported">No guidance for this backend yet: Google\'s comes with step F6.3.</string>
+    <string name="sim_unsupported">No guidance for this backend.</string>
     <string name="sim_next">Next: %1$s%2$s in %3$d m</string>
-    <string name="sim_left">%1$.1f km · %2$d min left · step %3$d of %4$d</string>
+    <string name="sim_left">%1$.1f km · %2$d min left · step %3$d%4$s</string>
     <string name="sim_reroutes">Reroutes: %1$d</string>
     <string name="reason_no_key">no key in this build</string>
     <string name="reason_no_terms">terms not accepted</string>

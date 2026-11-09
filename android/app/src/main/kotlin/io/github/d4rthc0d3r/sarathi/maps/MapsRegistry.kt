@@ -41,9 +41,12 @@ class MapsRegistry private constructor(
 
     val search = SearchService(searchProviders::get, { store.settings.value }, { store.guard })
 
+    /** Google's routing, which its guidance continues on (step F6.3). */
+    val googleRouting = GoogleNavRouting(context as Application, Keys.google)
+
     private val routingProviders: Map<RoutingBackend, RoutingProvider> =
         mapOf(
-            RoutingBackend.GOOGLE to GoogleNavRouting(context as Application, Keys.google),
+            RoutingBackend.GOOGLE to googleRouting,
             RoutingBackend.MAPPLS to MapplsRouting(context, Keys.mapplsConfigured),
             RoutingBackend.OSM_VALHALLA to ValhallaRouting(http, userAgent, { store.settings.value.valhallaUrl }),
             RoutingBackend.OSM_GRAPHHOPPER to GraphHopperRouting(http, userAgent, Keys.graphHopper),

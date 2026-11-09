@@ -57,7 +57,8 @@ private fun GuidanceLines(
             g.remainingM / M_PER_KM,
             g.remainingS / SECONDS_PER_MINUTE,
             g.stepIndex,
-            sim.steps,
+            // Google's routes have no step list of their own: no total to show.
+            if (sim.steps > 0) " of ${sim.steps}" else "",
         ),
         style = small,
     )

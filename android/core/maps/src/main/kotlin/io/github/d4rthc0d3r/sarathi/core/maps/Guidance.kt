@@ -49,6 +49,9 @@ interface GuidanceEngine {
     /** True when the engine reroutes by itself (Google); otherwise [RideGuidance] does. */
     val reroutesItself: Boolean get() = false
 
+    /** True when the engine follows the phone's location itself (Google) and ignores [update]. */
+    val tracksItsOwnPosition: Boolean get() = false
+
     /** The stops not reached yet, last the destination: where a reroute goes. */
     fun remainingStops(): List<LatLng>
 }

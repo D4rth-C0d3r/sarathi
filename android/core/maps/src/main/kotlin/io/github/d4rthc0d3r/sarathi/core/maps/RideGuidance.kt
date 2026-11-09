@@ -30,6 +30,9 @@ class RideGuidance(
     val route: StateFlow<Route?> = _route.asStateFlow()
 
     private var engine: GuidanceEngine? = null
+
+    /** The engine follows the phone's location itself (Google): fixes aren't needed. */
+    val tracksItsOwnPosition: Boolean get() = engine?.tracksItsOwnPosition == true
     private var request: RouteRequest? = null
     private var stateJob: Job? = null
     private var rerouteJob: Job? = null

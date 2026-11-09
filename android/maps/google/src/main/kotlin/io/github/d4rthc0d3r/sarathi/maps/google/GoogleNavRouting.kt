@@ -2,6 +2,7 @@ package io.github.d4rthc0d3r.sarathi.maps.google
 
 import android.app.Activity
 import android.app.Application
+import android.util.Log
 import com.google.android.libraries.navigation.NavigationApi
 import com.google.android.libraries.navigation.NavigationRoadStretchRenderingData
 import com.google.android.libraries.navigation.NavigationTrafficData
@@ -93,6 +94,8 @@ class GoogleNavRouting(
     private fun trafficNow(nav: Navigator): TrafficUpdate? {
         val segments = nav.routeSegments
         val data = segments.map { it.trafficData }
+        // Logged until a real ride shows when Google sends traffic (ADR-0006, step F6.3).
+        Log.i(TAG, "traffic: ${segments.size} segments, status ${data.map { it?.status }}")
         if (segments.isEmpty() || data.any { it?.status != NavigationTrafficData.Status.OK }) return null
         val legLengths = segments.map { s -> Geo.lengthM(s.latLngs.map { LatLng(it.latitude, it.longitude) }) }
         val legs =
@@ -110,6 +113,9 @@ class GoogleNavRouting(
             NavigationRoadStretchRenderingData.Style.TRAFFIC_JAM -> TrafficLevel.JAM
             else -> TrafficLevel.UNKNOWN
         }
+
+    /** The navigator, for guidance on the route this set; null if it can't be had. */
+    internal suspend fun navigatorNow(): Navigator? = runCatching { navigator() }.getOrNull()
 
     /** One navigator for the app; Google refuses one until the terms are accepted. */
     private suspend fun navigator(): Navigator =
@@ -152,6 +158,7 @@ class GoogleNavRouting(
 
     companion object {
         const val ATTRIBUTION = "Google"
+        private const val TAG = "GoogleNav"
 
         fun termsAccepted(application: Application): Boolean = NavigationApi.areTermsAccepted(application)
 
