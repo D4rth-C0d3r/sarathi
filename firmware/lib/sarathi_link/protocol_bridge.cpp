@@ -222,9 +222,11 @@ void ProtocolBridge::OnJson(const proto::PhoneMessage& message, uint32_t now_ms,
         } else if constexpr (std::is_same_v<T, proto::Event>) {
           // The phone follows a fallback with `backend` and a reroute with `route` and `nav`;
           // nothing to show on its own.
+          ++stats_.events;
         } else if constexpr (std::is_same_v<T, proto::Nav>) {
           OnNav(m, now_ms, model);
         } else if constexpr (std::is_same_v<T, proto::NavEnd>) {
+          ++stats_.nav_ends;
           model.EndNav();
           ForgetRoute(model);
         } else if constexpr (std::is_same_v<T, proto::Call>) {
@@ -338,6 +340,11 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
         DropMessage(message.type, "epoch");
       } else if (e == proto::BinError::kNone) {
         OnRoute(route, model);
+        ++stats_.routes;
+        stats_.route_id = route.route_id;
+        stats_.route_version = route.version;
+        stats_.route_points = static_cast<uint16_t>(route.n_points);
+        stats_.route_markers = static_cast<uint16_t>(route.n_markers);
       } else if (e == proto::BinError::kVerUnknown) {
         ++stats_.ignored;
       } else {
@@ -347,6 +354,10 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
     }
     default:
       // traffic and chunk wait for the on-device map (ADR-0009); hello said chunk_kb 0.
+      if (static_cast<proto::MsgType>(message.type) == proto::MsgType::kTraffic) {
+        ++stats_.traffic;
+        stats_.traffic_bytes = static_cast<uint16_t>(message.size);
+      }
       ++stats_.ignored;
       return;
   }

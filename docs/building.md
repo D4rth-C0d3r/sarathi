@@ -153,7 +153,10 @@ pio run -e crowpanel21-chronos -t upload
 ### Phone link: protocol v1 and the fake phone (Phase 4)
 
 The `crowpanel21-phone` build talks protocol v1 (`docs/protocol/protocol.md`, ADR-0007) over
-its own BLE service. Until the sārathi app speaks it, a computer with Bluetooth plays the
+its own BLE service. Its serial log follows a ride without looking at the dash: `[link] ride:`
+lines for each route (id, version, points, markers), traffic, backend and `nav` (on change,
+and every 10 s while navigating), and `[link] screen:` for the Nav screen's status line
+("No route data", "Position stale", "No navigation", ...), each logged once per change. Until the sārathi app speaks it, a computer with Bluetooth plays the
 phone: `tools/ble_client.py` replays the demo ride over BLE.
 
 ```bash

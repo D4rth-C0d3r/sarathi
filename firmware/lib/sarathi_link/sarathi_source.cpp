@@ -18,6 +18,7 @@
 
 #include "frame.h"
 #include "json_codec.h"
+#include "nav_status.h"
 #include "protocol_bridge.h"
 
 namespace sarathi::link {
@@ -467,6 +468,7 @@ void SarathiSource::Poll(uint32_t now_ms, core::AppModel& model) {
   bridge->Tick(now_ms, model, outbox);
   LogStats();
   LogMotion(model);
+  LogRide(now_ms, model);
 }
 
 // Reports what changed since the last poll, in order: a lost or replaced connection first.
@@ -523,6 +525,125 @@ void SarathiSource::PollPairing(uint32_t now_ms, core::AppModel& model) {
 }
 
 // Each change of the moving lock's inputs, for testing it (ADR-0011).
+namespace {
+
+// FNV-1a, to notice a change in a few fields without keeping copies of them.
+uint32_t Hash(uint32_t h, std::string_view text) {
+  constexpr uint32_t kPrime = 16777619U;
+  for (const char c : text) {
+    h = (h ^ static_cast<uint8_t>(c)) * kPrime;
+  }
+  return h;
+}
+
+uint32_t Hash(uint32_t h, uint32_t value) {
+  constexpr uint32_t kPrime = 16777619U;
+  constexpr uint32_t kByte = 0xFFU;
+  for (int shift = 0; shift < 32; shift += 8) {
+    h = (h ^ ((value >> shift) & kByte)) * kPrime;
+  }
+  return h;
+}
+
+constexpr uint32_t kHashSeed = 2166136261U;
+
+const char* ManeuverText(core::ManeuverType t) {
+  switch (t) {
+    case core::ManeuverType::kNone:
+      return "none";
+    case core::ManeuverType::kDepart:
+      return "depart";
+    case core::ManeuverType::kStraight:
+      return "straight";
+    case core::ManeuverType::kSlightLeft:
+      return "slight left";
+    case core::ManeuverType::kLeft:
+      return "left";
+    case core::ManeuverType::kSharpLeft:
+      return "sharp left";
+    case core::ManeuverType::kSlightRight:
+      return "slight right";
+    case core::ManeuverType::kRight:
+      return "right";
+    case core::ManeuverType::kSharpRight:
+      return "sharp right";
+    case core::ManeuverType::kUTurn:
+      return "u-turn";
+    case core::ManeuverType::kRoundabout:
+      return "roundabout";
+    case core::ManeuverType::kArrive:
+      return "arrive";
+  }
+  return "?";
+}
+
+}  // namespace
+
+// What the ride looks like on the dash, logged once per change: what arrived (route, traffic,
+// events, the end), the backend, the guidance (and its distance every 10 s), and the Nav
+// screen's status line. Lets a desk test follow a ride from the serial log alone.
+void SarathiSource::LogRide(uint32_t now_ms, const core::AppModel& model) {
+  constexpr uint32_t kNavRepeatMs = 10000;
+  const BridgeStats& s = bridge->Stats();
+  RideLogged& was = ride_logged_;
+  if (s.routes != was.routes) {
+    was.routes = s.routes;
+    ESP_LOGI(kTag, "ride: route %lu version %u, %u points, %u markers",
+             static_cast<unsigned long>(s.route_id), static_cast<unsigned>(s.route_version),
+             static_cast<unsigned>(s.route_points), static_cast<unsigned>(s.route_markers));
+  }
+  if (s.traffic != was.traffic) {
+    was.traffic = s.traffic;
+    ESP_LOGI(kTag, "ride: traffic (%u bytes; drawn with the on-device map)",
+             static_cast<unsigned>(s.traffic_bytes));
+  }
+  if (s.events != was.events) {
+    was.events = s.events;
+    ESP_LOGI(kTag, "ride: event (%lu so far)", static_cast<unsigned long>(s.events));
+  }
+  if (s.nav_ends != was.nav_ends) {
+    was.nav_ends = s.nav_ends;
+    ESP_LOGI(kTag, "ride: navigation ended");
+  }
+  const core::AppState& state = model.State();
+  const core::BackendState& b = state.backend;
+  const uint32_t backend_hash =
+      Hash(Hash(Hash(kHashSeed, b.name.View()), b.attribution.View()), b.valid + 2U * b.traffic);
+  if (backend_hash != was.backend_hash) {
+    was.backend_hash = backend_hash;
+    ESP_LOGI(kTag, "ride: backend %s (%s), traffic %s", b.valid ? b.name.CStr() : "none",
+             b.attribution.CStr(), b.traffic ? "yes" : "no");
+  }
+  const core::NavState& n = state.nav;
+  const uint32_t flags = n.active + 2U * n.rerouting + 4U * n.off_route + 8U * n.guidance_stale;
+  const uint32_t nav_hash = Hash(Hash(Hash(kHashSeed, static_cast<uint32_t>(n.next.type)),
+                                      n.next.roundabout_exit + 256U * flags),
+                                 n.street.View());
+  if (nav_hash != was.nav_hash || (n.active && now_ms - was.nav_ms >= kNavRepeatMs)) {
+    was.nav_hash = nav_hash;
+    was.nav_ms = now_ms;
+    ESP_LOGI(kTag, "ride: nav %s, %s exit %u in %lu m, street \"%s\", %lu s left%s%s%s",
+             n.active ? "on" : "off", ManeuverText(n.next.type),
+             static_cast<unsigned>(n.next.roundabout_exit),
+             static_cast<unsigned long>(n.distance_m), n.street.CStr(),
+             static_cast<unsigned long>(n.eta_s), n.rerouting ? ", rerouting" : "",
+             n.off_route ? ", off route" : "", n.guidance_stale ? ", stale" : "");
+  }
+  const core::NavNote note = core::NavStatus(state, now_ms);
+  const char* screen = n.active ? note.text.CStr() : core::NavIdleText(state);
+  // Digits ignored: "Position stale 6s" counts up every second and would log every second.
+  uint32_t screen_hash = kHashSeed;
+  for (const char* c = screen; *c != '\0'; ++c) {
+    if (*c < '0' || *c > '9') {
+      screen_hash = Hash(screen_hash, std::string_view(c, 1));
+    }
+  }
+  if (screen_hash != was.screen_hash) {
+    was.screen_hash = screen_hash;
+    ESP_LOGI(kTag, "screen: \"%s\"", screen);
+  }
+}
+
 void SarathiSource::LogMotion(const core::AppModel& model) {
   const core::RideState& ride = model.State().ride;
   const auto now = static_cast<uint8_t>((ride.moving ? 1U : 0U) | (ride.speed_valid ? 2U : 0U) |

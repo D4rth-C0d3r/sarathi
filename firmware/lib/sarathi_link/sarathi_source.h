@@ -39,6 +39,7 @@ class SarathiSource final : public core::DataSource {
   void PollPairing(uint32_t now_ms, core::AppModel& model);
   void LogStats();
   void LogMotion(const core::AppModel& model);
+  void LogRide(uint32_t now_ms, const core::AppModel& model);
 
   bool started_ = false;
   uint32_t generation_seen_ = 0;
@@ -52,6 +53,17 @@ class SarathiSource final : public core::DataSource {
   uint16_t mtu_logged_ = 0;
   // The moving lock as last logged (moving, speed known, lock on), to log each change.
   uint8_t motion_logged_ = 0xFF;
+  // The ride as last logged, so each change is logged once (a desk test reads the serial log).
+  struct RideLogged {
+    uint32_t routes = 0;
+    uint32_t traffic = 0;
+    uint32_t events = 0;
+    uint32_t nav_ends = 0;
+    uint32_t backend_hash = 0;
+    uint32_t nav_hash = 0;
+    uint32_t nav_ms = 0;
+    uint32_t screen_hash = 0;
+  } ride_logged_;
 };
 
 }  // namespace sarathi::link

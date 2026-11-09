@@ -86,6 +86,16 @@ struct BridgeStats {
   uint32_t messages_dropped = 0;  // decoding (JsonError, BinError) or the wrong epoch
   uint32_t ignored = 0;           // valid but not for now: before hello, unknown type, newer ver
   uint32_t send_failed = 0;
+  // What the phone sent for the ride, for the transport's ride log (taken, not just received).
+  uint32_t routes = 0;
+  uint32_t route_id = 0;
+  uint16_t route_version = 0;
+  uint16_t route_points = 0;
+  uint16_t route_markers = 0;
+  uint32_t traffic = 0;  // drawn with the on-device map (ADR-0009); counted until then
+  uint16_t traffic_bytes = 0;
+  uint32_t events = 0;
+  uint32_t nav_ends = 0;
   proto::Drop last_frame_drop = proto::Drop::kShortFrame;
   uint8_t last_drop_type = 0;
   const char* last_drop_reason = "";
