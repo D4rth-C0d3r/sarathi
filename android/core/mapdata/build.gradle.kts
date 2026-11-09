@@ -24,6 +24,7 @@ kotlin {
 dependencies {
     implementation(project(":core:protocol"))
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // The tests read the recorded tiles and chunks in docs/fixtures/map; they rerun when those change.

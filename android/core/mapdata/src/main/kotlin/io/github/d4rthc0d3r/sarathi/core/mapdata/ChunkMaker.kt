@@ -54,13 +54,24 @@ class TileShape(
  * Coordinates stay in tile units; [ChunkMaker.chunk] projects them into a ride frame.
  */
 class TileShapes(
-    val level: MapLevel,
-    val tileX: Int,
-    val tileY: Int,
+    val tile: TileId,
     val lines: List<TileShape>,
     val polys: List<TileShape>,
     /** Where the data came from; travels with every chunk (ADR-0009). */
     val provenance: Provenance,
+    /** The source's version, for example 20261101 for OpenFreeMap's build of that day. */
+    val dataVersion: Long,
+) {
+    val level get() = tile.level
+    val tileX get() = tile.x
+    val tileY get() = tile.y
+}
+
+/** A tile at a level of detail: its x and y at the level's zoom. */
+data class TileId(
+    val level: MapLevel,
+    val x: Int,
+    val y: Int,
 )
 
 /**
@@ -83,14 +94,14 @@ object ChunkMaker {
 
     fun shapes(
         tile: Map<String, List<TileFeature>>,
-        level: MapLevel,
-        tileX: Int,
-        tileY: Int,
-        schema: MapSchema = MapSchema.OpenMapTiles,
+        id: TileId,
+        schema: MapSchema,
+        dataVersion: Long,
     ): TileShapes {
-        val tol = level.quantumM / metresPerUnit(level.zoom, tileY)
-        val lines = roads(tile, level, tol, schema)
-        return TileShapes(level, tileX, tileY, lines, areas(tile, level, tileY, tol, schema), schema.provenance)
+        val tol = id.level.quantumM / metresPerUnit(id.level.zoom, id.y)
+        val lines = roads(tile, id.level, tol, schema)
+        val polys = areas(tile, id.level, id.y, tol, schema)
+        return TileShapes(id, lines, polys, schema.provenance, dataVersion)
     }
 
     private fun roads(
@@ -144,7 +155,6 @@ object ChunkMaker {
         shapes: TileShapes,
         frame: RideFrame,
         epoch: Int,
-        dataVersion: Long,
     ): Chunk {
         val level = shapes.level
         val z = level.zoom
@@ -188,7 +198,7 @@ object ChunkMaker {
             }
         }
         return Chunk(
-            key = ChunkKey(level.code, shapes.tileX.toLong(), shapes.tileY.toLong(), dataVersion),
+            key = ChunkKey(level.code, shapes.tileX.toLong(), shapes.tileY.toLong(), shapes.dataVersion),
             provenance = shapes.provenance,
             epoch = epoch,
             originXM = ox,

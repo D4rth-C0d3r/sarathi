@@ -34,8 +34,9 @@ class ChunkMakerTest {
                 val name = bin.nameWithoutExtension
                 val (z, x, y) = name.split("-").map { it.toInt() }
                 val level = MapLevel.forZoom(z)!!
-                val shapes = ChunkMaker.shapes(VectorTile.read(File(tiles, "$name.pbf").readBytes()), level, x, y)
-                val chunk = ChunkMaker.chunk(shapes, frame, EPOCH, DATA_VERSION)
+                val read = VectorTile.read(File(tiles, "$name.pbf").readBytes())
+                val shapes = ChunkMaker.shapes(read, TileId(level, x, y), MapSchema.OpenMapTiles, DATA_VERSION)
+                val chunk = ChunkMaker.chunk(shapes, frame, EPOCH)
                 assertArrayEquals("$set/$name", bin.readBytes(), BinaryCodec.encode(chunk))
                 compared++
             }
@@ -52,8 +53,14 @@ class ChunkMakerTest {
             val name = bin.nameWithoutExtension
             val (z, x, y) = name.split("-").map { it.toInt() }
             val read = VectorTile.read(File(offline, "$name.pbf").readBytes(), MapSchema.Protomaps.layers)
-            val shapes = ChunkMaker.shapes(read, MapLevel.forZoom(z)!!, x, y, MapSchema.Protomaps)
-            val chunk = ChunkMaker.chunk(shapes, frame, EPOCH, OFFLINE_VERSION)
+            val shapes =
+                ChunkMaker.shapes(
+                    read,
+                    TileId(MapLevel.forZoom(z)!!, x, y),
+                    MapSchema.Protomaps,
+                    OFFLINE_VERSION,
+                )
+            val chunk = ChunkMaker.chunk(shapes, frame, EPOCH)
             assertEquals(Provenance.OSM_PROTOMAPS_OFFLINE, chunk.provenance)
             assertArrayEquals("panaji/$name", bin.readBytes(), BinaryCodec.encode(chunk))
         }
@@ -105,16 +112,16 @@ class ChunkMakerTest {
     @Test
     fun aDenseCityTileHasItsRoadsAndWater() {
         val read = VectorTile.read(File(tiles, "14-11723-7596.pbf").readBytes())
-        val shapes = ChunkMaker.shapes(read, MapLevel.L0, 11723, 7596)
+        val shapes = ChunkMaker.shapes(read, TileId(MapLevel.L0, 11723, 7596), MapSchema.OpenMapTiles, DATA_VERSION)
         assertTrue(shapes.lines.size > 500)
         assertTrue(shapes.polys.isNotEmpty())
         // L1 keeps only motorway to secondary.
         val l1 =
             ChunkMaker.shapes(
                 VectorTile.read(File(tiles, "12-2882-1830.pbf").readBytes()),
-                MapLevel.L1,
-                2882,
-                1830,
+                TileId(MapLevel.L1, 2882, 1830),
+                MapSchema.OpenMapTiles,
+                DATA_VERSION,
             )
         assertTrue(l1.lines.all { it.kind <= 3 })
     }
