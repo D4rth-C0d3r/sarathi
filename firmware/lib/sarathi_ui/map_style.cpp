@@ -10,9 +10,10 @@ namespace sarathi::ui {
 
 namespace {
 
-// Motorway to service: brighter for bigger roads, all quieter than the route.
-constexpr std::array<core::Rgb, core::kRoadClasses> kRoad = {0x8A8F99, 0x8A8F99, 0x7A7F88, 0x6A6F78,
-                                                             0x5A5F68, 0x464B52, 0x363A40};
+// Motorway to service: brighter for bigger roads, all well below the route (owner: the route
+// must stand out, step G5).
+constexpr std::array<core::Rgb, core::kRoadClasses> kRoad = {0x5C6068, 0x5C6068, 0x535760, 0x4A4E56,
+                                                             0x42464D, 0x383B41, 0x2E3136};
 // Widths at 2 m/px; thinner when zoomed out.
 constexpr std::array<float, core::kRoadClasses> kRoadPx = {7, 7, 6, 5, 4, 3, 2};
 constexpr core::Rgb kWater = 0x1E3A5F;

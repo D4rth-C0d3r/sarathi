@@ -279,6 +279,17 @@ void MapRenderer::DrawRoute(Canvas& canvas) const {
   constexpr int32_t kTickSpacingPx = 20;  // ADR-0009: cross-ticks every 20 px
   constexpr int32_t kTickOverhangPx = 8;
   constexpr int32_t kTickThicknessPx = 3;
+  if (route_.casing_px > 0) {
+    for (size_t i = 0; i < n_route_; ++i) {
+      // NOLINTBEGIN(*-constant-array-index)
+      const auto level = static_cast<size_t>(route_pieces_[i].level);
+      const int32_t w =
+          route_.styles[std::min(level, kTrafficLevels - 1)].width_px + 2 * route_.casing_px;
+      DrawSegment(canvas, route_a_[i], route_b_[i], w, route_.casing_color);
+      DrawDot(canvas, route_b_[i], w, route_.casing_color);
+      // NOLINTEND(*-constant-array-index)
+    }
+  }
   float phase = 0;
   for (size_t i = 0; i < n_route_; ++i) {
     // NOLINTBEGIN(*-constant-array-index)

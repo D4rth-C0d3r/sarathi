@@ -67,6 +67,10 @@ struct MapRoute {
   float origin_x_m = 0;
   float origin_y_m = 0;
   size_t count = 0;
+  // A continuous outline under the whole route, `casing_px` wider on each side, so the route
+  // stands out from the roads even where it's dashed (owner's feedback, step G5). 0: none.
+  uint16_t casing_color = 0;
+  uint8_t casing_px = 0;
   MapRouteStyle styles[kTrafficLevels] = {};  // NOLINT(*-avoid-c-arrays)
 };
 
