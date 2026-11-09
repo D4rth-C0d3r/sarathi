@@ -3,18 +3,29 @@ package io.github.d4rthc0d3r.sarathi.maps.google
 import android.app.Activity
 import android.app.Application
 import com.google.android.libraries.navigation.NavigationApi
+import com.google.android.libraries.navigation.NavigationRoadStretchRenderingData
+import com.google.android.libraries.navigation.NavigationTrafficData
 import com.google.android.libraries.navigation.Navigator
 import com.google.android.libraries.navigation.RoutingOptions
 import com.google.android.libraries.navigation.Waypoint
+import io.github.d4rthc0d3r.sarathi.core.maps.Geo
 import io.github.d4rthc0d3r.sarathi.core.maps.LatLng
 import io.github.d4rthc0d3r.sarathi.core.maps.ProviderException
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingProvider
+import io.github.d4rthc0d3r.sarathi.core.maps.Traffic
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficLevel
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficStretch
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficUpdate
 import io.github.d4rthc0d3r.sarathi.core.maps.TravelMode
 import io.github.d4rthc0d3r.sarathi.core.maps.Unavailable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
@@ -48,14 +59,8 @@ class GoogleNavRouting(
         withContext(Dispatchers.Main) {
             val nav = navigator()
             val waypoints = request.stops.map { Waypoint.builder().setLatLng(it.lat, it.lng).build() }
-            val mode =
-                if (request.mode ==
-                    TravelMode.TWO_WHEELER
-                ) {
-                    RoutingOptions.TravelMode.TWO_WHEELER
-                } else {
-                    RoutingOptions.TravelMode.DRIVING
-                }
+            val twoWheeler = request.mode == TravelMode.TWO_WHEELER
+            val mode = if (twoWheeler) RoutingOptions.TravelMode.TWO_WHEELER else RoutingOptions.TravelMode.DRIVING
             val status =
                 suspendCancellableCoroutine { cont ->
                     nav.setDestinations(waypoints, RoutingOptions().travelMode(mode)) { cont.resume(it.routeStatus) }
@@ -71,7 +76,39 @@ class GoogleNavRouting(
                 durationS = time.seconds.toLong(),
                 mode = request.mode,
                 attribution = ATTRIBUTION,
+                traffic = trafficNow(nav),
             )
+        }
+
+    /** Google's traffic updates are free while the route is set (ADR-0006); each comes with the ETA. */
+    override fun traffic(route: Route): Flow<TrafficUpdate> =
+        callbackFlow {
+            val nav = navigator()
+            val listener = Navigator.TrafficUpdatedListener { trafficNow(nav)?.let { trySend(it) } }
+            nav.addTrafficUpdatedListener(listener)
+            awaitClose { nav.removeTrafficUpdatedListener(listener) }
+        }.flowOn(Dispatchers.Main)
+
+    /** Stretches per route segment (one per stop), relative to the segment's start. */
+    private fun trafficNow(nav: Navigator): TrafficUpdate? {
+        val segments = nav.routeSegments
+        val data = segments.map { it.trafficData }
+        if (segments.isEmpty() || data.any { it?.status != NavigationTrafficData.Status.OK }) return null
+        val legLengths = segments.map { s -> Geo.lengthM(s.latLngs.map { LatLng(it.latitude, it.longitude) }) }
+        val legs =
+            data.map { d ->
+                d!!.roadStretchRenderingDataList.map {
+                    TrafficStretch(it.offsetMeters.toDouble(), it.lengthMeters.toDouble(), level(it.style))
+                }
+            }
+        return TrafficUpdate(Traffic.fromLegs(legLengths, legs), nav.currentTimeAndDistance?.seconds?.toLong())
+    }
+
+    private fun level(style: NavigationRoadStretchRenderingData.Style): TrafficLevel =
+        when (style) {
+            NavigationRoadStretchRenderingData.Style.SLOWER_TRAFFIC -> TrafficLevel.SLOW
+            NavigationRoadStretchRenderingData.Style.TRAFFIC_JAM -> TrafficLevel.JAM
+            else -> TrafficLevel.UNKNOWN
         }
 
     /** One navigator for the app; Google refuses one until the terms are accepted. */

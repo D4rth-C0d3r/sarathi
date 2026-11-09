@@ -9,10 +9,12 @@ import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficUpdate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class RouteUi(
@@ -21,6 +23,9 @@ data class RouteUi(
     val result: ChainResult<RoutingBackend, Route>? = null,
     /** No current position to start from. */
     val noPosition: Boolean = false,
+    /** The latest traffic: the route's own, then the backend's updates (step F5). */
+    val traffic: TrafficUpdate? = null,
+    val trafficUpdates: Int = 0,
 )
 
 /**
@@ -48,7 +53,23 @@ class RouteViewModel(
         }
         job?.cancel()
         _ui.value = RouteUi(routing = true)
-        job = viewModelScope.launch { _ui.value = RouteUi(result = routing.route(RouteRequest(from, to))) }
+        job =
+            viewModelScope.launch {
+                val result = routing.route(RouteRequest(from, to))
+                val route = result.value
+                _ui.value = RouteUi(result = result, traffic = route?.traffic)
+                route?.let { r ->
+                    routing.traffic(r).collect { t ->
+                        _ui.update {
+                            it.copy(
+                                traffic = t,
+                                trafficUpdates =
+                                    it.trafficUpdates + 1,
+                            )
+                        }
+                    }
+                }
+            }
     }
 
     fun clear() {

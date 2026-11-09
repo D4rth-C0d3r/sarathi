@@ -1,5 +1,8 @@
 package io.github.d4rthc0d3r.sarathi.core.maps
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
 /**
  * Routes through the fallback chain (ADR-0006), with the cost guard around the backends that
  * bill: Google per destination in the request (every stop, waypoints included), Mappls per call.
@@ -25,6 +28,9 @@ class RoutingService(
                 throw e
             }
         }
+
+    /** Traffic updates for [route] from the backend that made it; none without traffic. */
+    fun traffic(route: Route): Flow<TrafficUpdate> = provider(route.backend)?.traffic(route) ?: emptyFlow()
 
     private fun overQuota(
         backend: RoutingBackend,

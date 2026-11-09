@@ -14,7 +14,7 @@ through `core:ble`'s `DashChannel`, and never to each other), position (`PoseSen
 moving lock's settings (ADR-0011). Step F adds the maps backends (ADR-0006, ADR-0008): F1 the
 interfaces, settings and cost guard; F2 search; F3 shared links; F4 routing (F4.1 Valhalla
 and GraphHopper, with a desk-test route preview; F4.2 Mappls; F4.3 Google; F4.4
-offline). Don't add features or permissions unasked.
+offline); F5 traffic. Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 

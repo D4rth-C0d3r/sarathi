@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteStep
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
+import io.github.d4rthc0d3r.sarathi.core.maps.Traffic
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficLevel
 import io.github.d4rthc0d3r.sarathi.core.maps.TravelMode
 import java.util.Locale
 
@@ -43,6 +45,7 @@ internal fun RoutePreview(route: RouteUi) {
                         Text(stringResource(R.string.route_none), color = MaterialTheme.colorScheme.error)
                     } else {
                         Summary(r)
+                        TrafficSummary(route)
                     }
                     result.skipped.forEach {
                         Text(
@@ -66,6 +69,30 @@ private fun Summary(r: Route) {
     Text(stringResource(R.string.route_shape, r.points.size, r.steps.size), style = small)
     r.steps.take(PREVIEW_STEPS).forEach { Text(stepLine(it), style = small) }
     Text(r.attribution, style = small)
+}
+
+@Composable
+private fun TrafficSummary(route: RouteUi) {
+    val small = MaterialTheme.typography.bodySmall
+    val t = route.traffic
+    if (t == null) {
+        Text(stringResource(R.string.route_no_traffic), style = small)
+        return
+    }
+    val totals = Traffic.totals(t.stretches)
+    val parts =
+        listOf(TrafficLevel.FREE, TrafficLevel.SLOW, TrafficLevel.JAM, TrafficLevel.UNKNOWN).mapNotNull { level ->
+            totals[level]?.let {
+                String.format(
+                    Locale.ROOT,
+                    "%.1f km %s",
+                    it / M_PER_KM,
+                    level.name.lowercase(Locale.ROOT),
+                )
+            }
+        }
+    Text(stringResource(R.string.route_traffic, parts.joinToString(" · ")), style = small)
+    t.etaS?.let { Text(stringResource(R.string.route_traffic_eta, minutes(it), route.trafficUpdates), style = small) }
 }
 
 private fun stepLine(s: RouteStep): String {

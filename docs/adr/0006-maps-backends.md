@@ -220,6 +220,25 @@ interface RoutingProvider {
   optimistic ETA the spike found), about 7 s including the first copy of the tiles.
   (motorcycle); GraphHopper 33.2 km, 41 min (car).
 
+### Traffic (step F5, 2026-11-09)
+
+- **One scale** in `:core:maps` (`Traffic`): stretches along the route from its start, merged
+  by level. Google's per-segment stretches (slower → slow, jam → jam, unknown) are shifted onto
+  the whole route and its gaps are free. Mappls's per-segment `congestion` (low → free, moderate
+  → slow, heavy or severe → jam, else unknown) with its per-segment `distance`. OSM: none.
+- **Mappls** now routes with `route_traffic` and those annotations: traffic and a
+  traffic-aware duration at route time (same trip: 55 min; 23.2 km free, 3.6 km slow, 0.2 km
+  jam, 4.4 km unknown). **No refresh:** the free plan's answers carry no request, route or
+  session ID, so Mappls's route-refresh call can't be used (checked on the phone). The owner
+  chose "refresh API, else none": the dash shows its traffic as unknown after 5 minutes.
+- **Google** traffic comes from the Navigation SDK's traffic listener and route segments, free
+  while the route is set. At route time, before guidance, the SDK gave none (checked on the
+  phone); it's verified with guidance in step F6.
+- **To the dash:** `TrafficStream` (app) turns the route's stretches into the protocol's
+  `traffic` message: whole metres, at most 256 entries (nearest first), on change and at most
+  every 30 s. It's sent with the route from step F7. The dash draws traffic with the on-device
+  map (ADR-0009); until then the firmware ignores it (owner's choice).
+
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)
 
 | Part | How it stays alive | Verify |
