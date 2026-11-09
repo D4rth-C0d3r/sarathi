@@ -259,6 +259,11 @@ void LogPerf() {
   const core::FrameStats::Summary frames = ui::lvgl_port::TakeFrameStats();
   const core::FrameStats::Summary flushes = flush_stats.TakeSummary();
   constexpr float kMs = 1000.0F;
+  const ui::nav_screen::MapPerf map = ui::nav_screen::TakeMapPerf();
+  const float n_frames = frames.count > 0 ? static_cast<float>(frames.count) : 1.0F;
+  const auto per_frame = [&](uint32_t us) {
+    return static_cast<double>(static_cast<float>(us) / n_frames / kMs);
+  };
 #ifdef SARATHI_NAV_STRESS
   constexpr const char* kBuild = "stress";
 #else
@@ -267,12 +272,12 @@ void LogPerf() {
   // Formatted first and written only if the USB port has room: ESP_LOGx waits up to the 1 ms
   // timeout per write when a host is attached but not reading, which froze the UI for about
   // 0.3 s every 5 s (seen in the map bench, step G1).
-  static std::array<char, 400> line{};  // NOLINT(*-avoid-non-const-global-variables)
+  static std::array<char, 480> line{};  // NOLINT(*-avoid-non-const-global-variables)
   const int len = std::snprintf(
       line.data(), line.size(),
       "[main] perf %s %s | frames %u/%us | frame avg %.1f ms max %.1f ms | flush avg %.1f ms max "
       "%.1f ms (%u) | heap int %u KB free (min %u, largest %u) | psram %u KB free (min "
-      "%u) | stack free ui %u B, knob %u B",
+      "%u) | stack free ui %u B, knob %u B | map draw %.1f ms (prepare %.1f lines %.1f) x %u",
       kBuild, ui::app_shell::CurrentScreenName(), static_cast<unsigned>(frames.count),
       static_cast<unsigned>(kPerfPeriodMs / 1000),
       static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
@@ -286,7 +291,8 @@ void LogPerf() {
       static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / kKiB),
       static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
       static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
-      static_cast<unsigned>(knob.StackFreeBytes()));
+      static_cast<unsigned>(knob.StackFreeBytes()), per_frame(map.total_us),
+      per_frame(map.prepare_us), per_frame(map.lines_us), static_cast<unsigned>(map.frames));
   if (len > 0 && static_cast<size_t>(len) < line.size() - 1) {
     line.at(static_cast<size_t>(len)) = '\n';
     if (Serial.availableForWrite() > len) {
@@ -465,9 +471,9 @@ void setup() {
   ui::theme::SetPanelSwapsRedBlue(pins::kSwapRedBlue);  // before the first theme is bound
   // The map's renderer (about 330 KB of cache) in PSRAM, once; before the screens are made.
   void* renderer_memory = heap_caps_calloc(1, sizeof(core::MapRenderer), MALLOC_CAP_SPIRAM);
-  ui::nav_screen::SetMapData(MapChunks(), renderer_memory == nullptr ? nullptr
-                                                                     : new (renderer_memory)
-                                                                           core::MapRenderer());
+  ui::nav_screen::SetMapData(
+      MapChunks(), renderer_memory == nullptr ? nullptr : new (renderer_memory) core::MapRenderer(),
+      TimeUs);
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, Random);
   if (boot_state.rolled_back && nvs.LoadMarker(kRollbackMarker) != boot_state.invalid_address) {

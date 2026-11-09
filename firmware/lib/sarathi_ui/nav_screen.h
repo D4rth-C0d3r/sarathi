@@ -15,7 +15,18 @@ namespace sarathi::ui::nav_screen {
 
 // The map's chunks (null: no map source, only the route draws) and the renderer, allocated by
 // the platform (about 330 KB; PSRAM on the device). Before Create().
-void SetMapData(core::ChunkStore* store, core::MapRenderer* renderer);
+// `time_us` (optional) times the map's drawing for the perf log.
+void SetMapData(core::ChunkStore* store, core::MapRenderer* renderer,
+                uint32_t (*time_us)() = nullptr);
+
+// The map's drawing since the last call, for the perf log: per frame, in microseconds.
+struct MapPerf {
+  uint32_t frames = 0;
+  uint32_t total_us = 0;  // MapView's own draw, all strips
+  uint32_t prepare_us = 0;
+  uint32_t lines_us = 0;
+};
+MapPerf TakeMapPerf();
 
 lv_obj_t* Create();
 void Update(const core::AppState& state, uint32_t now_ms);

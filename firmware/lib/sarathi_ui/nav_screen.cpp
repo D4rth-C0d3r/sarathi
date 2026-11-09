@@ -62,6 +62,7 @@ constexpr int32_t kArrowEtaY = 165;
 MapView map;
 core::ChunkStore* map_store = nullptr;      // SetMapData(); null: no map source
 core::MapRenderer* map_renderer = nullptr;  // SetMapData()
+uint32_t (*map_time_us)() = nullptr;        // SetMapData()
 uint32_t map_sequence = 0;                  // the window last drawn
 bool map_stale = false;
 const core::ThemeDescriptor* map_theme = nullptr;
@@ -257,16 +258,23 @@ void UpdateArrowMode(const core::AppState& state) {
 
 }  // namespace
 
-void SetMapData(core::ChunkStore* store, core::MapRenderer* renderer) {
+MapPerf TakeMapPerf() {
+  const MapView::Stats s = map.TakeStats();
+  return MapPerf{s.draws, s.draw_avg_us * s.draws, s.last.prepare_us, s.last.lines_us};
+}
+
+void SetMapData(core::ChunkStore* store, core::MapRenderer* renderer, uint32_t (*time_us)()) {
   map_store = store;
   map_renderer = renderer;
+  map_time_us = time_us;
 }
 
 lv_obj_t* Create() {
   lv_obj_t* screen = theme::MakeScreen();
   // Draw order: map, card, ring, then text. The ring sits above the card so the card never
   // dims it.
-  map.Create(screen, 0, 0, layout::kScreenSize, layout::kScreenSize, map_store, map_renderer);
+  map.Create(screen, 0, 0, layout::kScreenSize, layout::kScreenSize, map_store, map_renderer,
+             map_time_us);
   map.SetVisible(false);
 
   card = lv_obj_create(screen);

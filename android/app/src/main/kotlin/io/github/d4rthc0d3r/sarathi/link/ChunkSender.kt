@@ -49,6 +49,17 @@ class ChunkSender(
 
     fun start() {
         jobs += scope.launch { pose.fixes.collect { rider = GeoPoint(it.at.lat, it.at.lng) } }
+        // Each hello says which frame the dash holds; none (a reset dash) or another one means
+        // it holds nothing we sent. Its chunk_have, if any, refills the list.
+        jobs +=
+            scope.launch {
+                dash.dashHello.collect { h ->
+                    if (h != null && h.epoch != held.epoch) {
+                        held.reset(h.epoch ?: -1)
+                        Log.i(TAG, "map: the dash holds frame ${h.epoch}: starting over")
+                    }
+                }
+            }
         jobs +=
             scope.launch {
                 dash.chunkHave.collect {
