@@ -1,6 +1,7 @@
 package io.github.d4rthc0d3r.sarathi.core.maps
 
 import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -92,4 +93,34 @@ object Geo {
     }
 
     fun lengthM(points: List<LatLng>): Double = points.zipWithNext().sumOf { (a, b) -> distanceM(a, b) }
+
+    /** Initial bearing from [a] to [b], degrees clockwise from north. */
+    fun bearingDeg(
+        a: LatLng,
+        b: LatLng,
+    ): Double {
+        val la = Math.toRadians(a.lat)
+        val lb = Math.toRadians(b.lat)
+        val dLng = Math.toRadians(b.lng - a.lng)
+        val y = sin(dLng) * cos(lb)
+        val x = cos(la) * sin(lb) - sin(la) * cos(lb) * cos(dLng)
+        return (Math.toDegrees(atan2(y, x)) + FULL_TURN) % FULL_TURN
+    }
+
+    /** The point [distanceM] from [p] towards [bearingDeg]. */
+    fun offset(
+        p: LatLng,
+        bearingDeg: Double,
+        distanceM: Double,
+    ): LatLng {
+        val d = distanceM / EARTH_RADIUS_M
+        val b = Math.toRadians(bearingDeg)
+        val la = Math.toRadians(p.lat)
+        val lo = Math.toRadians(p.lng)
+        val lat = asin(sin(la) * cos(d) + cos(la) * sin(d) * cos(b))
+        val lng = lo + atan2(sin(b) * sin(d) * cos(la), cos(d) - sin(la) * sin(lat))
+        return LatLng(Math.toDegrees(lat), Math.toDegrees(lng))
+    }
+
+    private const val FULL_TURN = 360.0
 }
