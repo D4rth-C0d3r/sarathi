@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryMessage
+import io.github.d4rthc0d3r.sarathi.core.protocol.ChunkHave
+import io.github.d4rthc0d3r.sarathi.core.protocol.HelloDevice
 import io.github.d4rthc0d3r.sarathi.core.protocol.JsonMessage
 import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneCap
 import kotlinx.coroutines.CompletableDeferred
@@ -45,8 +47,19 @@ class DashLink(
     private val _ready = MutableStateFlow(false)
     override val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
+    private val _dashHello = MutableStateFlow<HelloDevice?>(null)
+    override val dashHello: StateFlow<HelloDevice?> = _dashHello.asStateFlow()
+
+    private val _chunkHave = MutableSharedFlow<ChunkHave>(extraBufferCapacity = 2)
+    override val chunkHave: SharedFlow<ChunkHave> = _chunkHave.asSharedFlow()
+
     init {
-        scope.launch { state.collect { _ready.value = it is LinkState.Ready } }
+        scope.launch {
+            state.collect {
+                _dashHello.value = (it as? LinkState.Ready)?.dash
+                _ready.value = it is LinkState.Ready
+            }
+        }
     }
 
     private var job: Job? = null
@@ -75,6 +88,8 @@ class DashLink(
     override suspend fun send(message: JsonMessage) = checkNotNull(session) { "not connected" }.send(message)
 
     override suspend fun send(message: BinaryMessage) = checkNotNull(session) { "not connected" }.send(message)
+
+    override suspend fun sendBulk(message: BinaryMessage) = checkNotNull(session) { "not connected" }.sendBulk(message)
 
     private suspend fun runForever() {
         var earlyDrops = 0
@@ -172,6 +187,7 @@ class DashLink(
             listOf(
                 scope.launch { for (frame in connection.frames) link.onFrame(frame) },
                 scope.launch { link.received.collect { _received.emit(it) } },
+                scope.launch { link.chunkHave.collect { _chunkHave.emit(it) } },
                 scope.launch {
                     val state = started(link)
                     _state.value = state
@@ -206,11 +222,6 @@ class DashLink(
             }
         }
 
-    private fun fail(
-        problem: LinkProblem,
-        detail: String,
-    ): Nothing = throw SetupFailure(LinkState.Failed(problem, detail))
-
     private companion object {
         const val BUFFER = 32
         const val MIN_MTU = 247
@@ -218,3 +229,8 @@ class DashLink(
         const val STALE_AFTER_DROPS = 3
     }
 }
+
+private fun fail(
+    problem: LinkProblem,
+    detail: String,
+): Nothing = throw SetupFailure(LinkState.Failed(problem, detail))

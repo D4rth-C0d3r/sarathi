@@ -1,6 +1,7 @@
 package io.github.d4rthc0d3r.sarathi.core.ble
 
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryCodec
+import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryMessage
 import io.github.d4rthc0d3r.sarathi.core.protocol.Flow
 import io.github.d4rthc0d3r.sarathi.core.protocol.FrameEvent
 import io.github.d4rthc0d3r.sarathi.core.protocol.Framing
@@ -23,6 +24,9 @@ class FakeDash(
     lateinit var session: PhoneLinkSession
     val received = mutableListOf<Any>()
     val writes = mutableListOf<Pair<Int, Boolean>>() // frame size, with response
+
+    /** Messages the dash dropped (a bulk message cut short by another multi-frame one). */
+    val drops = mutableListOf<String>()
     var consumed = 0L
         private set
     private val reassembler = Reassembler()
@@ -35,7 +39,13 @@ class FakeDash(
         writes += frame.size to withResponse
         consumed++
         for (event in reassembler.feed(frame)) {
-            check(event is FrameEvent.Message) { "phone sent a bad frame: $event" }
+            if (event is FrameEvent.Dropped) {
+                // Only an abandoned message is allowed; anything else is the phone's bug.
+                check(event.reason.wire == "cut_short") { "phone sent a bad frame: $event" }
+                drops += event.reason.wire
+                continue
+            }
+            check(event is FrameEvent.Message)
             val message =
                 if (event.type >= MsgType.POSE) {
                     BinaryCodec.decode(event.type, event.payload)
@@ -63,6 +73,12 @@ class FakeDash(
 
     /** Sends flow with everything consumed so far. */
     fun grant() = reply(Flow(window, consumed))
+
+    fun reply(message: BinaryMessage) {
+        for (frame in Framing.fragment(message.type, msgId++ and 0xFF, BinaryCodec.encode(message), mtu)) {
+            session.onFrame(frame)
+        }
+    }
 
     fun reply(message: JsonMessage) {
         for (frame in Framing.fragment(message.type, msgId++ and 0xFF, JsonCodec.encode(message), mtu)) {

@@ -2,6 +2,7 @@ package io.github.d4rthc0d3r.sarathi.core.ble
 
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryCodec
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryMessage
+import io.github.d4rthc0d3r.sarathi.core.protocol.ChunkHave
 import io.github.d4rthc0d3r.sarathi.core.protocol.Flow
 import io.github.d4rthc0d3r.sarathi.core.protocol.FrameEvent
 import io.github.d4rthc0d3r.sarathi.core.protocol.Framing
@@ -80,77 +81,56 @@ class PhoneLinkSession(
     /** Messages from the dash after its hello (call_action, media_cmd, style, ...). */
     val received: SharedFlow<JsonMessage> = _received.asSharedFlow()
 
+    private val _chunkHave =
+        MutableSharedFlow<ChunkHave>(extraBufferCapacity = 2, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** What the dash's map cache holds, sent after its hello (ADR-0009). */
+    val chunkHave: SharedFlow<ChunkHave> = _chunkHave.asSharedFlow()
+
     private val _stats = MutableStateFlow(SessionStats())
     val stats: StateFlow<SessionStats> = _stats.asStateFlow()
 
     private val reassembler = Reassembler()
-    private val sendLock = Mutex()
-    private val credit = MutableStateFlow(Credit(window = 0, consumed = 0, closed = false))
-    private var sent = 0L
-    private var msgId = 0
-
-    private data class Credit(
-        val window: Int,
-        val consumed: Long,
-        val closed: Boolean,
-    )
+    private val writer =
+        FrameWriter(port) { _stats.value = _stats.value.copy(framesSent = _stats.value.framesSent + 1) }
 
     /**
      * Sends hello and waits for the dash's answer and first flow credit. Returns the state it
      * ends in: [SessionState.Ready] or [SessionState.Incompatible]. Throws on timeout.
      */
     suspend fun start(timeoutMs: Long = HELLO_TIMEOUT_MS): SessionState {
-        sendLock.withLock {
-            sendFrames(MsgType.HELLO, JsonCodec.encode(HelloPhone(appVersion, caps)), firstIsHello = true)
-        }
+        writer.hello(JsonCodec.encode(HelloPhone(appVersion, caps)))
         return withTimeout(timeoutMs) {
             val answered = state.first { it !is SessionState.Starting }
-            if (answered is SessionState.Ready) credit.first { it.window > 0 || it.closed }
+            if (answered is SessionState.Ready) writer.awaitFirstCredit()
             answered
         }
     }
 
     /** Sends a JSON message once the dash has said hello, within the flow window. */
-    suspend fun send(message: JsonMessage) = sendPayload(message.type, JsonCodec.encode(message))
-
-    suspend fun send(message: BinaryMessage) = sendPayload(message.type, BinaryCodec.encode(message))
-
-    private suspend fun sendPayload(
-        type: Int,
-        payload: ByteArray,
-    ) {
-        if (state.value is SessionState.Closed) throw LinkClosedException()
-        check(state.value is SessionState.Ready) { "the dash isn't ready" }
-        sendLock.withLock { sendFrames(type, payload, firstIsHello = false) }
+    suspend fun send(message: JsonMessage) {
+        checkReady()
+        writer.send(message.type, JsonCodec.encode(message))
     }
 
-    private suspend fun sendFrames(
-        type: Int,
-        payload: ByteArray,
-        firstIsHello: Boolean,
-    ) {
-        // Android refuses GATT writes over 512 bytes, whatever the MTU (517 gives 514-byte frames).
-        val frames =
-            Framing.fragment(
-                type,
-                msgId and BYTE_MASK,
-                payload,
-                minOf(
-                    port.mtu,
-                    MAX_WRITE_BYTES + ATT_HEADER_BYTES,
-                ),
-            )
-        msgId++
-        for (frame in frames) {
-            // Before the first flow, nothing but hello (protocol.md section 1).
-            if (!firstIsHello) {
-                val now = credit.first { it.closed || (sent - it.consumed).mod(U32) < it.window }
-                if (now.closed) throw LinkClosedException()
-            }
-            port.write(frame, withResponse = firstIsHello)
-            sent = (sent + 1).mod(U32)
-            _stats.value = _stats.value.copy(framesSent = _stats.value.framesSent + 1)
-        }
+    suspend fun send(message: BinaryMessage) {
+        checkReady()
+        writer.send(message.type, BinaryCodec.encode(message))
+    }
+
+    /**
+     * Sends a large, low-priority message (a map chunk) one frame at a time, letting other
+     * messages through between its frames (protocol.md section 5). Returns false if a multi-frame
+     * message cut it short (the dash then drops it): send it again later.
+     */
+    suspend fun sendBulk(message: BinaryMessage): Boolean {
+        checkReady()
+        return writer.sendBulk(message.type, BinaryCodec.encode(message))
+    }
+
+    private fun checkReady() {
+        if (state.value is SessionState.Closed) throw LinkClosedException()
+        check(state.value is SessionState.Ready) { "the dash isn't ready" }
     }
 
     /** One notification from the dash's `tx` characteristic. Never throws. */
@@ -164,22 +144,25 @@ class PhoneLinkSession(
     }
 
     private fun onMessage(event: FrameEvent.Message) {
-        if (event.type >= MsgType.POSE) {
-            dropped("binary 0x%02x".format(event.type)) // chunk_have waits for the map step
-            return
-        }
         val message =
             try {
-                JsonCodec.decode(event.type, event.payload, Sender.DEVICE)
+                if (event.type >= MsgType.POSE) {
+                    BinaryCodec.decode(event.type, event.payload)
+                } else {
+                    JsonCodec.decode(event.type, event.payload, Sender.DEVICE)
+                }
             } catch (e: ProtocolException) {
                 dropped(e.reason)
                 return
             }
         _stats.value = _stats.value.copy(messagesReceived = _stats.value.messagesReceived + 1)
+        val ready = state.value is SessionState.Ready
         when (message) {
             is HelloDevice -> onHello(message)
-            is Flow -> credit.value = credit.value.copy(window = message.window, consumed = message.consumed)
-            else -> if (state.value is SessionState.Ready) _received.tryEmit(message)
+            is Flow -> writer.onFlow(message.window, message.consumed)
+            is ChunkHave -> if (ready) _chunkHave.tryEmit(message)
+            is JsonMessage -> if (ready) _received.tryEmit(message)
+            else -> dropped("binary 0x%02x".format(event.type)) // not one the dash sends
         }
     }
 
@@ -198,17 +181,11 @@ class PhoneLinkSession(
     /** The link is gone: anything waiting to send fails, and nothing more is accepted. */
     fun close() {
         _state.value = SessionState.Closed
-        credit.value = credit.value.copy(closed = true)
+        writer.close()
     }
 
     private companion object {
         const val HELLO_TIMEOUT_MS = 10_000L
         const val RECEIVED_BUFFER = 32
-        const val BYTE_MASK = 0xFF
-        const val U32 = 1L shl 32
     }
 }
-
-/** Android's longest GATT attribute value (GATT_MAX_ATTR_LEN): frames never exceed it. */
-internal const val MAX_WRITE_BYTES = 512
-private const val ATT_HEADER_BYTES = 3

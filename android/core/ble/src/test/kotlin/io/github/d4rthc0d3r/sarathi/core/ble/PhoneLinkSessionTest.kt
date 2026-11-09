@@ -2,17 +2,23 @@ package io.github.d4rthc0d3r.sarathi.core.ble
 
 import io.github.d4rthc0d3r.sarathi.core.protocol.CallAction
 import io.github.d4rthc0d3r.sarathi.core.protocol.CallChoice
+import io.github.d4rthc0d3r.sarathi.core.protocol.Chunk
+import io.github.d4rthc0d3r.sarathi.core.protocol.ChunkHave
+import io.github.d4rthc0d3r.sarathi.core.protocol.ChunkKey
 import io.github.d4rthc0d3r.sarathi.core.protocol.HelloPhone
 import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneBattery
 import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneCap
 import io.github.d4rthc0d3r.sarathi.core.protocol.Point
+import io.github.d4rthc0d3r.sarathi.core.protocol.Provenance
 import io.github.d4rthc0d3r.sarathi.core.protocol.Route
 import io.github.d4rthc0d3r.sarathi.core.protocol.Routing
+import io.github.d4rthc0d3r.sarathi.core.protocol.Shape
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -138,4 +144,68 @@ class PhoneLinkSessionTest {
         policy.connected()
         assertEquals(1_000L, policy.nextDelayMs())
     }
+
+    // A map chunk of about 3 KB: 13 frames at MTU 247.
+    private fun bigChunk() =
+        Chunk(
+            ChunkKey(0, 11723, 7596, 20261101),
+            Provenance.OSM_OPENFREEMAP,
+            7,
+            0,
+            0,
+            20,
+            1200,
+            List(
+                60,
+            ) { line -> Shape(5, List(20) { Point((line * 17 + it * 53) % 1200, (line * 31 + it * 7) % 1200) }) },
+            emptyList(),
+        )
+
+    @Test
+    fun otherMessagesGoBetweenABulkMessagesFrames() =
+        runTest {
+            val (dash, session) = connect(FakeDash(window = 2))
+            session.start()
+            val bulk = async { session.sendBulk(bigChunk()) }
+            testScheduler.advanceUntilIdle() // two frames out, waiting for credit
+            val battery = launch { session.send(PhoneBattery(50, true)) }
+            while (bulk.isActive || battery.isActive) {
+                dash.grant()
+                testScheduler.advanceUntilIdle()
+            }
+            assertTrue(bulk.await())
+            val order = dash.received.map { it::class.simpleName }
+            assertTrue(order.indexOf("PhoneBattery") < order.indexOf("Chunk")) // it didn't wait for the chunk
+            assertTrue(dash.drops.isEmpty())
+        }
+
+    @Test
+    fun aMultiFrameMessageCutsABulkOneShort() =
+        runTest {
+            val (dash, session) = connect(FakeDash(window = 2))
+            session.start()
+            val bulk = async { session.sendBulk(bigChunk()) }
+            testScheduler.advanceUntilIdle()
+            val route = launch { session.send(bigRoute()) }
+            while (bulk.isActive || route.isActive) {
+                dash.grant()
+                testScheduler.advanceUntilIdle()
+            }
+            assertFalse(bulk.await()) // send it again later
+            assertTrue(dash.received.last() is Route)
+            assertTrue(dash.received.none { it is Chunk })
+            assertEquals(listOf("cut_short"), dash.drops)
+        }
+
+    @Test
+    fun whatTheDashHoldsComesThrough() =
+        runTest {
+            val (dash, session) = connect()
+            session.start()
+            val have = async { session.chunkHave.first() }
+            testScheduler.advanceUntilIdle()
+            val sent = ChunkHave(7, listOf(ChunkKey(1, 2888, 1833, 20261018)))
+            dash.reply(sent)
+            assertEquals(sent, have.await())
+        }
 }
