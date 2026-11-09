@@ -1,5 +1,6 @@
 #include "map_bench_scene.h"
 
+#include <algorithm>
 #include <cmath>
 #include <new>
 
@@ -187,6 +188,18 @@ bool MapBenchScene::FindMotorway(uint8_t level, Path& out) const {
   return out.n >= 2;
 }
 
+void MapBenchScene::PointAt(const Path& path, float d, float* x, float* y) {
+  d = std::max(0.0F, std::min(d, path.along[path.n - 1]));
+  size_t k = 1;
+  while (k + 1 < path.n && path.along[k] < d) {
+    ++k;
+  }
+  const float seg = path.along[k] - path.along[k - 1];
+  const float f = seg > 0 ? (d - path.along[k - 1]) / seg : 0;
+  *x = path.x[k - 1] + (path.x[k] - path.x[k - 1]) * f;
+  *y = path.y[k - 1] + (path.y[k] - path.y[k - 1]) * f;
+}
+
 void MapBenchScene::Place(size_t phase, uint32_t t_ms) {
   const Phase& p = kPhases[phase];  // NOLINT(*-constant-array-index)
   const float t = static_cast<float>(t_ms) / 1000.0F;
@@ -204,16 +217,22 @@ void MapBenchScene::Place(size_t phase, uint32_t t_ms) {
       return;
     }
     const float total = path.along[path.n - 1];
-    float d = std::fmod(p.speed_ms * t, total);
-    size_t k = 1;
-    while (k + 1 < path.n && path.along[k] < d) {
-      ++k;
-    }
-    const float seg = path.along[k] - path.along[k - 1];
-    const float f = seg > 0 ? (d - path.along[k - 1]) / seg : 0;
-    cam.x_m = path.x[k - 1] + (path.x[k] - path.x[k - 1]) * f;
-    cam.y_m = path.y[k - 1] + (path.y[k] - path.y[k - 1]) * f;
-    cam.heading_deg = std::atan2(path.x[k] - path.x[k - 1], path.y[k] - path.y[k - 1]) * kRadToDeg;
+    const float d = std::fmod(p.speed_ms * t, total);
+    float x = 0;
+    float y = 0;
+    PointAt(path, d, &x, &y);
+    cam.x_m = x;
+    cam.y_m = y;
+    // Heading from 25 m behind to 25 m ahead: it turns smoothly through bends, as the real map's
+    // smoothed GPS bearing will (G4), instead of jumping at every vertex.
+    constexpr float kLookM = 25;
+    float bx = 0;
+    float by = 0;
+    float ax = 0;
+    float ay = 0;
+    PointAt(path, d - kLookM, &bx, &by);
+    PointAt(path, d + kLookM, &ax, &ay);
+    cam.heading_deg = std::atan2(ax - bx, ay - by) * kRadToDeg;
   }
   view_.Set(cam, p.level, StyleFor(p));
   lv_label_set_text_static(label_, p.name);

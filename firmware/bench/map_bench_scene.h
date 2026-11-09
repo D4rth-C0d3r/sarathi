@@ -49,6 +49,7 @@ class MapBenchScene {
   };
 
   void Place(size_t phase, uint32_t t_ms);
+  static void PointAt(const Path& path, float d, float* x, float* y);
   bool FindMotorway(uint8_t level, Path& out) const;
 
   core::ChunkStore* store_ = nullptr;
