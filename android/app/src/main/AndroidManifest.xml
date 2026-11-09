@@ -62,6 +62,47 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Destinations from other apps (ADR-0008): the share sheet, geo: and map links.
+                 Offered, never taken by default: no autoVerify for hosts we don't own. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="geo" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.google.com" />
+                <data android:host="google.com" />
+                <data android:host="maps.google.com" />
+                <data android:host="www.google.co.in" />
+                <data android:host="goo.gl" />
+                <data android:pathPrefix="/maps" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="maps.app.goo.gl" />
+                <data android:host="mappls.com" />
+                <data android:host="www.mappls.com" />
+                <data android:host="maps.mappls.com" />
+                <data android:host="openstreetmap.org" />
+                <data android:host="www.openstreetmap.org" />
+                <data android:host="osm.org" />
+                <data android:host="www.osm.org" />
+                <data android:host="omaps.app" />
+                <data android:host="ge0.me" />
+            </intent-filter>
         </activity>
 
         <service

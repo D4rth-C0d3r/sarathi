@@ -12,7 +12,8 @@ protocol v1; `:core:ble` the session and the Bluetooth transport. Navigation, ca
 come in later steps. Step E adds `:feature:calls` and `:feature:media` (they talk to the dash only
 through `core:ble`'s `DashChannel`, and never to each other), position (`PoseSender`) and the
 moving lock's settings (ADR-0011). Step F adds the maps backends (ADR-0006, ADR-0008): F1 the
-interfaces, settings and cost guard; F2 search. Don't add features or permissions unasked.
+interfaces, settings and cost guard; F2 search; F3 shared links. Don't add features or
+permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -34,8 +35,9 @@ Before finishing any Android change, run both check lines and report the result.
 | `:core:protocol` | **pure Kotlin/JVM** | Message types, JSON encode/decode, protocol version |
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
 | `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard, search service, recents and saved places (ADR-0006, ADR-0008) |
+| `:core:links` | **pure Kotlin/JVM** | Shared links and text: parsing, offline short codes, redirect rules (ADR-0008) |
 | `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
-| `:feature:destination` | Android library | Search screen, recents and saved places (ADR-0008) |
+| `:feature:destination` | Android library | Search screen, recents and saved places, shared links to places and routes (ADR-0008) |
 | `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
 | `:feature:*` (later) | Android library | `navigation`, `ota` |
 

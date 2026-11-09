@@ -74,12 +74,18 @@ class DestinationViewModelTest {
     private val google = FakeGoogle(basilica)
     private val guard = CostGuard(CostGuard.caps(MapsSettings())) {}
 
-    private fun model(store: PlacesStore = FakeStore()) =
-        DestinationViewModel(
-            SearchService({ b -> google.takeIf { it.backend == b } }, { MapsSettings() }, { guard }),
-            store,
-            { null },
+    private val search = SearchService({ b -> google.takeIf { it.backend == b } }, { MapsSettings() }, { guard })
+
+    /** The recorded redirect of the fixture "google-place" (docs/fixtures/share-links.json). */
+    private val redirects =
+        mapOf(
+            "https://maps.app.goo.gl/VHHR9qEiTznWY9Cu7?g_st=ac" to
+                "https://www.google.com/maps/place/Basilica+of+Bom+Jesus,+Old+Goa+Road,+Old+Goa,+Goa+403402/" +
+                "data=!4m2!3m1!1s0x3bbfbef2b99b0289:0x1e8056689f15a7b8!18m1!1e1",
         )
+
+    private fun model(store: PlacesStore = FakeStore()) =
+        DestinationViewModel(search, store, SharedLinkResolver(search, { null }, { redirects[it] }), { null })
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -134,6 +140,52 @@ class DestinationViewModelTest {
                 store.book.value.recents
                     .single()
                     .place.at,
+            )
+        }
+
+    @Test
+    fun aSharedGooglePlaceIsFollowedAndLookedUpByName() =
+        runTest(dispatcher) {
+            val vm = model()
+            vm.onShared("https://maps.app.goo.gl/VHHR9qEiTznWY9Cu7?g_st=ac")
+            advanceUntilIdle()
+            assertEquals(listOf("Basilica of Bom Jesus, Old Goa Road, Old Goa, Goa 403402"), google.queries)
+            assertEquals(
+                basilica,
+                vm.ui.value.chosen
+                    ?.at,
+            )
+            assertEquals(
+                PlaceSource.GOOGLE,
+                vm.ui.value.chosen
+                    ?.source,
+            )
+        }
+
+    @Test
+    fun sharedCoordinatesNeedNoLookupAndUnknownTextSaysSo() =
+        runTest(dispatcher) {
+            val vm = model()
+            vm.onShared("Fort Aguada\nhttps://www.openstreetmap.org/?mlat=15.491618&mlon=73.774014")
+            advanceUntilIdle()
+            assertEquals(
+                LatLng(15.491618, 73.774014),
+                vm.ui.value.chosen
+                    ?.at,
+            )
+            assertEquals(
+                PlaceSource.SHARED,
+                vm.ui.value.chosen
+                    ?.source,
+            )
+            assertEquals(0, google.details)
+
+            vm.onShared("see you there")
+            advanceUntilIdle()
+            assertEquals(
+                LinkProblem.NOT_SUPPORTED,
+                vm.ui.value.linkProblem
+                    ?.problem,
             )
         }
 }

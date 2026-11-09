@@ -55,6 +55,7 @@ fun DestinationScreen(
             val chosen = ui.chosen
             when {
                 chosen != null -> ChosenCard(chosen, actions)
+                ui.trip != null -> TripCard(ui.trip, actions)
                 ui.query.trim().length >= DestinationViewModel.MIN_QUERY -> Suggestions(ui, actions)
                 else -> Book(ui.book, actions)
             }
@@ -72,6 +73,10 @@ private fun Status(ui: DestinationUi) {
 
         ui.searching -> {
             Text(stringResource(R.string.dest_searching), style = small)
+        }
+
+        ui.linkProblem != null -> {
+            Text(linkProblemText(ui.linkProblem), color = MaterialTheme.colorScheme.error)
         }
 
         ui.failure != null -> {
@@ -123,7 +128,10 @@ private fun Book(
             ) { actions.onRemoveSaved(saved) }
         }
         if (book.recents.isNotEmpty()) header(R.string.dest_recents)
-        items(book.recents, key = { "recent:${it.place.source}:${it.place.id}:${it.place.name}" }) { kept ->
+        items(
+            book.recents,
+            key = { "recent:${it.place.source}:${it.place.id}:${it.place.name}:${it.place.at}" },
+        ) { kept ->
             KeptRow(kept.place.name, kept.place, { actions.onKept(kept.place) }) { actions.onRemoveRecent(kept.place) }
         }
     }

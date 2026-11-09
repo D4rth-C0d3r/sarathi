@@ -62,4 +62,15 @@ class FallbackChainTest {
             assertNull(result.value)
             assertEquals(4, result.skipped.size)
         }
+
+    @Test
+    fun anUnexpectedSdkExceptionFallsBackAsAnError() =
+        runTest {
+            val result =
+                FallbackChain.run(listOf("mappls", "osm"), { it }, { null }, 1_000) {
+                    if (it == "mappls") error("SDK blew up") else it
+                }
+            assertEquals("osm", result.value)
+            assertEquals(Unavailable.ERROR, result.skipped.single().reason)
+        }
 }

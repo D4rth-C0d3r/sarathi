@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -16,6 +17,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -30,6 +32,7 @@ import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
+import io.github.d4rthc0d3r.sarathi.feature.destination.SharedLinkResolver
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
 import io.github.d4rthc0d3r.sarathi.maps.Keys
@@ -59,12 +62,17 @@ class MainActivity : ComponentActivity() {
             if (result.resultCode == RESULT_OK) model.startLink() // bonds right away: compare the codes
         }
 
+    /** Text or a link from another app, waiting for the destination screen (ADR-0008). */
+    private var shared by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) shared = sharedText(intent)
         enableEdgeToEdge()
         setContent {
             SarathiTheme {
                 var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+                if (shared != null) screen = Screen.DESTINATION
                 if (screen != Screen.HOME) {
                     val home = { screen = Screen.HOME }
                     BackHandler(onBack = home)
@@ -112,17 +120,49 @@ class MainActivity : ComponentActivity() {
         MapsSettingsScreen(settings.value, status, store::update, onBack)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        sharedText(intent)?.let { shared = it }
+    }
+
+    private fun sharedText(intent: Intent?): String? =
+        when (intent?.action) {
+            // Some apps put the place's name in the subject and only the link in the text.
+            Intent.ACTION_SEND -> {
+                listOfNotNull(intent.getStringExtra(Intent.EXTRA_SUBJECT), intent.getStringExtra(Intent.EXTRA_TEXT))
+                    .joinToString("\n")
+                    .ifBlank { null }
+            }
+
+            Intent.ACTION_VIEW -> {
+                intent.dataString
+            }
+
+            else -> {
+                null
+            }
+        }
+
     @Composable
     private fun Destination(onBack: () -> Unit) {
         val context = applicationContext
         val model =
             viewModel {
+                val maps = MapsRegistry.get(context)
+                val near = { LastLocation.get(context) }
                 DestinationViewModel(
-                    MapsRegistry.get(context).search,
+                    maps.search,
                     FilePlacesStore(context),
-                    { LastLocation.get(context) },
+                    SharedLinkResolver(maps.search, near, maps::redirect) { Log.i("Links", it) },
+                    near,
                 )
             }
+        LaunchedEffect(shared) {
+            shared?.let {
+                model.onShared(it)
+                shared = null
+            }
+        }
         val ui = model.ui.collectAsStateWithLifecycle()
         DestinationScreen(
             ui.value,
@@ -131,8 +171,8 @@ class MainActivity : ComponentActivity() {
                 onSuggestion = model::onSuggestion,
                 onKept = model::onKept,
                 onSave = model::save,
-                onRemoveRecent = model::removeRecent,
-                onRemoveSaved = model::removeSaved,
+                onRemoveRecent = { place -> model.edit { it.removeRecent(place) } },
+                onRemoveSaved = { saved -> model.edit { it.remove(saved) } },
                 onClearChosen = model::clearChosen,
                 onBack = onBack,
             ),

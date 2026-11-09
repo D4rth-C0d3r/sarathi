@@ -8,7 +8,10 @@ import io.github.d4rthc0d3r.sarathi.core.maps.SearchService
 import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.PhotonSearch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /** The maps backends this build has (ADR-0006), and search across them. One per process. */
 class MapsRegistry private constructor(
@@ -28,6 +31,38 @@ class MapsRegistry private constructor(
         )
 
     val search = SearchService(searchProviders::get, { store.settings.value }, { store.guard })
+
+    private val noRedirects =
+        http
+            .newBuilder()
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build()
+
+    /**
+     * One hop of a short link (ADR-0008): its `Location` header, without following it or reading
+     * the page. HEAD first; a GET whose body is never read if HEAD gives no redirect.
+     */
+    suspend fun redirect(url: String): String? =
+        runInterruptible(Dispatchers.IO) {
+            listOf("HEAD", "GET").firstNotNullOfOrNull { method ->
+                val request =
+                    Request
+                        .Builder()
+                        .url(url)
+                        .method(method, null)
+                        .header("User-Agent", userAgent)
+                        .build()
+                runCatching {
+                    noRedirects.newCall(request).execute().use {
+                        it
+                            .takeIf { r ->
+                                r.isRedirect
+                            }?.header("Location")
+                    }
+                }.getOrNull()
+            }
+        }
 
     companion object {
         @Volatile private var instance: MapsRegistry? = null

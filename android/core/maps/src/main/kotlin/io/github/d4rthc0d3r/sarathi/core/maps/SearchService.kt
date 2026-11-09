@@ -1,5 +1,7 @@
 package io.github.d4rthc0d3r.sarathi.core.maps
 
+import kotlinx.coroutines.CancellationException
+
 /**
  * Search across backends (ADR-0006, ADR-0008): autocomplete through the fallback chain, details
  * on the backend that made the suggestion, and the cost guard's counting around both.
@@ -37,7 +39,36 @@ class SearchService(
         val p = provider(suggestion.backend) ?: throw ProviderException(Unavailable.NO_KEY)
         val meter = detailsMeter(p.backend)
         (p.unavailable() ?: overQuota(meter))?.let { throw ProviderException(it) }
-        return metered(meter) { p.details(suggestion, session) }
+        return guarded { metered(meter) { p.details(suggestion, session) } }
+    }
+
+    /**
+     * A name for a point, from the first backend that has one. Google's provider has no reverse
+     * geocoding (no call, no cost), so it's passed over.
+     */
+    suspend fun reverseGeocode(at: LatLng): ChainResult<SearchBackend, Place> =
+        FallbackChain
+            .run(
+                settings().searchChain(),
+                provider,
+                { p ->
+                    p.unavailable()
+                        ?: overQuota(detailsMeter(p.backend).takeIf { p.backend != SearchBackend.GOOGLE })
+                },
+                FallbackChain.SEARCH_TIMEOUT_MS,
+            ) { p ->
+                val meter = if (p.backend == SearchBackend.MAPPLS) Meter.MAPPLS_SEARCH else null
+                metered(meter) { p.reverseGeocode(at) } ?: throw ProviderException(Unavailable.NO_DATA)
+            }
+
+    /** The top suggestion for [query] and its details: for links that carry only a name (ADR-0008). */
+    suspend fun findByName(
+        query: String,
+        near: LatLng?,
+        session: SearchSession,
+    ): Place? {
+        val top = autocomplete(query, near, session).value?.firstOrNull() ?: return null
+        return details(top, session)
     }
 
     private fun overQuota(meter: Meter?): Unavailable? =
@@ -57,6 +88,20 @@ class SearchService(
             throw e
         }
     }
+
+    /** Any other failure of a provider's SDK as an error the callers understand (ADR-0006). */
+    private suspend fun <T> guarded(call: suspend () -> T): T =
+        try {
+            call()
+        } catch (e: ProviderException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            throw ProviderException(Unavailable.ERROR, e.toString(), e)
+        }
 
     companion object {
         /**

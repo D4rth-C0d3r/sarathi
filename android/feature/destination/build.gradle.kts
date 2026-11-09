@@ -33,6 +33,7 @@ android {
 
 dependencies {
     api(project(":core:maps"))
+    api(project(":core:links"))
 
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

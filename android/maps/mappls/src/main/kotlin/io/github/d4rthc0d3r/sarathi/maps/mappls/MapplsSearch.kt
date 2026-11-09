@@ -67,7 +67,34 @@ class MapplsSearch(
     override suspend fun details(
         suggestion: Suggestion,
         session: SearchSession,
-    ): Place {
+    ): Place = byPin(suggestion) ?: placeDetail(suggestion)
+
+    /**
+     * Autosuggest given the Pin itself answers with its coordinates; place details by Pin answered
+     * "no content" on the free plan (checked on the phone, 2026-11-09), so it's only the fallback.
+     */
+    private suspend fun byPin(suggestion: Suggestion): Place? {
+        val request = MapplsAutoSuggest.builder().query(suggestion.id).build()
+        val e =
+            call { MapplsAutosuggestManager.newInstance(request).executeCall() }
+                ?.suggestedLocations
+                ?.firstOrNull { it.mapplsPin.equals(suggestion.id, ignoreCase = true) }
+        val lat = e?.latitude
+        val lng = e?.longitude
+        return if (lat == null || lng == null) {
+            null
+        } else {
+            Place(
+                e.placeName ?: suggestion.title,
+                e.placeAddress ?: suggestion.subtitle,
+                LatLng(lat, lng),
+                PlaceSource.MAPPLS,
+                e.mapplsPin,
+            )
+        }
+    }
+
+    private suspend fun placeDetail(suggestion: Suggestion): Place {
         val request = MapplsPlaceDetail.builder().mapplsPin(suggestion.id).build()
         val d =
             call { MapplsPlaceDetailManager.newInstance(request).executeCall() }
@@ -89,7 +116,12 @@ class MapplsSearch(
         val places = call { MapplsReverseGeoCodeManager.newInstance(request).executeCall() }?.places
         val p = places?.firstOrNull() ?: return null
         val address = p.formattedAddress.orEmpty()
-        return Place(p.poi ?: address, address, at, PlaceSource.MAPPLS, p.mapplsPin)
+        // Mappls leaves fields empty rather than null: the first one with text names the point.
+        val name =
+            listOf(p.poi, p.street, p.subLocality, p.locality, p.village, p.city, address).firstOrNull {
+                !it.isNullOrBlank()
+            }
+        return name?.let { Place(it, address, at, PlaceSource.MAPPLS, p.mapplsPin) }
     }
 
     /** Runs a blocking SDK call off the main thread; null for "nothing found" (HTTP 204). */

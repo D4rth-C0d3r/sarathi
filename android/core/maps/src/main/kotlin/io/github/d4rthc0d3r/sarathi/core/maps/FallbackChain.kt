@@ -1,5 +1,6 @@
 package io.github.d4rthc0d3r.sarathi.core.maps
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -48,6 +49,12 @@ object FallbackChain {
                 skipped += Skipped(backend, Unavailable.TIMEOUT, e.message)
             } catch (e: ProviderException) {
                 skipped += Skipped(backend, e.reason, e.message)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception, // any SDK failure falls back (ADR-0006)
+            ) {
+                skipped += Skipped(backend, Unavailable.ERROR, e.toString())
             }
         }
         return ChainResult(null, null, skipped)

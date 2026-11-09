@@ -35,7 +35,10 @@ data class DestinationUi(
     val failure: Unavailable? = null,
     val book: PlacesBook = PlacesBook(),
     val chosen: Place? = null,
+    /** A route shared from another app; routing it comes with step F4. */
+    val trip: SharedTrip? = null,
     val resolving: Boolean = false,
+    val linkProblem: LinkException? = null,
 )
 
 /**
@@ -49,6 +52,7 @@ private fun newSession() = SearchSession(UUID.randomUUID().toString())
 class DestinationViewModel(
     private val search: SearchService,
     private val store: PlacesStore,
+    private val links: SharedLinkResolver,
     private val near: () -> LatLng?,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -64,7 +68,7 @@ class DestinationViewModel(
     }
 
     fun onQuery(text: String) {
-        _ui.update { it.copy(query = text, chosen = null, failure = null) }
+        _ui.update { it.copy(query = text, chosen = null, trip = null, failure = null, linkProblem = null) }
         queries.value = text.trim()
     }
 
@@ -72,12 +76,50 @@ class DestinationViewModel(
 
     /** A recent or saved place; one whose coordinates expired (Google, 30 days) is looked up again. */
     fun onKept(place: Place) {
-        if (!PlacesBook.needsLookup(place)) {
-            choose(place)
-            return
+        val backend = backendOf(place.source)
+        val id = place.id
+        when {
+            !PlacesBook.needsLookup(place) -> {
+                choose(place)
+            }
+
+            id != null && backend != null -> {
+                resolve {
+                    search.details(
+                        Suggestion(place.name, place.address, backend, id),
+                        session,
+                    )
+                }
+            }
+
+            else -> {
+                resolve { links.byName(place.name) }
+            }
         }
-        val backend = backendOf(place.source) ?: return
-        resolve { search.details(Suggestion(place.name, place.address, backend, place.id.orEmpty()), session) }
+    }
+
+    /** Text or a link shared from another app (ADR-0008). */
+    fun onShared(text: String) {
+        _ui.update { DestinationUi(book = it.book, resolving = true) }
+        queries.value = ""
+        viewModelScope.launch {
+            try {
+                when (val r = links.resolve(text)) {
+                    is SharedLinkResolver.Result.One -> {
+                        choose(r.place)
+                    }
+
+                    is SharedLinkResolver.Result.Trip -> {
+                        store.update { it.addRecent(r.trip.destination, clock()) }
+                        _ui.update { it.copy(trip = r.trip) }
+                    }
+                }
+            } catch (e: LinkException) {
+                _ui.update { it.copy(linkProblem = e) }
+            } finally {
+                _ui.update { it.copy(resolving = false) }
+            }
+        }
     }
 
     fun save(
@@ -88,11 +130,10 @@ class DestinationViewModel(
         store.update { it.save(label, title, place, clock()) }
     }
 
-    fun removeRecent(place: Place) = store.update { it.removeRecent(place) }
+    /** Removing recents and saved places. */
+    fun edit(change: (PlacesBook) -> PlacesBook) = store.update(change)
 
-    fun removeSaved(entry: SavedPlace) = store.update { it.remove(entry) }
-
-    fun clearChosen() = _ui.update { it.copy(chosen = null) }
+    fun clearChosen() = _ui.update { it.copy(chosen = null, trip = null) }
 
     private suspend fun runSearch(query: String) {
         if (query.length < MIN_QUERY) {
@@ -126,6 +167,8 @@ class DestinationViewModel(
                 choose(lookup())
             } catch (e: ProviderException) {
                 _ui.update { it.copy(failure = e.reason) }
+            } catch (e: LinkException) {
+                _ui.update { it.copy(failure = e.reason ?: Unavailable.ERROR) }
             } finally {
                 _ui.update { it.copy(resolving = false) }
                 session = newSession()

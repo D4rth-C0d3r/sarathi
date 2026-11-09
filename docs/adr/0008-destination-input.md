@@ -101,6 +101,22 @@ the expected parse in `docs/fixtures/share-links.json`. Short links were resolve
 - **No network needed** for any of these except Google place links (name lookup) and Mappls
   Pins (Pin lookup).
 
+### How a shared link becomes a destination (step F3, 2026-11-09)
+
+- **Parsing** is `:core:links` (pure Kotlin), tested against every recorded fixture and the
+  documented formats the owner's apps didn't produce (`geo:`, Google `api=1`, OSM directions).
+  Google's `data=` tokens: an `m` token's number counts all the tokens nested under it.
+- **Coordinates** in a link are used as they are. A point without a name is named by reverse
+  geocoding through the search chain (Mappls or Photon; Google's provider has none).
+- **A name only** (Google place links): the top autocomplete suggestion for the name, then its
+  details, in one session. With Google that's one Place Details Essentials call, the same cost
+  as the Text Search plus details planned above, with one call fewer.
+- **A Mappls Pin** is looked up with Mappls; if Mappls can't be used, by the shared name alone
+  (with the address appended, search ranked unrelated places first).
+- **Google's 30-day rule** applies to coordinates that came in a Google link too: they're kept
+  as Google content and, once expired, looked up again by name.
+- **Verified on the phone:** every recorded share, sent to the app as the share sheet would.
+
 ### A shared Google route
 
 - **Origin, waypoints and travel mode are kept,** and routed with the **selected routing

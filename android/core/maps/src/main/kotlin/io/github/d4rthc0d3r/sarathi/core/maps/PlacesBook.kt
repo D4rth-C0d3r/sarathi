@@ -87,8 +87,8 @@ data class PlacesBook(
         const val MAX_RECENTS = 20
         const val GOOGLE_COORDS_MAX_MS = 30L * 24 * 60 * 60 * 1000
 
-        /** True when [place] has no coordinates but can be looked up again by its ID. */
-        fun needsLookup(place: Place) = place.at == null && place.id != null
+        /** True when [place] has no coordinates but can be looked up again, by its ID or name. */
+        fun needsLookup(place: Place) = place.at == null && (place.id != null || place.name.isNotBlank())
 
         /** The same place: same source and ID, or, without IDs, the same name and coordinates. */
         fun same(
