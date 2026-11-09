@@ -133,7 +133,7 @@ void UpdateMapNote(uint32_t now_ms) {
   if (!loaded && now_ms - map_empty_since_ms >= kMapLoadingAfterMs) {
     SetBubble(map_note, "Map loading");
   } else if (map_started && now_ms - map_started_ms < kMapAttributionMs) {
-    SetBubble(map_note, "OpenStreetMap");  // the fonts have no ©; ODbL attribution (ADR-0009)
+    SetBubble(map_note, "(c) OpenStreetMap");  // the built-in fonts have no ©; ODbL (ADR-0009)
   } else {
     SetBubble(map_note, "");
   }
