@@ -10,6 +10,7 @@
 #include "../protocol_vectors.h"
 #include "app_model.h"
 #include "binary_codec.h"
+#include "chunk_store.h"
 #include "frame.h"
 #include "json_codec.h"
 #include "protocol_bridge.h"
@@ -392,6 +393,134 @@ void TestBadMessagesAreCounted() {
   TEST_ASSERT_EQUAL(2, f.bridge.Stats().ignored);
 }
 
+// ---- Map chunks (ADR-0009, protocol 1.2) ----
+
+std::vector<uint8_t> g_chunk_arena(256 * 1024);
+std::vector<proto::ChunkShape> g_chunk_shapes(proto::kMaxChunkLines + proto::kMaxChunkPolys);
+std::vector<proto::Point> g_chunk_points(proto::kMaxChunkPoints);
+std::vector<proto::ChunkKey> g_chunk_keys(sarathi::core::ChunkStore::kMaxChunks);
+std::vector<uint8_t> g_binary_out(proto::kMaxMessage);
+
+// A bridge with a chunk store of `arena_bytes`, after hello and frame epoch 7.
+struct ChunkFixture {
+  explicit ChunkFixture(size_t arena_bytes = g_chunk_arena.size())
+      : store(g_chunk_arena.data(), arena_bytes),
+        bridge(BridgeStorage{g_reassembly.data(),
+                             g_reassembly.size(),
+                             g_points.data(),
+                             g_points.size(),
+                             {g_tracked.data(), g_cumulative.data(), g_tracked.size()},
+                             &store,
+                             g_chunk_shapes.data(),
+                             g_chunk_shapes.size(),
+                             g_chunk_points.data(),
+                             g_chunk_points.size(),
+                             g_chunk_keys.data(),
+                             g_chunk_keys.size(),
+                             g_binary_out.data(),
+                             g_binary_out.size()}) {
+    bridge.Begin(model);
+    bridge.OnLinkEvent(LinkEvent::kConnected, model);
+    bridge.OnLinkEvent(LinkEvent::kSecured, model);
+    Hello();
+    SendJson(0x04, R"({"t":"frame","epoch":7})");
+    out.sent.clear();
+  }
+  void Send(uint8_t type, const std::vector<uint8_t>& payload, uint32_t now_ms = 0) {
+    proto::Fragmenter f;
+    TEST_ASSERT_TRUE(f.Begin(type, msg_id++, payload.data(), payload.size(), proto::kMinMtu));
+    std::vector<uint8_t> frame(proto::kMinMtu - 3);
+    size_t n = 0;
+    while ((n = f.Next(frame.data(), frame.size())) > 0) {
+      bridge.OnFrame(frame.data(), n, now_ms, model, out);
+    }
+  }
+  void SendJson(uint8_t type, const std::string& json) {
+    Send(type, std::vector<uint8_t>(json.begin(), json.end()));
+  }
+  void Hello() { SendJson(0x01, R"({"t":"hello","proto":[1,2],"app":"0.1.0","caps":["osm"]})"); }
+  // The chunk_ack sent by Tick at `now_ms`, or "" if none.
+  std::string AckAt(uint32_t now_ms) {
+    out.sent.clear();
+    bridge.Tick(now_ms, model, out);
+    for (const Sent& s : out.sent) {
+      if (s.type == static_cast<uint8_t>(proto::MsgType::kChunkAck)) return s.text;
+    }
+    return "";
+  }
+  sarathi::core::ChunkStore store;
+  AppModel model;
+  ProtocolBridge bridge;
+  RecordingOutbox out;
+  uint8_t msg_id = 0;
+};
+
+void TestHelloTellsTheChunkCacheSize() {
+  ChunkFixture f;
+  f.out.sent.clear();
+  f.Hello();
+  TEST_ASSERT_TRUE(f.out.sent.at(0).text.find(R"("chunk_kb":256)") != std::string::npos);
+}
+
+void TestAChunkIsStoredAndAcknowledged() {
+  ChunkFixture f;
+  f.Send(0x43, BinaryVector("chunk-small"), 100);
+  TEST_ASSERT_EQUAL(1, f.store.Count());
+  TEST_ASSERT_EQUAL_STRING("", f.AckAt(200).c_str());  // batched: not yet
+  TEST_ASSERT_EQUAL_STRING(R"({"t":"chunk_ack","stored":[[1,2888,1833,20261018]],"refused":[]})",
+                           f.AckAt(600).c_str());
+  TEST_ASSERT_EQUAL_STRING("", f.AckAt(1200).c_str());  // nothing new
+  TEST_ASSERT_EQUAL(1, f.bridge.Stats().chunks_stored);
+}
+
+void TestAChunkInAnotherFrameIsRefused() {
+  ChunkFixture f;
+  f.SendJson(0x04, R"({"t":"frame","epoch":8})");
+  f.Send(0x43, BinaryVector("chunk-small"));  // epoch 7
+  TEST_ASSERT_EQUAL(0, f.store.Count());
+  TEST_ASSERT_EQUAL_STRING(
+      R"({"t":"chunk_ack","stored":[],"refused":[[1,2888,1833,20261018,"epoch"]]})",
+      f.AckAt(600).c_str());
+}
+
+void TestReconnectingReportsWhatTheDashHolds() {
+  ChunkFixture f;
+  f.Send(0x43, BinaryVector("chunk-small"));
+  f.out.sent.clear();
+  f.Hello();
+  const Sent& have = f.out.sent.back();
+  TEST_ASSERT_EQUAL(static_cast<int>(proto::MsgType::kChunkHave), have.type);
+  // ver 1, epoch 7 (u16), n 1 (varint), one key: level 1, tile 2888/1833, version 20261018
+  TEST_ASSERT_EQUAL(1 + 2 + 1 + 13, have.text.size());
+  TEST_ASSERT_EQUAL(7, static_cast<uint8_t>(have.text.at(1)));
+  TEST_ASSERT_EQUAL(1, static_cast<uint8_t>(have.text.at(3)));  // n
+  TEST_ASSERT_EQUAL(1, static_cast<uint8_t>(have.text.at(4)));  // level
+}
+
+void TestANewFrameDropsTheChunks() {
+  ChunkFixture f;
+  f.Send(0x43, BinaryVector("chunk-small"));
+  f.SendJson(0x04, R"({"t":"frame","epoch":9})");
+  TEST_ASSERT_EQUAL(0, f.store.Count());
+  f.out.sent.clear();
+  f.Hello();
+  for (const Sent& s : f.out.sent) {
+    TEST_ASSERT_NOT_EQUAL(static_cast<int>(proto::MsgType::kChunkHave), s.type);
+  }
+}
+
+void TestEvictionsAreReported() {
+  // Room for one small chunk at a time.
+  ChunkFixture f(sarathi::core::ChunkStore::BytesFor(3, 8));
+  f.Send(0x43, BinaryVector("chunk-small"));    // 2 lines + 1 polygon, 8 points
+  f.Send(0x43, BinaryVector("chunk-quarter"));  // evicts it
+  TEST_ASSERT_EQUAL(1, f.store.Count());
+  TEST_ASSERT_EQUAL_STRING(
+      R"({"t":"chunk_ack","stored":[[1,2888,1833,20261018],[2,23106,14668,20261101]],"refused":[],"evicted":[[1,2888,1833,20261018]]})",
+      f.AckAt(600).c_str());
+  TEST_ASSERT_EQUAL(1, f.bridge.Stats().chunks_evicted);
+}
+
 }  // namespace
 
 int main() {
@@ -411,5 +540,11 @@ int main() {
   RUN_TEST(TestHelloReportsTheHeldRoute);
   RUN_TEST(TestPoseOnTheRouteMakesAWindow);
   RUN_TEST(TestBadMessagesAreCounted);
+  RUN_TEST(TestHelloTellsTheChunkCacheSize);
+  RUN_TEST(TestAChunkIsStoredAndAcknowledged);
+  RUN_TEST(TestAChunkInAnotherFrameIsRefused);
+  RUN_TEST(TestReconnectingReportsWhatTheDashHolds);
+  RUN_TEST(TestANewFrameDropsTheChunks);
+  RUN_TEST(TestEvictionsAreReported);
   return UNITY_END();
 }

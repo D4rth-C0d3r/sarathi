@@ -16,6 +16,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "chunk_store.h"
 #include "frame.h"
 #include "json_codec.h"
 #include "nav_status.h"
@@ -98,6 +99,9 @@ bool tx_pending_frame = false;              // link task: tx_frame is waiting to
 size_t tx_frame_size = 0;
 uint8_t tx_msg_id = 0;
 ProtocolBridge* bridge = nullptr;  // in PSRAM; UI task only after Begin()
+// The map's chunk cache (ADR-0009): 1.5 MB of PSRAM, allocated once.
+constexpr size_t kChunkArenaBytes = 1536 * 1024;
+core::ChunkStore* chunk_store = nullptr;  // in PSRAM; UI task only
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool Secure(const NimBLEConnInfo& info) {
@@ -417,6 +421,27 @@ bool SarathiSource::Begin(const char* name) {
   storage.route_points_size = proto::kMaxRoutePoints;
   storage.tracker = {PsramArray<core::MetricPoint>(proto::kMaxRoutePoints),
                      PsramArray<float>(proto::kMaxRoutePoints), proto::kMaxRoutePoints};
+  auto* arena = PsramArray<uint8_t>(kChunkArenaBytes);
+  void* store_memory = heap_caps_calloc(1, sizeof(core::ChunkStore), MALLOC_CAP_SPIRAM);
+  if (arena != nullptr && store_memory != nullptr) {
+    chunk_store = new (store_memory) core::ChunkStore(arena, kChunkArenaBytes);
+  }
+  storage.chunks = chunk_store;
+  storage.chunk_shapes =
+      PsramArray<proto::ChunkShape>(proto::kMaxChunkLines + proto::kMaxChunkPolys);
+  storage.chunk_shapes_size = proto::kMaxChunkLines + proto::kMaxChunkPolys;
+  storage.chunk_points = PsramArray<proto::Point>(proto::kMaxChunkPoints);
+  storage.chunk_points_size = proto::kMaxChunkPoints;
+  storage.chunk_keys = PsramArray<proto::ChunkKey>(core::ChunkStore::kMaxChunks);
+  storage.chunk_keys_size = core::ChunkStore::kMaxChunks;
+  storage.binary_out = PsramArray<uint8_t>(proto::kMaxMessage);
+  storage.binary_out_size = proto::kMaxMessage;
+  if (chunk_store == nullptr || storage.chunk_shapes == nullptr ||
+      storage.chunk_points == nullptr || storage.chunk_keys == nullptr ||
+      storage.binary_out == nullptr) {
+    ESP_LOGE(kTag, "no PSRAM for the map; chunks will be ignored");
+    storage.chunks = nullptr;
+  }
   void* memory = heap_caps_calloc(1, sizeof(ProtocolBridge), MALLOC_CAP_SPIRAM);
   if (rx_queue == nullptr || tx_queue == nullptr || action_queue == nullptr ||
       storage.reassembly == nullptr || storage.route_points == nullptr ||
@@ -591,6 +616,20 @@ void SarathiSource::LogRide(uint32_t now_ms, const core::AppModel& model) {
     ESP_LOGI(kTag, "ride: route %lu version %u, %u points, %u markers",
              static_cast<unsigned long>(s.route_id), static_cast<unsigned>(s.route_version),
              static_cast<unsigned>(s.route_points), static_cast<unsigned>(s.route_markers));
+  }
+  // The map's chunks: at most every 10 s, when something changed.
+  const uint32_t chunks = s.chunks_stored + s.chunks_refused + s.chunks_evicted;
+  if (chunks != was.chunks && now_ms - was.map_ms >= kNavRepeatMs) {
+    was.chunks = chunks;
+    was.map_ms = now_ms;
+    ESP_LOGI(
+        kTag,
+        "ride: map %u chunks held (%u KB), %lu stored (%lu KB received), %lu refused, %lu evicted",
+        static_cast<unsigned>(chunk_store != nullptr ? chunk_store->Count() : 0),
+        static_cast<unsigned>(chunk_store != nullptr ? chunk_store->UsedBytes() / 1024 : 0),
+        static_cast<unsigned long>(s.chunks_stored),
+        static_cast<unsigned long>(s.chunk_bytes / 1024),
+        static_cast<unsigned long>(s.chunks_refused), static_cast<unsigned long>(s.chunks_evicted));
   }
   if (s.traffic != was.traffic) {
     was.traffic = s.traffic;

@@ -13,6 +13,7 @@
 
 #include "app_model.h"
 #include "binary_codec.h"
+#include "chunk_store.h"
 #include "frame.h"
 #include "json_codec.h"
 #include "moving_detector.h"
@@ -73,7 +74,24 @@ struct BridgeStorage {
   proto::Point* route_points = nullptr;
   size_t route_points_size = 0;
   core::TrackerStorage tracker;  // as many points as route_points
+  // The map (ADR-0009): where received chunks are kept (none: hello says chunk_kb 0 and chunks
+  // are ignored), scratch to decode one, keys for chunk_have and a buffer to encode it.
+  core::ChunkStore* chunks = nullptr;
+  proto::ChunkShape* chunk_shapes = nullptr;  // proto::kMaxChunkLines + kMaxChunkPolys
+  size_t chunk_shapes_size = 0;
+  proto::Point* chunk_points = nullptr;  // proto::kMaxChunkPoints
+  size_t chunk_points_size = 0;
+  proto::ChunkKey* chunk_keys = nullptr;  // core::ChunkStore::kMaxChunks
+  size_t chunk_keys_size = 0;
+  uint8_t* binary_out = nullptr;  // chunk_have: 3 + 13 bytes per key
+  size_t binary_out_size = 0;
 };
+
+// Chunks are acknowledged together, at most this often (protocol.md, chunk_ack).
+constexpr uint32_t kChunkAckMs = 500;
+// Chunks within this distance of the rider are never evicted: 1 km of the rider and of the next
+// 2 km of route (ADR-0009) both lie within 3 km.
+constexpr int32_t kChunkKeepM = 3000;
 
 // Below this speed (cm/s, about 3.6 km/h) the phone's heading is noise; the map follows the
 // route's direction instead.
@@ -96,6 +114,10 @@ struct BridgeStats {
   uint16_t traffic_bytes = 0;
   uint32_t events = 0;
   uint32_t nav_ends = 0;
+  uint32_t chunks_stored = 0;
+  uint32_t chunks_refused = 0;
+  uint32_t chunks_evicted = 0;
+  uint32_t chunk_bytes = 0;  // received in stored chunks
   proto::Drop last_frame_drop = proto::Drop::kShortFrame;
   uint8_t last_drop_type = 0;
   const char* last_drop_reason = "";
@@ -140,6 +162,9 @@ class ProtocolBridge {
   void OnFrameEpoch(uint16_t epoch, core::AppModel& model);
   void OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppModel& model);
   void OnRoute(const proto::Route& route, core::AppModel& model);
+  void OnChunk(const proto::Message& message);
+  void SendChunkAck(uint32_t now_ms, Outbox& out);
+  void SendChunkHave(Outbox& out);
   void ForgetRoute(core::AppModel& model);
   void Disconnected(core::AppModel& model);
   void SendFlow(uint32_t now_ms, Outbox& out);
@@ -174,6 +199,20 @@ class ProtocolBridge {
   uint16_t route_version_ = 0;
 
   uint32_t nav_received_ms_ = 0;
+
+  core::ChunkStore* chunks_;
+  proto::Buffer<proto::ChunkShape> chunk_shapes_;
+  proto::Buffer<proto::Point> chunk_points_;
+  proto::Buffer<proto::ChunkKey> chunk_keys_;
+  proto::Buffer<uint8_t> binary_out_;
+  std::array<proto::ChunkKey, proto::kMaxAckEntries> acked_{};
+  size_t n_acked_ = 0;
+  std::array<proto::RefusedChunk, proto::kMaxAckEntries> refused_{};
+  size_t n_refused_ = 0;
+  uint32_t ack_sent_ms_ = 0;
+  bool has_rider_ = false;
+  int32_t rider_x_m_ = 0;
+  int32_t rider_y_m_ = 0;
 
   bool clock_valid_ = false;
   uint32_t clock_base_s_ = 0;

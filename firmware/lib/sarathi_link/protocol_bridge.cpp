@@ -1,5 +1,6 @@
 #include "protocol_bridge.h"
 
+#include <algorithm>
 #include <array>
 #include <string_view>
 #include <type_traits>
@@ -92,7 +93,12 @@ ProtocolBridge::ProtocolBridge(const BridgeStorage& storage)
     : reassembler_(storage.reassembly, storage.reassembly_size),
       route_points_(storage.route_points),
       route_points_size_(storage.route_points_size),
-      tracker_(storage.tracker) {}
+      tracker_(storage.tracker),
+      chunks_(storage.chunks),
+      chunk_shapes_{storage.chunk_shapes, storage.chunk_shapes_size},
+      chunk_points_{storage.chunk_points, storage.chunk_points_size},
+      chunk_keys_{storage.chunk_keys, storage.chunk_keys_size},
+      binary_out_{storage.binary_out, storage.binary_out_size} {}
 
 void ProtocolBridge::Begin(core::AppModel& model) {
   model.SetCapabilities(kPhoneCapabilities);
@@ -259,7 +265,8 @@ void ProtocolBridge::OnHello(const proto::HelloPhone& hello, core::AppModel& mod
   reply.styles.at(1).Assign("hud");
   reply.styles.at(2).Assign("racing");
   reply.style_count = 3;
-  reply.chunk_kb = 0;  // no map chunks until the on-device map (ADR-0009)
+  // The chunk cache's size; 0 means it takes no chunks (ADR-0009).
+  reply.chunk_kb = chunks_ == nullptr ? 0 : static_cast<uint16_t>(chunks_->Capacity() / 1024);
   reply.max_msg = static_cast<uint16_t>(proto::kMaxMessage);
   reply.has_route = has_route_;
   reply.route_id = route_id_;
@@ -281,6 +288,7 @@ void ProtocolBridge::OnHello(const proto::HelloPhone& hello, core::AppModel& mod
   SendFlow(0, out);
   style_theme_ = model.State().settings.theme;
   SendStyle(style_theme_, out);
+  SendChunkHave(out);  // after a reconnect the phone sends only what's missing
 }
 
 void ProtocolBridge::OnNav(const proto::Nav& nav, uint32_t now_ms, core::AppModel& model) {
@@ -305,6 +313,13 @@ void ProtocolBridge::OnFrameEpoch(uint16_t epoch, core::AppModel& model) {
   has_epoch_ = true;
   epoch_ = epoch;
   ForgetRoute(model);
+  // A new frame: chunks in the old one are in the wrong place (protocol.md, re-anchor).
+  if (chunks_ != nullptr) {
+    chunks_->Clear();
+  }
+  n_acked_ = 0;
+  n_refused_ = 0;
+  has_rider_ = false;
 }
 
 void ProtocolBridge::ForgetRoute(core::AppModel& model) {
@@ -352,8 +367,11 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
       }
       return;
     }
+    case proto::MsgType::kChunk:
+      OnChunk(message);
+      return;
     default:
-      // traffic and chunk wait for the on-device map (ADR-0009); hello said chunk_kb 0.
+      // traffic waits for the on-device map (ADR-0009, step G5).
       if (static_cast<proto::MsgType>(message.type) == proto::MsgType::kTraffic) {
         ++stats_.traffic;
         stats_.traffic_bytes = static_cast<uint16_t>(message.size);
@@ -369,6 +387,10 @@ void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppM
       static_cast<uint16_t>(((static_cast<uint32_t>(pose.speed_cms) * 36U) + 500U) / 1000U);
   model.SetMotion(kmh, motion_.Update(kmh, now_ms));
   model.SetSpeedValid(true);
+  // Chunks around the rider are never evicted.
+  has_rider_ = true;
+  rider_x_m_ = pose.x_dm / 10;
+  rider_y_m_ = pose.y_dm / 10;
   // Poses come five times a second; the map gets a new window at most once a second.
   if (!tracker_.HasRoute() || (!window_due_ && now_ms - window_ms_ < core::kWindowPeriodMs)) {
     return;
@@ -446,6 +468,113 @@ void ProtocolBridge::Tick(uint32_t now_ms, core::AppModel& model, Outbox& out) {
   if (model.State().settings.theme != style_theme_) {
     style_theme_ = model.State().settings.theme;
     SendStyle(style_theme_, out);
+  }
+  if (now_ms - ack_sent_ms_ >= kChunkAckMs) {
+    SendChunkAck(now_ms, out);
+  }
+}
+
+void ProtocolBridge::OnChunk(const proto::Message& message) {
+  if (chunks_ == nullptr) {
+    ++stats_.ignored;  // hello said chunk_kb 0
+    return;
+  }
+  proto::Chunk chunk;
+  const proto::BinError e =
+      proto::DecodeChunk(message.payload, message.size, &chunk, chunk_shapes_, chunk_points_);
+  if (e == proto::BinError::kVerUnknown) {
+    ++stats_.ignored;
+    return;
+  }
+  if (e != proto::BinError::kNone) {
+    DropMessage(message.type, proto::BinErrorName(e));  // no key to refuse it by
+    return;
+  }
+  const auto refuse = [&](proto::RefuseReason reason) {
+    ++stats_.chunks_refused;
+    if (n_refused_ < refused_.size()) {
+      refused_.at(n_refused_++) = proto::RefusedChunk{chunk.key, reason};
+    }
+  };
+  if (!has_epoch_ || chunk.epoch != epoch_) {
+    refuse(proto::RefuseReason::kEpoch);
+    return;
+  }
+  core::ChunkHeader h;
+  h.id = core::ChunkId{chunk.key.level, chunk.key.tile_x, chunk.key.tile_y, chunk.key.data_version};
+  h.origin_x_m = chunk.origin_x_m;
+  h.origin_y_m = chunk.origin_y_m;
+  h.quantum_dm = chunk.quantum_dm;
+  h.extent = chunk.extent;
+  h.n_lines = static_cast<uint16_t>(chunk.n_lines);
+  h.n_polys = static_cast<uint16_t>(chunk.n_polys);
+  h.n_points = static_cast<uint32_t>(chunk.n_points);
+  const core::ProtectedArea keep{rider_x_m_, rider_y_m_, kChunkKeepM};
+  core::StoreResult result{};
+  if (!chunks_->Begin(h, &keep, has_rider_ ? 1 : 0, &result)) {
+    refuse(result == core::StoreResult::kFull ? proto::RefuseReason::kFull
+                                              : proto::RefuseReason::kInvalid);
+    return;
+  }
+  bool ok = true;
+  for (size_t i = 0; ok && i < chunk.n_lines + chunk.n_polys; ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const proto::ChunkShape& s =
+        i < chunk.n_lines ? chunk.lines[i] : chunk.polys[i - chunk.n_lines];
+    ok = chunks_->SetShape(static_cast<uint16_t>(i), s.kind, s.first, s.count);
+  }
+  for (size_t k = 0; ok && k < chunk.n_points; ++k) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    ok = chunks_->SetPoint(static_cast<uint32_t>(k), chunk.points[k].x, chunk.points[k].y);
+  }
+  if (!ok || chunks_->Commit() != core::StoreResult::kStored) {
+    chunks_->Abort();
+    refuse(proto::RefuseReason::kInvalid);
+    return;
+  }
+  ++stats_.chunks_stored;
+  stats_.chunk_bytes += static_cast<uint32_t>(message.size);
+  if (n_acked_ < acked_.size()) {
+    acked_.at(n_acked_++) = chunk.key;
+  }
+}
+
+void ProtocolBridge::SendChunkAck(uint32_t now_ms, Outbox& out) {
+  std::array<core::ChunkId, proto::kMaxAckEntries> gone{};
+  const size_t n_gone = chunks_ == nullptr ? 0 : chunks_->TakeEvicted(gone.data(), gone.size());
+  if (n_acked_ == 0 && n_refused_ == 0 && n_gone == 0) {
+    return;
+  }
+  std::array<proto::ChunkKey, proto::kMaxAckEntries> evicted{};
+  for (size_t i = 0; i < n_gone; ++i) {
+    const core::ChunkId& id = gone.at(i);
+    evicted.at(i) = proto::ChunkKey{id.level, id.tile_x, id.tile_y, id.data_version};
+  }
+  stats_.chunks_evicted += static_cast<uint32_t>(n_gone);
+  SendJson(
+      proto::MsgType::kChunkAck,
+      proto::ChunkAck{acked_.data(), n_acked_, refused_.data(), n_refused_, evicted.data(), n_gone},
+      out);
+  n_acked_ = 0;
+  n_refused_ = 0;
+  ack_sent_ms_ = now_ms;
+}
+
+void ProtocolBridge::SendChunkHave(Outbox& out) {
+  if (chunks_ == nullptr || chunks_->Count() == 0 || !has_epoch_) {
+    return;
+  }
+  const size_t n = std::min(chunks_->Count(), chunk_keys_.capacity);
+  for (size_t i = 0; i < n; ++i) {
+    const core::ChunkId id = chunks_->At(i).id;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    chunk_keys_.data[i] = proto::ChunkKey{id.level, id.tile_x, id.tile_y, id.data_version};
+  }
+  const size_t size = proto::EncodeBinary(proto::ChunkHave{epoch_, chunk_keys_.data, n},
+                                          binary_out_.data, binary_out_.capacity);
+  if (size == 0 ||
+      !out.Send(static_cast<uint8_t>(proto::MsgType::kChunkHave), binary_out_.data, size)) {
+    ++stats_.send_failed;
   }
 }
 

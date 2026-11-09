@@ -63,6 +63,8 @@ class SarathiSource final : public core::DataSource {
     uint32_t nav_hash = 0;
     uint32_t nav_ms = 0;
     uint32_t screen_hash = 0;
+    uint32_t chunks = 0;  // stored + refused + evicted at the last map line
+    uint32_t map_ms = 0;
   } ride_logged_;
 };
 
