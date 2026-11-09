@@ -99,6 +99,25 @@ bool StoreChunk(core::ChunkStore& store, const proto::Chunk& c) {
 
 }  // namespace
 
+size_t LoadChunks(core::ChunkStore& store, uint8_t* scratch, const ChunkBlob* blobs,
+                  size_t n_blobs) {
+  constexpr size_t kShapes = proto::kMaxChunkLines + proto::kMaxChunkPolys;
+  auto* shapes = reinterpret_cast<proto::ChunkShape*>(scratch);  // NOLINT(*-reinterpret-cast)
+  auto* points = reinterpret_cast<proto::Point*>(                // NOLINT(*-reinterpret-cast)
+      scratch + kShapes * sizeof(proto::ChunkShape));            // NOLINT(*-pointer-arithmetic)
+  const size_t n_points =
+      (MapBenchScene::kScratchBytes - kShapes * sizeof(proto::ChunkShape)) / sizeof(proto::Point);
+  for (size_t i = 0; i < n_blobs; ++i) {
+    proto::Chunk c;
+    // NOLINTNEXTLINE(*-pointer-arithmetic)
+    if (proto::DecodeChunk(blobs[i].data, blobs[i].size, &c, {shapes, kShapes},
+                           {points, n_points}) == proto::BinError::kNone) {
+      (void)StoreChunk(store, c);
+    }
+  }
+  return store.Count();
+}
+
 size_t MapBenchScene::Init(uint8_t* arena, size_t arena_bytes, uint8_t* scratch,
                            const ChunkBlob* blobs, size_t n_blobs, ui::MapView::TimeUsFn time_us) {
   // Everything is placed in the caller's memory (PSRAM on the device), nothing on the stack:
@@ -115,20 +134,7 @@ size_t MapBenchScene::Init(uint8_t* arena, size_t arena_bytes, uint8_t* scratch,
   ghat_ = new (place(sizeof(Path))) Path();
   store_ = new (store_mem) core::ChunkStore(arena + at, arena_bytes - at);  // NOLINT
 
-  constexpr size_t kShapes = proto::kMaxChunkLines + proto::kMaxChunkPolys;
-  auto* shapes = reinterpret_cast<proto::ChunkShape*>(scratch);  // NOLINT(*-reinterpret-cast)
-  auto* points = reinterpret_cast<proto::Point*>(                // NOLINT(*-reinterpret-cast)
-      scratch + kShapes * sizeof(proto::ChunkShape));            // NOLINT(*-pointer-arithmetic)
-  const size_t n_points =
-      (kScratchBytes - kShapes * sizeof(proto::ChunkShape)) / sizeof(proto::Point);
-  for (size_t i = 0; i < n_blobs; ++i) {
-    proto::Chunk c;
-    // NOLINTNEXTLINE(*-pointer-arithmetic)
-    if (proto::DecodeChunk(blobs[i].data, blobs[i].size, &c, {shapes, kShapes},
-                           {points, n_points}) == proto::BinError::kNone) {
-      (void)StoreChunk(*store_, c);
-    }
-  }
+  (void)LoadChunks(*store_, scratch, blobs, n_blobs);
   FindMotorway(1, *highway_);
   FindMotorway(0, *ghat_);
 

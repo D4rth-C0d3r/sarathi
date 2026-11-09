@@ -19,6 +19,11 @@ struct ChunkBlob {
   size_t size;
 };
 
+// Decodes the blobs and stores them; `scratch` holds MapBenchScene::kScratchBytes. Returns the
+// number stored.
+size_t LoadChunks(core::ChunkStore& store, uint8_t* scratch, const ChunkBlob* blobs,
+                  size_t n_blobs);
+
 class MapBenchScene {
  public:
   static constexpr uint32_t kPhaseMs = 30000;

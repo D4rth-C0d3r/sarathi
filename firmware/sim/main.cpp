@@ -7,14 +7,17 @@
 //   Enter (held)                 -> knob button (click, double-click, hold = long press)
 //   Mouse button inside circle   -> touch at that point
 //   S                            -> pause/resume the demo ride (the bike stops; settings unlock)
-// Usage: program [--speed N]   replay the ride N times faster. Close the window to quit.
-//        program --mapbench DIR the map renderer bench's phases (Phase 4 step G1), screenshots in
-//        DIR program --tour DIR     scripted walk through the UI, screenshots in DIR program
-//        --gallery DIR  every screen in every theme, screenshots in DIR add --chronos          a
-//        pretend Chronos phone instead of the demo ride (ADR-0005)
+// Usage:
+//   program [--speed N]      replay the ride N times faster; close the window to quit
+//   program --mapbench DIR   the map renderer bench's phases (step G1), screenshots in DIR
+//   program --mapshots DIR   the Nav map in every theme, with and without traffic (step G6)
+//   program --tour DIR       scripted walk through the UI, screenshots in DIR
+//   program --gallery DIR    every screen in every theme, screenshots in DIR
+//   add --chronos            a pretend Chronos phone instead of the demo ride (ADR-0005)
 //
 // Simulator wiring only: no backlight, panel timing or ESP32-S3 performance limits.
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -515,6 +518,209 @@ int RunMapBench(lv_display_t* display, const char* dir) {
   return 0;
 }
 
+// ---- --mapshots DIR: the Nav map in every theme, with and without traffic (step G6) ----
+// The Bengaluru chunks (docs/fixtures/map), a route along the longest major road in them, a
+// rider on it at 30 km/h and made-up traffic ahead: slow, a jam, free, then unknown. The OSM
+// attribution shows only for the first theme (it shows for 10 s once the map starts).
+
+void ShowScreen(ui::screen_manager::ScreenId target);
+
+struct MapShots {
+  static constexpr size_t kMax = 1024;
+  std::array<float, kMax> x{};
+  std::array<float, kMax> y{};
+  std::array<float, kMax> along{};
+  size_t n = 0;
+  core::ChunkStore* store = nullptr;
+};
+MapShots map_shots;
+
+bool LoadMapShotChunks() {
+  static std::vector<std::vector<uint8_t>> files;
+  static std::vector<sarathi::bench::ChunkBlob> blobs;
+  const std::filesystem::path folder =
+      std::filesystem::path(SARATHI_MAP_FIXTURES_DIR) / "chunks" / "bengaluru";
+  for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+    std::ifstream in(entry.path(), std::ios::binary);
+    files.emplace_back((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
+  for (const auto& f : files) {
+    blobs.push_back({f.data(), f.size()});
+  }
+  static std::vector<uint8_t> arena(1536 * 1024);
+  static std::vector<uint8_t> scratch(sarathi::bench::MapBenchScene::kScratchBytes);
+  static core::ChunkStore store(arena.data(), arena.size());
+  map_shots.store = &store;
+  const size_t stored =
+      sarathi::bench::LoadChunks(store, scratch.data(), blobs.data(), blobs.size());
+  std::printf("sim: mapshots, %zu of %zu chunks stored\n", stored, blobs.size());
+  // The route: the longest motorway, trunk or primary line at level 0, in ride-frame metres.
+  size_t best = 0;
+  for (size_t i = 0; i < store.Count(); ++i) {
+    const core::StoredChunk c = store.At(i);
+    if (c.id.level != 0) {
+      continue;
+    }
+    for (uint16_t s = 0; s < c.n_lines; ++s) {
+      const core::MapShape& line = c.lines[s];  // NOLINT(*-pointer-arithmetic)
+      if (line.kind > 2 || line.count < 2) {
+        continue;
+      }
+      const float q = static_cast<float>(c.quantum_dm) / 10.0F;
+      MapShots path;
+      for (uint32_t k = line.first;
+           k < uint32_t{line.first} + line.count && path.n < MapShots::kMax; ++k) {
+        const core::MapPoint& p = c.points[k];  // NOLINT(*-pointer-arithmetic)
+        path.x.at(path.n) = static_cast<float>(c.origin_x_m) + static_cast<float>(p.x) * q;
+        path.y.at(path.n) = static_cast<float>(c.origin_y_m) + static_cast<float>(p.y) * q;
+        path.along.at(path.n) =
+            path.n == 0
+                ? 0.0F
+                : path.along.at(path.n - 1) + std::hypot(path.x.at(path.n) - path.x.at(path.n - 1),
+                                                         path.y.at(path.n) - path.y.at(path.n - 1));
+        ++path.n;
+      }
+      const auto length = static_cast<size_t>(path.along.at(path.n - 1));
+      if (length > best) {
+        best = length;
+        path.store = &store;
+        map_shots = path;
+      }
+    }
+  }
+  std::printf("sim: mapshots route %zu m, %zu points\n", best, map_shots.n);
+  return map_shots.n >= 2;
+}
+
+void MapShotPointAt(float d, float* x, float* y) {
+  const MapShots& p = map_shots;
+  d = std::clamp(d, 0.0F, p.along.at(p.n - 1));
+  size_t k = 1;
+  while (k + 1 < p.n && p.along.at(k) < d) {
+    ++k;
+  }
+  const float seg = p.along.at(k) - p.along.at(k - 1);
+  const float f = seg > 0 ? (d - p.along.at(k - 1)) / seg : 0;
+  *x = p.x.at(k - 1) + (p.x.at(k) - p.x.at(k - 1)) * f;
+  *y = p.y.at(k - 1) + (p.y.at(k) - p.y.at(k - 1)) * f;
+}
+
+// Sets guidance, the route window, the pose and (optionally) traffic for a rider `rider_d`
+// metres along the route.
+void SetMapShotRide(float rider_d, bool traffic, uint32_t now) {
+  const MapShots& p = map_shots;
+  const float total = p.along.at(p.n - 1);
+  float rx = 0;
+  float ry = 0;
+  MapShotPointAt(rider_d, &rx, &ry);
+  float bx = 0;
+  float by = 0;
+  float ax = 0;
+  float ay = 0;
+  MapShotPointAt(rider_d - 20, &bx, &by);
+  MapShotPointAt(rider_d + 20, &ax, &ay);
+  constexpr float kRadToDeg = 57.29578F;
+  const float heading = std::fmod(std::atan2(ax - bx, ay - by) * kRadToDeg + 360.0F, 360.0F);
+
+  core::RouteWindow w{};
+  w.has_position = true;
+  w.rider_x_m = rx;
+  w.rider_y_m = ry;
+  w.heading_deg = static_cast<uint16_t>(std::lround(heading) % 360);
+  // From 150 m behind to the route's end, at most kMaxRoutePoints points.
+  const float from = std::max(0.0F, rider_d - 150.0F);
+  const float step = std::max(5.0F, (total - from) / static_cast<float>(core::kMaxRoutePoints - 1));
+  for (float d = from; w.count < core::kMaxRoutePoints; d += step) {
+    float x = 0;
+    float y = 0;
+    MapShotPointAt(std::min(d, total), &x, &y);
+    w.points.at(w.count) = {static_cast<int16_t>(std::lround(x - rx)),
+                            static_cast<int16_t>(std::lround(y - ry))};
+    w.along_m.at(w.count) = static_cast<uint32_t>(std::lround(std::min(d, total)));
+    ++w.count;
+    if (d >= total) {
+      break;
+    }
+  }
+  w.has_maneuver_point = true;
+  w.maneuver_point = w.points.at(w.count - 1);
+  w.sequence = app.State().nav.window.sequence + 1;
+  app.SetGuidance(core::Maneuver{core::ManeuverType::kRight, 0},
+                  static_cast<uint32_t>(total - rider_d), "Hosur Road", 14 * 60);
+  app.SetRouteWindow(w, now);
+  core::RiderPose pose;
+  pose.valid = true;
+  pose.x_m = rx;
+  pose.y_m = ry;
+  pose.heading_deg = heading;
+  pose.speed_mps = 30.0F / 3.6F;
+  pose.received_ms = now;
+  app.SetRiderPose(pose);
+  if (!traffic) {
+    app.ClearTraffic();
+    return;
+  }
+  core::TrafficState t;
+  t.valid = true;
+  t.received_ms = now;
+  const auto at = [&](float metres) { return static_cast<uint32_t>(std::lround(metres)); };
+  struct Stretch {
+    float from, to;
+    core::TrafficLevel level;
+  };
+  const std::array<Stretch, 5> stretches = {{
+      {0, rider_d + 30, core::TrafficLevel::kFree},
+      {rider_d + 30, rider_d + 230, core::TrafficLevel::kSlow},
+      {rider_d + 230, rider_d + 430, core::TrafficLevel::kJam},
+      {rider_d + 430, rider_d + 560, core::TrafficLevel::kFree},
+      {rider_d + 560, total, core::TrafficLevel::kUnknown},
+  }};
+  for (const Stretch& s : stretches) {
+    if (s.to > s.from) {
+      t.offset_m.at(t.count) = at(s.from);
+      t.length_m.at(t.count) = at(s.to - s.from);
+      t.level.at(t.count) = s.level;
+      ++t.count;
+    }
+  }
+  app.SetTraffic(t);
+}
+
+int RunMapShots(lv_display_t* display, const char* dir) {
+  const float total = map_shots.along.at(map_shots.n - 1);
+  const float rider_d = std::max(0.0F, total - 700.0F);
+  app.SetPhoneConnected(true);
+  for (size_t theme = 0; theme < core::ThemeCount(); ++theme) {
+    core::Settings settings = app.State().settings;
+    settings.theme = core::ThemeAt(theme).id;
+    app.LoadSettings(settings);
+    for (const bool traffic : {false, true}) {
+      const uint32_t start = SDL_GetTicks();
+      SetMapShotRide(rider_d, traffic, start);
+      ShowScreen(ui::screen_manager::ScreenId::kNav);
+      // Let the zoom settle; the pose stays put (fresh every frame, so no dead reckoning).
+      for (uint32_t now = start; now - start < 2500; now = SDL_GetTicks()) {
+        core::RiderPose pose = app.State().rider;
+        pose.received_ms = now;
+        app.SetRiderPose(pose);
+        if (traffic) {
+          core::TrafficState t = app.State().traffic;
+          t.received_ms = now;
+          app.SetTraffic(t);
+        }
+        ui::app_shell::Update(now);
+        lv_timer_handler();
+        SDL_Delay(kLoopDelayMs);
+      }
+      std::array<char, 48> name{};
+      std::snprintf(name.data(), name.size(), "map_%s_%s", core::ThemeAt(theme).short_name,
+                    traffic ? "traffic" : "plain");
+      SaveScreenshot(display, dir, name.data());
+    }
+  }
+  return 0;
+}
+
 const char* ParseDirOption(int argc, char** argv, const char* option) {
   for (int i = 1; i + 1 < argc; ++i) {
     if (std::strcmp(argv[i], option) == 0) {  // NOLINT(*-pointer-arithmetic)
@@ -793,7 +999,13 @@ int main(int argc, char** argv) {
 
   LoadSettingsFile();  // before the shell, so the saved theme applies from the first frame
   static auto map_renderer = std::make_unique<sarathi::core::MapRenderer>();
-  ui::nav_screen::SetMapData(nullptr, map_renderer.get());  // the demo ride has no map chunks
+  const char* mapshots_dir = ParseDirOption(argc, argv, "--mapshots");
+  if (mapshots_dir != nullptr && !LoadMapShotChunks()) {
+    std::fprintf(stderr, "sim: no route in the map fixtures\n");
+    return 1;
+  }
+  // The demo ride has no map chunks; --mapshots has the Bengaluru ones.
+  ui::nav_screen::SetMapData(map_shots.store, map_renderer.get());
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, SimRandom);
   ui::lvgl_port::AttachFrameTimer(display, TimeUs);
@@ -802,6 +1014,9 @@ int main(int argc, char** argv) {
 
   if (const char* bench_dir = ParseDirOption(argc, argv, "--mapbench"); bench_dir != nullptr) {
     return RunMapBench(display, bench_dir);
+  }
+  if (mapshots_dir != nullptr) {
+    return RunMapShots(display, mapshots_dir);
   }
 
   std::printf(
