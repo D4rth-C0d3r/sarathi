@@ -260,6 +260,23 @@ interface RoutingProvider {
   every 30 s. It's sent with the route from step F7. The dash draws traffic with the on-device
   map (ADR-0009); until then the firmware ignores it (owner's choice).
 
+### Desk tests (step F8, 2026-11-09)
+
+Debug builds only; checked from the dash's serial ride log (`[link] ride:` and `screen:`).
+- **Simulated rides:** the real ride with simulated positions (15 m apart, faster when sped
+  up; Google's own simulator through the road-snapped location), sent to the dash as poses at
+  most twice a second. A Mappls ride to Calangute at x20 ran turn by turn to arrival with the
+  phone locked, without a stale position or a reroute.
+- **Recordings:** a routed ride kept on the phone (never Google's) and replayed with
+  scripted traffic every 30 s, without backend calls.
+- **Failure drill:** each routing request fails one more backend before any call, in the
+  order Google (over quota) → Mappls (error) → OSM online (offline) → OSM offline, whatever
+  the settings say; a simulated ride leaves the road to reroute through them. On the dash:
+  fallback events, "Now: OSM (Valhalla)", then "Now: OSM offline", route versions 1 and 2,
+  and arrival. One Mappls call, no Google destination.
+- **Found and fixed by these tests:** reroutes didn't send the new backend or its fallback
+  events (the dash kept naming the old backend); repeated reroutes now back off.
+
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)
 
 | Part | How it stays alive | Verify |

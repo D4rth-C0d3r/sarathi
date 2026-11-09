@@ -6,6 +6,7 @@ import android.util.Log
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteSimulator
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
+import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -25,6 +26,9 @@ internal object RideSimulation {
     private const val TAG = "Ride"
     private const val SPEED_MPS = 15.0 // 54 km/h, before the speed-up
     private const val FIX_MS = 1_000L
+    private const val DETOUR_AT = 0.15
+    private const val DETOUR_SECONDS = 8
+    private const val DETOUR_OFFSET_M = 120.0
 
     fun start(
         context: Context,
@@ -40,8 +44,19 @@ internal object RideSimulation {
                 GoogleGuidance.roadSnappedFixes(context).collect { pose.inject(it) }
             } else {
                 val intervalMs = FIX_MS / speedup
+                val drill = MapsRegistry.get(context).drill
                 routes.filterNotNull().collectLatest { route ->
-                    val sim = RouteSimulator(route.points, SPEED_MPS * speedup, intervalMs)
+                    // The failure drill needs reroutes: leave the road while it has stages left.
+                    // Long enough to be off the route for a reroute (3 s) at any speed-up.
+                    val detourM = SPEED_MPS * speedup * DETOUR_SECONDS
+                    val detour = RouteSimulator.Detour(route.distanceM * DETOUR_AT, detourM, DETOUR_OFFSET_M)
+                    val sim =
+                        RouteSimulator(
+                            route.points,
+                            SPEED_MPS * speedup,
+                            intervalMs,
+                            detour = detour.takeIf { drill.reroutesDue },
+                        )
                     for (fix in sim.fixes()) {
                         pose.inject(fix.copy(timeMs = SystemClock.elapsedRealtime()))
                         delay(intervalMs)

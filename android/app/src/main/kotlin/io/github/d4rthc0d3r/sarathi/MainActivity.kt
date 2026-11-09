@@ -147,11 +147,20 @@ class MainActivity : ComponentActivity() {
                 graphHopperKey = Keys.graphHopper != null,
                 mapplsConfigured = Keys.mapplsConfigured,
                 meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
+                drill = if (BuildConfig.DEBUG) termsTick.let { MapsRegistry.get(this).drill.active } else null,
             )
         MapsSettingsScreen(
             settings.value,
             status,
-            MapsSettingsActions(store::update, onBack) { GoogleNavRouting.askForTerms(this) { termsTick++ } },
+            MapsSettingsActions(
+                onChange = store::update,
+                onBack = onBack,
+                onGoogleTerms = { GoogleNavRouting.askForTerms(this) { termsTick++ } },
+                onDrill = { on ->
+                    MapsRegistry.get(this).drill.let { if (on) it.start() else it.stop() }
+                    termsTick++
+                },
+            ),
         )
     }
 

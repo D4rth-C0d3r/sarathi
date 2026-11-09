@@ -3,6 +3,7 @@ package io.github.d4rthc0d3r.sarathi.maps
 import android.app.Application
 import android.content.Context
 import io.github.d4rthc0d3r.sarathi.BuildConfig
+import io.github.d4rthc0d3r.sarathi.core.maps.FailureDrill
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingProvider
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
@@ -53,7 +54,10 @@ class MapsRegistry private constructor(
             RoutingBackend.OSM_OFFLINE to OfflineRouting(context),
         )
 
-    val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard })
+    /** Desk tests: the fallback chain made to fail on purpose (step F8, debug builds). */
+    val drill = FailureDrill()
+
+    val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard }, drill)
 
     private val noRedirects =
         http

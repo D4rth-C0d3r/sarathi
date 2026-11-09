@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,6 +76,14 @@ fun MapsSettingsScreen(
                     onChange { it.copy(mapplsRoutesPerDay = v) }
                 }
             }
+            status.drill?.let { on ->
+                Section(R.string.drill_title, R.string.drill_reason) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.drill_switch), Modifier.weight(1f))
+                        Switch(checked = on, onCheckedChange = actions.onDrill)
+                    }
+                }
+            }
             Section(R.string.maps_valhalla, R.string.maps_valhalla_reason) {
                 OutlinedTextField(
                     value = settings.valhallaUrl,
@@ -130,6 +139,8 @@ data class MapsSettingsActions(
     val onBack: () -> Unit = {},
     /** Opens Google's Navigation SDK terms dialog. */
     val onGoogleTerms: () -> Unit = {},
+    /** Debug builds: turns the failure drill on or off (step F8). */
+    val onDrill: (Boolean) -> Unit = {},
 )
 
 @Composable

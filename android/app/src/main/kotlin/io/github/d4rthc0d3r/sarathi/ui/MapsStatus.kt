@@ -10,4 +10,6 @@ data class MapsStatus(
     val graphHopperKey: Boolean = false,
     val mapplsConfigured: Boolean = false,
     val meters: List<MeterStatus> = emptyList(),
+    /** Debug builds: the failure drill's switch (step F8); null hides it. */
+    val drill: Boolean? = null,
 )

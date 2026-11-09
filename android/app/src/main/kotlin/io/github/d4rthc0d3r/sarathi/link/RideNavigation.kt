@@ -183,12 +183,26 @@ class RideNavigation(
         }
 
         private fun onReroute(r: Route) {
+            val previousBackend = route.backend
             version = (version + 1) and U16_MASK
             route = r
             traffic = TrafficStream(routeId, version)
             lastTraffic = r.traffic
             Log.i(TAG, "reroute: version $version, ${r.backend}, ${r.distanceM.toInt()} m")
             queue(RideMessages.reroute())
+            // A fallback mid-ride (ADR-0006): why, and the new backend, before its route.
+            if (r.backend != previousBackend) {
+                RideMessages.fallbacks(guidance.lastSkipped, r.backend).forEach(::queue)
+                queue(
+                    RideMessages.backend(
+                        r,
+                        MapsStore
+                            .get(context)
+                            .settings.value.search,
+                        backendName(r.backend),
+                    ),
+                )
+            }
             frame.value?.let { queue(RideMessages.route(r, it, routeId, version)) }
             lastTraffic?.let { traffic.offer(it)?.let(::queue) }
             followTraffic()

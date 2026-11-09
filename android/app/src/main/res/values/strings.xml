@@ -90,6 +90,9 @@
     <string name="maps_usage_reason">Counted on this phone. Google is blocked at 95 % of its free monthly allowance and warns at 80 %; Mappls stops for the day at its caps or when it reports a limit.</string>
     <string name="maps_mappls_search_cap">Mappls searches a day</string>
     <string name="maps_mappls_route_cap">Mappls routes a day</string>
+    <string name="drill_title">Desk test: failure drill</string>
+    <string name="drill_reason">Debug builds. Each route asked for fails one more backend, before any call: Google over quota, then Mappls, then OSM online, which leaves OSM offline. A simulated ride leaves the road to reroute through them. Off when the app restarts.</string>
+    <string name="drill_switch">Failure drill</string>
     <string name="maps_valhalla">OSM online server (Valhalla)</string>
     <string name="maps_valhalla_reason">The default is FOSSGIS\'s public server: free for non-commercial use, at most one request a second.</string>
     <string name="meter_google_nav">Google navigation: %1$d of %2$d destinations this month</string>

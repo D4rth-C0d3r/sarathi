@@ -11,24 +11,21 @@ class RoutingService(
     private val provider: (RoutingBackend) -> RoutingProvider?,
     private val settings: () -> MapsSettings,
     private val guard: () -> CostGuard,
+    /** Desk tests: backends made to fail before any call (step F8). */
+    private val drill: FailureDrill? = null,
 ) {
     /** Routes [request]; with [prefer], that backend first (a reroute stays on its backend). */
     suspend fun route(
         request: RouteRequest,
         prefer: RoutingBackend? = null,
-    ): ChainResult<RoutingBackend, Route> =
-        FallbackChain.run(
-            settings().routingChain().let { chain ->
-                if (prefer ==
-                    null
-                ) {
-                    chain
-                } else {
-                    (listOf(prefer) + chain).distinct()
-                }
-            },
+    ): ChainResult<RoutingBackend, Route> {
+        val drilling = drill?.active == true
+        val failing = drill?.nextFailures().orEmpty()
+        val chain = if (drilling) FailureDrill.CHAIN else settings().routingChain()
+        return FallbackChain.run(
+            if (prefer == null) chain else (listOf(prefer) + chain).distinct(),
             provider,
-            { p -> p.unavailable() ?: overQuota(p.backend, request) },
+            { p -> failing[p.backend] ?: p.unavailable() ?: overQuota(p.backend, request) },
             FallbackChain.ROUTE_TIMEOUT_MS,
         ) { p ->
             val meter = meterOf(p.backend)
@@ -40,6 +37,7 @@ class RoutingService(
                 throw e
             }
         }
+    }
 
     /** Traffic updates for [route] from the backend that made it; none without traffic. */
     fun traffic(route: Route): Flow<TrafficUpdate> = provider(route.backend)?.traffic(route) ?: emptyFlow()

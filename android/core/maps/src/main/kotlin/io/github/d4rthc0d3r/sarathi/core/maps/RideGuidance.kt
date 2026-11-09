@@ -32,6 +32,10 @@ class RideGuidance(
 
     private var engine: GuidanceEngine? = null
 
+    /** The backends the last reroute passed over, and why: for the dash's fallback notices. */
+    var lastSkipped: List<Skipped<RoutingBackend>> = emptyList()
+        private set
+
     /** The engine follows the phone's location itself (Google): fixes aren't needed. */
     val tracksItsOwnPosition: Boolean get() = engine?.tracksItsOwnPosition == true
     private var request: RouteRequest? = null
@@ -118,6 +122,7 @@ class RideGuidance(
                     log("reroute: no backend could route; still off the route")
                 } else {
                     log("reroute: ${route.backend}, ${route.distanceM.toInt()} m")
+                    lastSkipped = result.skipped
                     start(route, RouteRequest(fix.at, stops, mode))
                 }
             }
