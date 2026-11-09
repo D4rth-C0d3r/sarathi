@@ -1,3 +1,7 @@
+// PMTiles header offsets, byte widths and the Hilbert curve's constants are the format's own
+// numbers; naming each one would only repeat the specification.
+@file:Suppress("MagicNumber")
+
 package io.github.d4rthc0d3r.sarathi.core.mapdata
 
 import java.io.ByteArrayInputStream
@@ -53,17 +57,29 @@ class PmTiles(
         val id = tileId(z, x, y)
         var offset = rootOffset
         var length = rootLength
-        repeat(MAX_DEPTH) {
-            val found = directory(read(offset, length)).lastOrNull { it.tileId <= id } ?: return null
-            if (found.runLength == 0L) { // a leaf directory
-                offset = leafOffset + found.offset
-                length = found.length
-            } else {
-                if (id >= found.tileId + found.runLength) return null
-                return decompress(read(tileOffset + found.offset, found.length), tileCompression)
+        var depth = 0
+        var tile: Entry? = null
+        var done = false
+        // Down from the root through leaf directories (run length 0) to the tile's entry.
+        while (!done && depth++ < MAX_DEPTH) {
+            val found = directory(read(offset, length)).lastOrNull { it.tileId <= id }
+            when {
+                found == null -> {
+                    done = true
+                }
+
+                found.runLength == 0L -> {
+                    offset = leafOffset + found.offset
+                    length = found.length
+                }
+
+                else -> {
+                    tile = found.takeIf { id < it.tileId + it.runLength }
+                    done = true
+                }
             }
         }
-        return null
+        return tile?.let { decompress(read(tileOffset + it.offset, it.length), tileCompression) }
     }
 
     private fun directory(raw: ByteArray): List<Entry> {

@@ -38,21 +38,21 @@ sealed class MapSchema(
         // kind_detail is the OSM highway tag.
         private val roads =
             mapOf(
-                "motorway" to 0,
-                "motorway_link" to 0,
-                "trunk" to 1,
-                "trunk_link" to 1,
-                "primary" to 2,
-                "primary_link" to 2,
-                "secondary" to 3,
-                "secondary_link" to 3,
-                "tertiary" to 4,
-                "tertiary_link" to 4,
-                "residential" to 5,
-                "unclassified" to 5,
-                "living_street" to 5,
-                "road" to 5,
-                "service" to 6,
+                "motorway" to MOTORWAY,
+                "motorway_link" to MOTORWAY,
+                "trunk" to TRUNK,
+                "trunk_link" to TRUNK,
+                "primary" to PRIMARY,
+                "primary_link" to PRIMARY,
+                "secondary" to SECONDARY,
+                "secondary_link" to SECONDARY,
+                "tertiary" to TERTIARY,
+                "tertiary_link" to TERTIARY,
+                "residential" to MINOR,
+                "unclassified" to MINOR,
+                "living_street" to MINOR,
+                "road" to MINOR,
+                "service" to SERVICE,
             )
         private val parks = setOf("park", "national_park", "nature_reserve", "protected_area")
         private val notWater = setOf("swimming_pool")
@@ -67,5 +67,14 @@ sealed class MapSchema(
     companion object {
         const val WATER = 0
         const val PARK = 1
+
+        // Road classes, as in the protocol's chunk lines.
+        const val MOTORWAY = 0
+        const val TRUNK = 1
+        const val PRIMARY = 2
+        const val SECONDARY = 3
+        const val TERTIARY = 4
+        const val MINOR = 5
+        const val SERVICE = 6
     }
 }
