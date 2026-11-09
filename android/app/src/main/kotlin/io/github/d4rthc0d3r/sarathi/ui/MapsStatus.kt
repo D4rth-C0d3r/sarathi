@@ -12,4 +12,6 @@ data class MapsStatus(
     val meters: List<MeterStatus> = emptyList(),
     /** Debug builds: the failure drill's switch (step F8); null hides it. */
     val drill: Boolean? = null,
+    /** Debug builds: the map data desk check's result (step G2); null hides it. */
+    val mapCheck: String? = null,
 )

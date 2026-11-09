@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
@@ -49,6 +50,7 @@ import io.github.d4rthc0d3r.sarathi.link.RideLinkService
 import io.github.d4rthc0d3r.sarathi.link.RidePlan
 import io.github.d4rthc0d3r.sarathi.maps.Keys
 import io.github.d4rthc0d3r.sarathi.maps.LastLocation
+import io.github.d4rthc0d3r.sarathi.maps.MapCheck
 import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
@@ -65,6 +67,7 @@ import io.github.d4rthc0d3r.sarathi.ui.RideStatus
 import io.github.d4rthc0d3r.sarathi.ui.SetupState
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
 import io.github.d4rthc0d3r.sarathi.ui.theme.SarathiTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val model: MainViewModel by viewModels()
@@ -138,6 +141,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MapsSettings(onBack: () -> Unit) {
         val store = MapsStore.get(this)
+        var mapCheck by remember { mutableStateOf("") }
         val settings = store.settings.collectAsStateWithLifecycle()
         val usage = store.usage.collectAsStateWithLifecycle()
         val status =
@@ -148,6 +152,7 @@ class MainActivity : ComponentActivity() {
                 mapplsConfigured = Keys.mapplsConfigured,
                 meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
                 drill = if (BuildConfig.DEBUG) termsTick.let { MapsRegistry.get(this).drill.active } else null,
+                mapCheck = if (BuildConfig.DEBUG) mapCheck else null,
             )
         MapsSettingsScreen(
             settings.value,
@@ -159,6 +164,10 @@ class MainActivity : ComponentActivity() {
                 onDrill = { on ->
                     MapsRegistry.get(this).drill.let { if (on) it.start() else it.stop() }
                     termsTick++
+                },
+                onMapCheck = { offlineOnly ->
+                    mapCheck = getString(R.string.map_check_running)
+                    lifecycleScope.launch { mapCheck = MapCheck.run(this@MainActivity, offlineOnly) }
                 },
             ),
         )

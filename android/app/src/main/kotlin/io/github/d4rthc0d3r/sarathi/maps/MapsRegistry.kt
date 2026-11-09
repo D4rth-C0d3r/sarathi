@@ -2,7 +2,10 @@ package io.github.d4rthc0d3r.sarathi.maps
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import io.github.d4rthc0d3r.sarathi.BuildConfig
+import io.github.d4rthc0d3r.sarathi.core.mapdata.MapData
+import io.github.d4rthc0d3r.sarathi.core.mapdata.TileCache
 import io.github.d4rthc0d3r.sarathi.core.maps.FailureDrill
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingProvider
@@ -15,13 +18,16 @@ import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsRouting
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.GraphHopperRouting
+import io.github.d4rthc0d3r.sarathi.maps.osm.OfflineMapRegion
 import io.github.d4rthc0d3r.sarathi.maps.osm.OfflineRouting
+import io.github.d4rthc0d3r.sarathi.maps.osm.OpenFreeMapTiles
 import io.github.d4rthc0d3r.sarathi.maps.osm.PhotonSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.ValhallaRouting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 
 /** The maps backends this build has (ADR-0006), and search across them. One per process. */
 class MapsRegistry private constructor(
@@ -59,6 +65,21 @@ class MapsRegistry private constructor(
 
     val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard }, drill)
 
+    /** Map tiles for the dash (ADR-0009): OpenFreeMap online, the offline region, a 200 MB cache. */
+    val onlineMap = OpenFreeMapTiles(http, userAgent)
+    val offlineMap = OfflineMapRegion(context)
+    val mapCache = TileCache(File(context.filesDir, "map-cache"))
+    val mapData = MapData(mapCache, onlineMap, offlineMap) { Log.i(MAP_TAG, it) }
+
+    /**
+     * The desk check's "no signal": no online source, and a cache of its own (cleared each time),
+     * so the tiles really come from the offline region.
+     */
+    fun offlineMapData(context: Context): MapData {
+        val dir = File(context.cacheDir, "map-offline-check").apply { deleteRecursively() }
+        return MapData(TileCache(dir), null, offlineMap) { Log.i(MAP_TAG, it) }
+    }
+
     private val noRedirects =
         http
             .newBuilder()
@@ -92,6 +113,8 @@ class MapsRegistry private constructor(
         }
 
     companion object {
+        private const val MAP_TAG = "Map"
+
         @Volatile private var instance: MapsRegistry? = null
 
         fun get(context: Context): MapsRegistry =

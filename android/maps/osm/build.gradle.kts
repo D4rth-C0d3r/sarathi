@@ -27,6 +27,7 @@ android {
 
 dependencies {
     api(project(":core:maps"))
+    api(project(":core:mapdata"))
     implementation(libs.okhttp)
     implementation(libs.valhalla.mobile)
     implementation(libs.valhalla.models.config)

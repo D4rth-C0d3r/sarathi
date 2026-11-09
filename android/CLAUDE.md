@@ -16,7 +16,10 @@ interfaces, settings and cost guard; F2 search; F3 shared links; F4 routing (F4.
 and GraphHopper, with a desk-test route preview; F4.2 Mappls; F4.3 Google; F4.4
 offline); F5 traffic; F6 guidance
 (`:feature:navigation`); F7 confirmation and the ride on the dash (`link/RideNavigation`); F8 simulated rides for
-desk tests (debug builds only). Don't add features or permissions unasked.
+desk tests (debug builds only). Step G (ADR-0009) is the on-device map: G2 makes map chunks on
+the phone (`:core:mapdata`: OpenFreeMap online, the offline region from
+`tools/build_offline_map.sh`, a 200 MB tile cache; desk check in Maps settings, debug builds).
+Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 

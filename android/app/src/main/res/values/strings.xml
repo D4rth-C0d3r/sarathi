@@ -91,6 +91,11 @@
     <string name="maps_mappls_search_cap">Mappls searches a day</string>
     <string name="maps_mappls_route_cap">Mappls routes a day</string>
     <string name="drill_title">Desk test: failure drill</string>
+    <string name="map_check_title">Desk test: map data</string>
+    <string name="map_check_reason">Debug builds. Fetches the map tiles around the phone at both levels and shows where each came from: online, the cache or the offline region.</string>
+    <string name="map_check_online">Check map tiles</string>
+    <string name="map_check_offline">Offline only</string>
+    <string name="map_check_running">Checking…</string>
     <string name="drill_reason">Debug builds. Each route asked for fails one more backend, before any call: Google over quota, then Mappls, then OSM online, which leaves OSM offline. A simulated ride leaves the road to reroute through them. Off when the app restarts.</string>
     <string name="drill_switch">Failure drill</string>
     <string name="maps_valhalla">OSM online server (Valhalla)</string>

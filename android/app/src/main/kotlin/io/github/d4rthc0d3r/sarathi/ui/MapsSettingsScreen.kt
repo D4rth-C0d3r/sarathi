@@ -76,14 +76,7 @@ fun MapsSettingsScreen(
                     onChange { it.copy(mapplsRoutesPerDay = v) }
                 }
             }
-            status.drill?.let { on ->
-                Section(R.string.drill_title, R.string.drill_reason) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.drill_switch), Modifier.weight(1f))
-                        Switch(checked = on, onCheckedChange = actions.onDrill)
-                    }
-                }
-            }
+            DeskTestSections(status, actions)
             Section(R.string.maps_valhalla, R.string.maps_valhalla_reason) {
                 OutlinedTextField(
                     value = settings.valhallaUrl,
@@ -141,6 +134,8 @@ data class MapsSettingsActions(
     val onGoogleTerms: () -> Unit = {},
     /** Debug builds: turns the failure drill on or off (step F8). */
     val onDrill: (Boolean) -> Unit = {},
+    /** Debug builds: checks the map tiles around the phone; true leaves out the online source. */
+    val onMapCheck: (Boolean) -> Unit = {},
 )
 
 @Composable
@@ -168,7 +163,7 @@ private fun KeysSection(
 }
 
 @Composable
-private fun Section(
+internal fun Section(
     title: Int,
     reason: Int,
     content: @Composable () -> Unit,
