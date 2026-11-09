@@ -6,6 +6,7 @@ import io.github.d4rthc0d3r.sarathi.core.maps.ProviderException
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteStep
+import io.github.d4rthc0d3r.sarathi.core.maps.Routes
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingProvider
 import io.github.d4rthc0d3r.sarathi.core.maps.StepManeuver
@@ -190,15 +191,4 @@ internal object ValhallaManeuvers {
             28 -> StepManeuver.FERRY
             else -> StepManeuver.STRAIGHT
         }
-}
-
-internal object Routes {
-    /** The longest named stretch, for "via NH 66" on the confirmation screen. */
-    fun mainRoad(steps: List<RouteStep>): String =
-        steps
-            .filter { it.roadName.isNotBlank() }
-            .groupBy { it.roadName }
-            .maxByOrNull { (_, s) -> s.sumOf { it.distanceM } }
-            ?.key
-            .orEmpty()
 }

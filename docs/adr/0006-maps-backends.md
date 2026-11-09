@@ -48,7 +48,7 @@ Facts below were checked on 2026-10-25 against the sources listed at the end. It
 | Plan | Free developer plan; terms noted and accepted by the owner for private use. **No payment method is on the account**, so usage past the free plan can't be billed: Mappls can only reject requests. The free-plan quotas aren't published and the console doesn't show them (checked by the owner, 2026-10-31). |
 | Credentials | An "application" registered in the Mappls console with the app's package name and the **SHA-256** of its signing certificate. The console issues two **configuration files** (`<appId>.a.conf` and `<appId>.a.olf`) that authenticate Mappls's **Android SDK**. They're credentials: kept in `~/sarathi-secrets/mappls/` on the owner's laptop, never committed (their names are gitignored in `android/app/` before the integration starts), and copied into the app module by the build. |
 | Search | Autosuggest, geocode, reverse geocode, nearby and place details by eLoc (Mappls Pin) in the Search API. Checked on the phone (2026-11-09): place details by Mappls Pin answers "no content" on the free plan, but Autosuggest given the Pin returns it with coordinates, so Pins are looked up that way. Reverse geocode leaves fields empty rather than null. |
-| Directions | Route API with geometry and steps. Profile **`biking`** is the two-wheeler profile, only with resource `route_adv`. Traffic-aware resource (`route_traffic`) is **India only**, and `region`/`rtype` aren't supported with the two-wheeler profile. **Verify** whether traffic and `biking` combine, and the step format. |
+| Directions | Route API with geometry and steps. Profile **`biking`** is the two-wheeler profile, only with resource `route_adv`. Traffic-aware resource (`route_traffic`) is **India only**, and `region`/`rtype` aren't supported with the two-wheeler profile. Checked on the phone (2026-11-09): steps are in OSRM's format (polyline6); `route_traffic` does combine with `biking`, returning per-segment `congestion` (low, moderate, heavy, unknown) and a traffic-aware duration (57 min against 48 with `route_adv` on the same trip). |
 | Navigation SDK | The public Android SDK lists Routing and Direction Widget but no headless navigation SDK. **Decision: use Directions + our guidance engine (Ferrostar)**, which is headless by construction. Search and Directions are called **through Mappls's Android SDK** (not plain HTTP), because the credentials are SDK configuration files bound to the app's signature. The map component isn't used. |
 | Attribution | "Powered by Mappls" shown in the app and on the device while Mappls is active. |
 
@@ -202,6 +202,8 @@ interface RoutingProvider {
   request (GraphHopper's docs). Routes use `car` and are marked as car routes on the app's
   route preview.
 - **Checked on the phone** from the same start to Calangute: Valhalla 33.6 km, 75 min
+- **Mappls** (step F4.2): `biking` with `route_adv`, steps through a shared OSRM converter in
+  `:core:maps`. Same trip: 30.6 km, 48 min. Traffic (`route_traffic`) is step F5.
   (motorcycle); GraphHopper 33.2 km, 41 min (car).
 
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)

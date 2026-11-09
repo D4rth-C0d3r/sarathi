@@ -9,6 +9,7 @@ import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchProvider
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchService
 import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
+import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsRouting
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.GraphHopperRouting
 import io.github.d4rthc0d3r.sarathi.maps.osm.PhotonSearch
@@ -39,11 +40,12 @@ class MapsRegistry private constructor(
 
     private val routingProviders: Map<RoutingBackend, RoutingProvider> =
         mapOf(
+            RoutingBackend.MAPPLS to MapplsRouting(context, Keys.mapplsConfigured),
             RoutingBackend.OSM_VALHALLA to ValhallaRouting(http, userAgent, { store.settings.value.valhallaUrl }),
             RoutingBackend.OSM_GRAPHHOPPER to GraphHopperRouting(http, userAgent, Keys.graphHopper),
         )
 
-    /** Google and Mappls routing, and offline, join in the next steps of F4. */
+    /** Google routing and offline join in the next steps of F4. */
     val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard })
 
     private val noRedirects =
