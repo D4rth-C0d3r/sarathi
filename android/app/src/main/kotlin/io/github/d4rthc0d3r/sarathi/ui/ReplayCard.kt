@@ -44,4 +44,7 @@ fun ReplayCard(
     }
 }
 
-private val REPLAY_SPEEDUPS = listOf(2, 20) // simulated rides go 54 km/h before the speed-up
+// Simulated rides go 54 km/h before the speed-up: x2 is highway speed, x20 a quick run-through.
+private const val HIGHWAY = 2
+private const val QUICK = 20
+private val REPLAY_SPEEDUPS = listOf(HIGHWAY, QUICK)
