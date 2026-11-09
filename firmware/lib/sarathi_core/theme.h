@@ -26,6 +26,8 @@ struct ThemePalette {
   Rgb route_behind;     // route already ridden (dim)
   Rgb maneuver;         // maneuver arrow and marker
   Rgb rider;            // rider chevron on the map
+  Rgb traffic_slow;     // the route where traffic is slow (with long dashes, ADR-0009)
+  Rgb traffic_jam;      // the route in a jam (wider, with cross-ticks)
   Rgb fill_accept;      // button fills; button_text sits on them
   Rgb fill_reject;
   Rgb fill_neutral;

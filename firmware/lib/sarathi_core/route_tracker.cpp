@@ -138,11 +138,15 @@ void RouteTracker::Window(MetricPoint rider, const RouteFix& fix, uint16_t headi
   const size_t stride = inside > kRoom ? (inside + kRoom - 1) / kRoom : 1;
 
   std::array<MetricPoint, kMaxSimplifyPoints> input{};
+  std::array<float, kMaxSimplifyPoints> along{};
   size_t n = 0;
+  along.at(n) = start;
   input.at(n++) = PointAt(start);
   for (size_t i = first; i <= last && inside > 0 && n < kMaxSimplifyPoints - 1; i += stride) {
+    along.at(n) = storage_.cumulative[i];
     input.at(n++) = storage_.points[i];
   }
+  along.at(n) = end;
   input.at(n++) = PointAt(end);
 
   std::array<bool, kMaxSimplifyPoints> keep{};
@@ -154,6 +158,7 @@ void RouteTracker::Window(MetricPoint rider, const RouteFix& fix, uint16_t headi
   }
   for (size_t i = 0; i < n && out.count < kMaxRoutePoints; ++i) {
     if (keep.at(i)) {
+      out.along_m.at(out.count) = static_cast<uint32_t>(std::max(0.0F, along.at(i)));
       out.points.at(out.count++) = {ToMetres(input.at(i).x - rider.x),
                                     ToMetres(input.at(i).y - rider.y)};
     }

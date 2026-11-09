@@ -21,6 +21,8 @@ const ThemeDescriptor kFighterHudTheme = {
         0x2E6B2E,  // route_behind
         0x7CFF7C,  // maneuver
         0xE6FFE6,  // rider
+        0xFFE14D,  // traffic_slow
+        0xFF4DA6,  // traffic_jam
         0x0F3D0F,  // fill_accept
         0x4A0E0E,  // fill_reject
         0x102810,  // fill_neutral

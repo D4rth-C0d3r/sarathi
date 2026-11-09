@@ -42,6 +42,8 @@ class AppModel {
   void SetManeuverIcon(const ManeuverIcon& icon);
   void SetRouteWindow(const RouteWindow& window, uint32_t now_ms);
   void SetRiderPose(const RiderPose& pose) { state_.rider = pose; }
+  void SetTraffic(const TrafficState& traffic) { state_.traffic = traffic; }
+  void ClearTraffic() { state_.traffic.valid = false; }
   void EndNav();
   void SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms);
   void SetMedia(const MediaState& media);

@@ -21,6 +21,8 @@ const ThemeDescriptor kRacingTheme = {
         0x5C5030,  // route_behind
         0xFFD60A,  // maneuver
         0xFFFFFF,  // rider
+        0xFF7A00,  // traffic_slow
+        0xFF2BD6,  // traffic_jam
         0x1B5E20,  // fill_accept
         0x9A1010,  // fill_reject
         0x2E2E36,  // fill_neutral

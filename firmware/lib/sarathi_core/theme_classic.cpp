@@ -20,6 +20,8 @@ const ThemeDescriptor kClassicTheme = {
         0x5A5A5A,  // route_behind
         0xFFB000,  // maneuver
         0xFFFFFF,  // rider
+        0xFFB300,  // traffic_slow
+        0xFF3B30,  // traffic_jam
         0x1B5E20,  // fill_accept
         0x8E1212,  // fill_reject
         0x303030,  // fill_neutral

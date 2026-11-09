@@ -30,8 +30,9 @@ class MapView {
 
   // The route window (points relative to the camera's position) drawn over the roads, and the
   // next maneuver's dot; colours are raw pixels or theme colours. Count 0: no route.
-  void SetRoute(const core::RouteWindow& window, uint16_t route_pixel, uint8_t width_px,
-                core::Rgb maneuver_color, lv_opa_t opa);
+  void SetRoute(const core::RouteWindow& window, const core::TrafficState& traffic, uint32_t now_ms,
+                const core::MapRouteStyle (&styles)[core::kTrafficLevels], core::Rgb maneuver_color,
+                lv_opa_t opa);
   // The rider's chevron at the camera's anchor, pointing up.
   void SetRider(core::Rgb color) {
     rider_color_ = color;
@@ -64,7 +65,6 @@ class MapView {
   TimeUsFn time_us_ = nullptr;
   core::MapCamera camera_{};
   core::MapStyle style_{};
-  std::array<core::RoutePoint, core::kMaxRoutePoints> route_points_{};
   core::MapRoute route_{};
   bool has_maneuver_ = false;
   core::RoutePoint maneuver_{};

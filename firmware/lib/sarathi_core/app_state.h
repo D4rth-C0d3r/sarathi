@@ -60,7 +60,24 @@ struct RouteWindow {
   bool has_position = false;
   float rider_x_m = 0.0F;
   float rider_y_m = 0.0F;
+  // Each point's distance from the route's start, for traffic (ADR-0009); 0 without a route.
+  std::array<uint32_t, kMaxRoutePoints> along_m{};
 };
+
+// Traffic along the route (protocol `traffic`): stretches from the route's start, sorted, not
+// overlapping; the rest of the route is unknown.
+constexpr size_t kMaxTrafficStretches = 256;
+enum class TrafficLevel : uint8_t { kFree, kSlow, kJam, kUnknown };
+struct TrafficState {
+  bool valid = false;  // for the route being ridden
+  uint32_t received_ms = 0;
+  uint16_t count = 0;
+  std::array<uint32_t, kMaxTrafficStretches> offset_m{};
+  std::array<uint32_t, kMaxTrafficStretches> length_m{};
+  std::array<TrafficLevel, kMaxTrafficStretches> level{};
+};
+// Older than this, traffic is drawn as unknown (protocol.md section 5).
+constexpr uint32_t kTrafficStaleMs = 5 * 60 * 1000;
 
 // The phone's own maneuver icon (Chronos, ADR-0005): 48x48, 1 bit per pixel, row-major, most
 // significant bit first.
@@ -237,6 +254,7 @@ struct AppState {
   NavState nav;
   // The phone's latest pose (protocol `pose`), for the map's motion between route windows.
   RiderPose rider;
+  TrafficState traffic;
   CallState call;
   MediaState media;
   Settings settings;

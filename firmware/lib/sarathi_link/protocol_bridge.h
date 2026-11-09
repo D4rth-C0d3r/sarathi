@@ -162,6 +162,7 @@ class ProtocolBridge {
   void OnFrameEpoch(uint16_t epoch, core::AppModel& model);
   void OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppModel& model);
   void OnRoute(const proto::Route& route, core::AppModel& model);
+  void OnTraffic(const proto::Message& message, uint32_t now_ms, core::AppModel& model);
   void OnChunk(const proto::Message& message);
   void SendChunkAck(uint32_t now_ms, Outbox& out);
   void SendChunkHave(Outbox& out);
@@ -178,6 +179,7 @@ class ProtocolBridge {
   proto::Point* route_points_;
   size_t route_points_size_;
   std::array<proto::RouteMarker, proto::kMaxRouteMarkers> route_markers_{};
+  std::array<proto::TrafficEntry, proto::kMaxTrafficEntries> traffic_entries_{};
   core::RouteTracker tracker_;
   core::MovingDetector motion_;
   uint32_t window_sequence_ = 0;

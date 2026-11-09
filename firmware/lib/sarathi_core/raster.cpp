@@ -198,6 +198,63 @@ void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, ui
   }
 }
 
+namespace {
+
+ScreenPoint Lerp(ScreenPoint a, ScreenPoint b, float f) {
+  return ScreenPoint{a.x + static_cast<int32_t>(std::lround(static_cast<float>(b.x - a.x) * f)),
+                     a.y + static_cast<int32_t>(std::lround(static_cast<float>(b.y - a.y) * f))};
+}
+
+float Length(ScreenPoint a, ScreenPoint b) {
+  const auto dx = static_cast<float>(b.x - a.x);
+  const auto dy = static_cast<float>(b.y - a.y);
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+}  // namespace
+
+float DrawDashedSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color,
+                        int32_t dash, int32_t gap, float phase) {
+  const float len = Length(a, b);
+  const auto period = static_cast<float>(dash + gap);
+  if (len <= 0 || period <= 0) {
+    return phase;
+  }
+  float at = 0;  // distance along a→b
+  while (at < len) {
+    const float in_period = std::fmod(phase + at, period);
+    if (in_period < static_cast<float>(dash)) {
+      const float until = std::min(len, at + static_cast<float>(dash) - in_period);
+      DrawSegment(canvas, Lerp(a, b, at / len), Lerp(a, b, until / len), width, color);
+      at = until;
+    } else {
+      at = std::min(len, at + period - in_period);
+    }
+  }
+  return std::fmod(phase + len, period);
+}
+
+float DrawCrossTicks(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t length,
+                     int32_t thickness, uint16_t color, int32_t spacing, float phase) {
+  const float len = Length(a, b);
+  if (len <= 0 || spacing <= 0) {
+    return phase;
+  }
+  // The unit normal, scaled to half the tick length.
+  const float nx = -static_cast<float>(b.y - a.y) / len * static_cast<float>(length) / 2;
+  const float ny = static_cast<float>(b.x - a.x) / len * static_cast<float>(length) / 2;
+  const auto s = static_cast<float>(spacing);
+  for (float at = s - std::fmod(phase, s); at <= len; at += s) {
+    const ScreenPoint c = Lerp(a, b, at / len);
+    const ScreenPoint p{c.x + static_cast<int32_t>(std::lround(nx)),
+                        c.y + static_cast<int32_t>(std::lround(ny))};
+    const ScreenPoint q{c.x - static_cast<int32_t>(std::lround(nx)),
+                        c.y - static_cast<int32_t>(std::lround(ny))};
+    DrawSegment(canvas, p, q, thickness, color);
+  }
+  return std::fmod(phase + len, s);
+}
+
 void DrawDot(Canvas& canvas, ScreenPoint p, int32_t width, uint16_t color) {
   const int32_t before = (width - 1) / 2;
   const int32_t after = width - 1 - before;

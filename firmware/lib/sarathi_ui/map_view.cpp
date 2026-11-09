@@ -56,12 +56,17 @@ void MapView::Set(const core::MapCamera& camera, uint8_t level, const core::MapS
   lv_obj_invalidate(obj_);
 }
 
-void MapView::SetRoute(const core::RouteWindow& window, uint16_t route_pixel, uint8_t width_px,
+void MapView::SetRoute(const core::RouteWindow& window, const core::TrafficState& traffic,
+                       uint32_t now_ms, const core::MapRouteStyle (&styles)[core::kTrafficLevels],
                        core::Rgb maneuver_color, lv_opa_t opa) {
-  std::copy(window.points.begin(), window.points.begin() + window.count, route_points_.begin());
-  const float ox = window.has_position ? window.rider_x_m : 0.0F;
-  const float oy = window.has_position ? window.rider_y_m : 0.0F;
-  route_ = core::MapRoute{ox, oy, route_points_.data(), window.count, route_pixel, width_px};
+  route_ = core::MapRoute{};
+  route_.origin_x_m = window.has_position ? window.rider_x_m : 0.0F;
+  route_.origin_y_m = window.has_position ? window.rider_y_m : 0.0F;
+  if (renderer_ != nullptr) {
+    route_.count = core::SplitRouteByTraffic(window, traffic, now_ms, renderer_->RoutePieces(),
+                                             core::kMaxTrafficPieces);
+  }
+  std::copy(std::begin(styles), std::end(styles), std::begin(route_.styles));
   has_maneuver_ = window.has_maneuver_point;
   maneuver_ = window.maneuver_point;
   maneuver_color_ = maneuver_color;

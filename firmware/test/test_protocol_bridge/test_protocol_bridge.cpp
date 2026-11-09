@@ -393,6 +393,37 @@ void TestBadMessagesAreCounted() {
   TEST_ASSERT_EQUAL(2, f.bridge.Stats().ignored);
 }
 
+// ---- Traffic on the route (ADR-0009, step G5) ----
+
+void TestTrafficForTheRouteIsKept() {
+  Fixture f;
+  f.Hello();
+  f.SendJson(0x04, R"({"t":"frame","epoch":7})");
+  f.Send(0x41, BinaryVector("route"), 100);    // route 3 version 2
+  f.Send(0x42, BinaryVector("traffic"), 200);  // the same route: 4 stretches
+  const auto& t = f.model.State().traffic;
+  TEST_ASSERT_TRUE(t.valid);
+  TEST_ASSERT_EQUAL(4, t.count);
+  TEST_ASSERT_EQUAL(800, t.offset_m.at(1));
+  TEST_ASSERT_TRUE(t.level.at(2) == sarathi::core::TrafficLevel::kJam);
+  TEST_ASSERT_EQUAL(200, t.received_ms);
+}
+
+void TestTrafficForAnotherRouteIsIgnoredAndARerouteClearsIt() {
+  Fixture f;
+  f.Hello();
+  f.SendJson(0x04, R"({"t":"frame","epoch":7})");
+  f.Send(0x42, BinaryVector("traffic"));  // before any route
+  TEST_ASSERT_FALSE(f.model.State().traffic.valid);
+  f.Send(0x41, BinaryVector("route"));
+  f.Send(0x42, BinaryVector("traffic"));
+  TEST_ASSERT_TRUE(f.model.State().traffic.valid);
+  std::vector<uint8_t> reroute = BinaryVector("route");
+  reroute.at(5) = 3;  // version 3 (u16 after ver and the u32 route_id)
+  f.Send(0x41, reroute);
+  TEST_ASSERT_FALSE(f.model.State().traffic.valid);  // the old traffic doesn't fit
+}
+
 // ---- Map chunks (ADR-0009, protocol 1.2) ----
 
 std::vector<uint8_t> g_chunk_arena(256 * 1024);
@@ -540,6 +571,8 @@ int main() {
   RUN_TEST(TestHelloReportsTheHeldRoute);
   RUN_TEST(TestPoseOnTheRouteMakesAWindow);
   RUN_TEST(TestBadMessagesAreCounted);
+  RUN_TEST(TestTrafficForTheRouteIsKept);
+  RUN_TEST(TestTrafficForAnotherRouteIsIgnoredAndARerouteClearsIt);
   RUN_TEST(TestHelloTellsTheChunkCacheSize);
   RUN_TEST(TestAChunkIsStoredAndAcknowledged);
   RUN_TEST(TestAChunkInAnotherFrameIsRefused);

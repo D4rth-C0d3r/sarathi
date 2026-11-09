@@ -69,6 +69,9 @@ const core::ThemeDescriptor* map_theme = nullptr;
 core::MapFollow follow;          // zoom and motion between poses (ADR-0009)
 core::MapViewPoint map_drawn{};  // the view last drawn
 uint32_t map_drawn_ms = 0;
+uint32_t map_traffic_ms = 0;  // the traffic last drawn, and whether it was there or old
+bool map_traffic_valid = false;
+bool map_traffic_old = false;
 StaticLabel<24> map_note;         // "Map loading", or the map's attribution when it starts
 uint32_t map_empty_since_ms = 0;  // no chunk in view since then (0: chunks are in view)
 uint32_t map_started_ms = 0;      // the first chunks of this ride were drawn then
@@ -139,6 +142,26 @@ void UpdateMapNote(uint32_t now_ms) {
   }
 }
 
+// The route by traffic level (ADR-0009), never by colour alone: free solid in the route colour;
+// slow long dashes; jam wider with cross-ticks; unknown thinner and dimmed. A stale route is dim.
+using RouteStyles4 = core::MapRouteStyle[core::kTrafficLevels];  // NOLINT(*-avoid-c-arrays)
+const RouteStyles4& RouteStyles(const core::ThemeDescriptor& t, bool stale) {
+  static RouteStyles4 styles;  // NOLINT(*-avoid-non-const-global-variables)
+  constexpr uint8_t kJamExtraPx = 4;
+  constexpr uint8_t kUnknownLessPx = 2;
+  const uint8_t w = t.components.route_line_px;
+  const auto dim = [&](core::Rgb c) { return theme::Pixel(stale ? t.palette.route_behind : c); };
+  using core::RoutePattern;
+  styles[0] = {dim(t.palette.route_line), w, RoutePattern::kSolid};
+  styles[1] = {dim(t.palette.traffic_slow), w, RoutePattern::kDashed};
+  styles[2] = {dim(t.palette.traffic_jam), static_cast<uint8_t>(w + kJamExtraPx),
+               RoutePattern::kTicks};
+  styles[3] = {theme::Pixel(t.palette.route_behind),
+               static_cast<uint8_t>(w > kUnknownLessPx + 1 ? w - kUnknownLessPx : w),
+               RoutePattern::kSolid};
+  return styles;
+}
+
 // The map's camera: heading up, the rider in the lower third.
 core::MapCamera CameraAt(const core::MapViewPoint& view) {
   core::MapCamera camera;
@@ -178,8 +201,11 @@ void ShowMap(const core::AppState& state, bool stale, uint32_t now_ms, bool forc
   const core::ThemeDescriptor& t = theme::Current();
   bool moving = false;
   const core::MapViewPoint view = ViewNow(state, now_ms, &moving);
-  const bool data_changed =
-      window.sequence != map_sequence || stale != map_stale || &t != map_theme;
+  const core::TrafficState& traffic = state.traffic;
+  const bool traffic_old = traffic.valid && now_ms - traffic.received_ms > core::kTrafficStaleMs;
+  const bool data_changed = window.sequence != map_sequence || stale != map_stale ||
+                            &t != map_theme || traffic.received_ms != map_traffic_ms ||
+                            traffic.valid != map_traffic_valid || traffic_old != map_traffic_old;
   const bool view_changed = moving && core::MapFollow::NeedsRedraw(map_drawn, view) &&
                             now_ms - map_drawn_ms >= kMapFrameMs;
   if (!force && !data_changed && !view_changed) {
@@ -188,11 +214,13 @@ void ShowMap(const core::AppState& state, bool stale, uint32_t now_ms, bool forc
   map_sequence = window.sequence;
   map_stale = stale;
   map_theme = &t;
+  map_traffic_ms = traffic.received_ms;
+  map_traffic_valid = traffic.valid;
+  map_traffic_old = traffic_old;
   map_drawn = view;
   map_drawn_ms = now_ms;
   if (data_changed || force) {
-    const uint16_t route = theme::Pixel(stale ? t.palette.route_behind : t.palette.route_line);
-    map.SetRoute(window, route, t.components.route_line_px, t.palette.maneuver,
+    map.SetRoute(window, state.traffic, now_ms, RouteStyles(t, stale), t.palette.maneuver,
                  stale ? LV_OPA_40 : LV_OPA_COVER);
     map.SetRider(t.palette.rider);
   }

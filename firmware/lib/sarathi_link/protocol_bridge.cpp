@@ -326,6 +326,7 @@ void ProtocolBridge::OnFrameEpoch(uint16_t epoch, core::AppModel& model) {
 
 void ProtocolBridge::ForgetRoute(core::AppModel& model) {
   has_route_ = false;
+  model.ClearTraffic();
   window_due_ = true;
   tracker_.Clear();
   model.ClearRouteWindow();
@@ -372,12 +373,10 @@ void ProtocolBridge::OnBinary(const proto::Message& message, uint32_t now_ms,
     case proto::MsgType::kChunk:
       OnChunk(message);
       return;
+    case proto::MsgType::kTraffic:
+      OnTraffic(message, now_ms, model);
+      return;
     default:
-      // traffic waits for the on-device map (ADR-0009, step G5).
-      if (static_cast<proto::MsgType>(message.type) == proto::MsgType::kTraffic) {
-        ++stats_.traffic;
-        stats_.traffic_bytes = static_cast<uint16_t>(message.size);
-      }
       ++stats_.ignored;
       return;
   }
@@ -447,6 +446,10 @@ void ProtocolBridge::OnRoute(const proto::Route& route, core::AppModel& model) {
     glyph.roundabout_exit = m == proto::Maneuver::kRoundabout ? marker.exit : 0;
     tracker_.AddManeuver(marker.point, glyph);  // the decoder checked the order
   }
+  // A new route or version: its traffic comes next; the old one doesn't fit it.
+  if (!has_route_ || route.route_id != route_id_ || route.version != route_version_) {
+    model.ClearTraffic();
+  }
   has_route_ = true;
   window_due_ = true;
   route_id_ = route.route_id;
@@ -488,6 +491,40 @@ void ProtocolBridge::Tick(uint32_t now_ms, core::AppModel& model, Outbox& out) {
   if (now_ms - ack_sent_ms_ >= kChunkAckMs) {
     SendChunkAck(now_ms, out);
   }
+}
+
+// Traffic for the route being ridden (ADR-0009, step G5); for another route or version it's
+// stale and ignored (protocol.md, traffic).
+void ProtocolBridge::OnTraffic(const proto::Message& message, uint32_t now_ms,
+                               core::AppModel& model) {
+  ++stats_.traffic;
+  stats_.traffic_bytes = static_cast<uint16_t>(message.size);
+  proto::Traffic traffic;
+  const proto::BinError e = proto::DecodeTraffic(
+      message.payload, message.size, &traffic, {traffic_entries_.data(), traffic_entries_.size()});
+  if (e == proto::BinError::kVerUnknown) {
+    ++stats_.ignored;
+    return;
+  }
+  if (e != proto::BinError::kNone) {
+    DropMessage(message.type, proto::BinErrorName(e));
+    return;
+  }
+  if (!has_route_ || traffic.route_id != route_id_ || traffic.version != route_version_) {
+    DropMessage(message.type, "stale");
+    return;
+  }
+  core::TrafficState state;
+  state.valid = true;
+  state.received_ms = now_ms == 0 ? 1 : now_ms;  // 0 reads as "never"
+  state.count = static_cast<uint16_t>(std::min(traffic.n_entries, core::kMaxTrafficStretches));
+  for (size_t i = 0; i < state.count; ++i) {
+    const proto::TrafficEntry& t = traffic.entries[i];  // NOLINT(*-pointer-arithmetic)
+    state.offset_m.at(i) = t.offset_m;
+    state.length_m.at(i) = t.length_m;
+    state.level.at(i) = static_cast<core::TrafficLevel>(std::min<uint8_t>(t.level, 3));
+  }
+  model.SetTraffic(state);
 }
 
 void ProtocolBridge::OnChunk(const proto::Message& message) {

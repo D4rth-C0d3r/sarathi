@@ -18,6 +18,7 @@
 #include "app_state.h"
 #include "chunk_store.h"
 #include "raster.h"
+#include "route_traffic.h"
 
 namespace sarathi::core {
 
@@ -51,15 +52,22 @@ struct MapStyle {
   float service_max_metres_per_px = 3;
 };
 
-// The route, drawn over the roads: points relative to `origin` (a route window and where the
-// rider was when it was cut, in the ride frame).
+// How the route draws at each traffic level (ADR-0009): never by colour alone.
+enum class RoutePattern : uint8_t { kSolid, kDashed, kTicks };
+struct MapRouteStyle {
+  uint16_t color = 0;
+  uint8_t width_px = 0;
+  RoutePattern pattern = RoutePattern::kSolid;
+};
+constexpr size_t kTrafficLevels = 4;  // TrafficLevel: free, slow, jam, unknown
+
+// The route, drawn over the roads: `count` pieces in MapRenderer::RoutePieces(), in metres
+// relative to `origin` (where the rider was when the window was cut, in the ride frame).
 struct MapRoute {
   float origin_x_m = 0;
   float origin_y_m = 0;
-  const RoutePoint* points = nullptr;
   size_t count = 0;
-  uint16_t color = 0;
-  uint8_t width_px = 0;
+  MapRouteStyle styles[kTrafficLevels] = {};  // NOLINT(*-avoid-c-arrays)
 };
 
 struct MapRenderStats {
@@ -89,7 +97,8 @@ class MapRenderer {
   // chunks, the quarters of dense L0 tiles (protocol 1.2).
   void Prepare(ChunkStore* store, uint8_t level, const MapCamera& camera, const MapStyle& style,
                uint32_t frame);
-  // The route for the next Prepare(); count 0 for none.
+  // The route for the next Prepare(): fill RoutePieces() (SplitRouteByTraffic), then SetRoute().
+  [[nodiscard]] TrafficPiece* RoutePieces() { return route_pieces_; }
   void SetRoute(const MapRoute& route) { route_ = route; }
   // Draws the prepared frame inside the canvas's clip.
   void Draw(Canvas& canvas);
@@ -123,8 +132,11 @@ class MapRenderer {
   ScreenPoint points_[kMaxPoints] = {};
   size_t n_points_ = 0;
   MapRoute route_{};
-  ScreenPoint route_points_[kMaxRoutePoints] = {};
+  TrafficPiece route_pieces_[kMaxTrafficPieces] = {};
+  ScreenPoint route_a_[kMaxTrafficPieces] = {};
+  ScreenPoint route_b_[kMaxTrafficPieces] = {};
   size_t n_route_ = 0;
+  void DrawRoute(Canvas& canvas) const;
 };
 
 // Screen position of a ride-frame point (metres), for tests and overlays.

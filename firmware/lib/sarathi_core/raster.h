@@ -37,6 +37,16 @@ void FillRect(Canvas& canvas, const ClipRect& rect, uint16_t color);
 // A line `width` pixels thick (at least 1) centred on the segment; the ends are square.
 void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color);
 
+// A dashed line: `dash` px on, `gap` px off, starting `phase` px into the pattern. Returns the
+// phase at `b`, so a polyline's dashes run on across its vertices.
+float DrawDashedSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color,
+                        int32_t dash, int32_t gap, float phase);
+
+// Short lines across a→b, `length` px long and `thickness` thick, every `spacing` px, starting
+// `phase` px in. Returns the phase at `b`.
+float DrawCrossTicks(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t length,
+                     int32_t thickness, uint16_t color, int32_t spacing, float phase);
+
 // A filled square `width` pixels across, centred on `p`: covers the joints of thick polylines.
 void DrawDot(Canvas& canvas, ScreenPoint p, int32_t width, uint16_t color);
 

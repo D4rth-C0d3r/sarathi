@@ -206,12 +206,13 @@ void MapRenderer::Prepare(ChunkStore* store, uint8_t level, const MapCamera& cam
     }
   }
   stats_.shapes = static_cast<uint32_t>(n_shapes_);
-  n_route_ = std::min(route_.count, kMaxRoutePoints);
+  n_route_ = std::min(route_.count, kMaxTrafficPieces);
   for (size_t i = 0; i < n_route_; ++i) {
-    const RoutePoint& p = route_.points[i];  // NOLINT(*-pointer-arithmetic)
-    route_points_[i] =
-        ProjectMetres(camera, route_.origin_x_m + static_cast<float>(p.x_m),  // NOLINT
-                      route_.origin_y_m + static_cast<float>(p.y_m));
+    // NOLINTBEGIN(*-constant-array-index)
+    const TrafficPiece& p = route_pieces_[i];
+    route_a_[i] = ProjectMetres(camera, route_.origin_x_m + p.ax_m, route_.origin_y_m + p.ay_m);
+    route_b_[i] = ProjectMetres(camera, route_.origin_x_m + p.bx_m, route_.origin_y_m + p.by_m);
+    // NOLINTEND(*-constant-array-index)
   }
   stats_.prepare_us += time_us_ != nullptr ? time_us_() - start : 0;
 }
@@ -266,16 +267,52 @@ void MapRenderer::Draw(Canvas& canvas) {
       }
     }
   }
-  // The route over the roads: wider than any road, joints filled.
-  for (size_t i = 1; i < n_route_; ++i) {
+  DrawRoute(canvas);
+  stats_.lines_us += now() - mark;
+}
+
+// The route over the roads, piece by piece in its traffic level's style: solid (joints filled),
+// long dashes, or solid with cross-ticks. Patterns run on across pieces of the same level.
+void MapRenderer::DrawRoute(Canvas& canvas) const {
+  constexpr int32_t kDashPx = 18;
+  constexpr int32_t kGapPx = 10;
+  constexpr int32_t kTickSpacingPx = 20;  // ADR-0009: cross-ticks every 20 px
+  constexpr int32_t kTickOverhangPx = 8;
+  constexpr int32_t kTickThicknessPx = 3;
+  float phase = 0;
+  for (size_t i = 0; i < n_route_; ++i) {
     // NOLINTBEGIN(*-constant-array-index)
-    DrawSegment(canvas, route_points_[i - 1], route_points_[i], route_.width_px, route_.color);
-    if (i + 1 < n_route_) {
-      DrawDot(canvas, route_points_[i], route_.width_px, route_.color);
+    const auto level = static_cast<size_t>(route_pieces_[i].level);
+    const MapRouteStyle& st = route_.styles[std::min(level, kTrafficLevels - 1)];
+    const ScreenPoint a = route_a_[i];
+    const ScreenPoint b = route_b_[i];
+    const bool continues = i + 1 < n_route_ && route_pieces_[i + 1].level == route_pieces_[i].level;
+    if (i > 0 && route_pieces_[i - 1].level != route_pieces_[i].level) {
+      phase = 0;
     }
     // NOLINTEND(*-constant-array-index)
+    const float len = std::hypot(static_cast<float>(b.x - a.x), static_cast<float>(b.y - a.y));
+    switch (st.pattern) {
+      case RoutePattern::kDashed:
+        phase = DrawDashedSegment(canvas, a, b, st.width_px, st.color, kDashPx, kGapPx, phase);
+        break;
+      case RoutePattern::kTicks:
+        DrawSegment(canvas, a, b, st.width_px, st.color);
+        if (continues && st.width_px >= 4) {
+          DrawDot(canvas, b, st.width_px, st.color);
+        }
+        phase = DrawCrossTicks(canvas, a, b, st.width_px + kTickOverhangPx, kTickThicknessPx,
+                               st.color, kTickSpacingPx, phase);
+        break;
+      case RoutePattern::kSolid:
+        DrawSegment(canvas, a, b, st.width_px, st.color);
+        if (continues && st.width_px >= 4) {
+          DrawDot(canvas, b, st.width_px, st.color);
+        }
+        phase += len;
+        break;
+    }
   }
-  stats_.lines_us += now() - mark;
 }
 
 MapRenderStats MapRenderer::Render(ChunkStore& store, uint8_t level, const MapCamera& camera,
