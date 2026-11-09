@@ -129,7 +129,17 @@ class PhoneLinkSession(
         payload: ByteArray,
         firstIsHello: Boolean,
     ) {
-        val frames = Framing.fragment(type, msgId and BYTE_MASK, payload, port.mtu)
+        // Android refuses GATT writes over 512 bytes, whatever the MTU (517 gives 514-byte frames).
+        val frames =
+            Framing.fragment(
+                type,
+                msgId and BYTE_MASK,
+                payload,
+                minOf(
+                    port.mtu,
+                    MAX_WRITE_BYTES + ATT_HEADER_BYTES,
+                ),
+            )
         msgId++
         for (frame in frames) {
             // Before the first flow, nothing but hello (protocol.md section 1).
@@ -198,3 +208,7 @@ class PhoneLinkSession(
         const val U32 = 1L shl 32
     }
 }
+
+/** Android's longest GATT attribute value (GATT_MAX_ATTR_LEN): frames never exceed it. */
+internal const val MAX_WRITE_BYTES = 512
+private const val ATT_HEADER_BYTES = 3

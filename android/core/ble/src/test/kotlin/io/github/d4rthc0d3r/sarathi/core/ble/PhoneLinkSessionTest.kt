@@ -69,6 +69,21 @@ class PhoneLinkSessionTest {
         }
 
     @Test
+    fun framesStayWithinAndroidsWriteLimitAtTheLargestMtu() =
+        runTest {
+            val (dash, session) = connect(FakeDash(mtu = 517))
+            session.start()
+            val sending = launch { session.send(bigRoute()) }
+            while (sending.isActive) {
+                dash.grant()
+                testScheduler.advanceUntilIdle()
+            }
+            assertTrue(dash.writes.all { (size, _) -> size <= MAX_WRITE_BYTES })
+            assertTrue(dash.writes.any { (size, _) -> size == MAX_WRITE_BYTES })
+            assertTrue(dash.received.last() is Route)
+        }
+
+    @Test
     fun closingReleasesAWaitingSender() =
         runTest {
             val (_, session) = connect(FakeDash(window = 2))
