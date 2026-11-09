@@ -2,7 +2,9 @@
 // projection, and the recorded Bengaluru chunks (docs/fixtures/map) drawn whole and in strips.
 // Set SARATHI_MAP_PPM=path to save the rendered frame for a look.
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -195,8 +197,7 @@ const std::vector<std::string> kCity = {"14-11722-7595", "14-11722-7596", "14-11
                                         "14-11723-7595", "14-11723-7596", "14-11723-7597",
                                         "14-11724-7595", "14-11724-7596", "14-11724-7597"};
 
-void SavePpm(const Image& img) {
-  const char* path = std::getenv("SARATHI_MAP_PPM");
+void SavePpm(const Image& img, const char* path = std::getenv("SARATHI_MAP_PPM")) {
   if (path == nullptr) return;
   std::ofstream out(path, std::ios::binary);
   out << "P6\n" << img.w << " " << img.h << "\n255\n";
@@ -264,6 +265,70 @@ void test_highway_level_and_far_chunks() {
   TEST_ASSERT_EQUAL(480 * 480, img.Count(TestStyle().background));
 }
 
+// The bench's ghat phase: along the longest L0 motorway, heading along it, 40-row strips (as on
+// the device) must match the whole frame.
+void test_ghat_strips_match_along_the_motorway() {
+  auto store = std::make_unique<ChunkStore>(g_arena.data(), g_arena.size());
+  std::vector<std::string> ghat;
+  for (int x = 11529; x <= 11533; ++x) {
+    for (int y = 7320; y <= 7323; ++y)
+      ghat.push_back("14-" + std::to_string(x) + "-" + std::to_string(y));
+  }
+  LoadCity(*store, "expressway", ghat);
+  std::vector<float> xs;
+  std::vector<float> ys;
+  size_t best = 0;
+  for (size_t i = 0; i < store->Count(); ++i) {
+    const sarathi::core::StoredChunk c = store->At(i);
+    for (uint16_t s = 0; s < c.n_lines; ++s) {
+      const sarathi::core::MapShape& l = c.lines[s];
+      if (l.kind != 0 || l.count <= best) continue;
+      best = l.count;
+      xs.clear();
+      ys.clear();
+      for (uint32_t k = l.first; k < uint32_t{l.first} + l.count; ++k) {
+        xs.push_back(static_cast<float>(c.origin_x_m) + c.points[k].x * c.quantum_dm / 10.0F);
+        ys.push_back(static_cast<float>(c.origin_y_m) + c.points[k].y * c.quantum_dm / 10.0F);
+      }
+    }
+  }
+  TEST_ASSERT_TRUE(xs.size() >= 2);
+  auto renderer = std::make_unique<MapRenderer>();
+  MapStyle style = TestStyle();
+  style.road_px[0] = 7;
+  int bad_frames = 0;
+  for (size_t k = 1; k < xs.size(); k += std::max<size_t>(1, xs.size() / 40)) {
+    MapCamera cam;
+    cam.x_m = xs[k];
+    cam.y_m = ys[k];
+    cam.heading_deg = std::atan2(xs[k] - xs[k - 1], ys[k] - ys[k - 1]) * 57.29578F;
+    Image whole(480, 480);
+    Canvas full = whole.Full();
+    renderer->Render(*store, 0, cam, style, full, 1);
+    Image strips(480, 480);
+    std::vector<uint16_t> strip(480 * 40);
+    renderer->Prepare(*store, 0, cam, style, 2);
+    for (int32_t top = 0; top < 480; top += 40) {
+      Canvas c{strip.data(), 480, 0, top, ClipRect{0, top, 479, top + 39}};
+      renderer->Draw(c);
+      std::copy(strip.begin(), strip.end(), strips.px.begin() + top * 480);
+    }
+    if (const char* dir = std::getenv("SARATHI_MAP_PPM_DIR"); dir != nullptr) {
+      SavePpm(whole, (std::string(dir) + "/ghat-" + std::to_string(k) + ".ppm").c_str());
+    }
+    int differ = 0;
+    for (size_t i = 0; i < whole.px.size(); ++i) differ += whole.px[i] != strips.px[i] ? 1 : 0;
+    if (differ > 0) {
+      ++bad_frames;
+      char msg[96];
+      std::snprintf(msg, sizeof msg, "point %zu: %d pixels differ", k, differ);
+      TEST_MESSAGE(msg);
+      SavePpm(strips);
+    }
+  }
+  TEST_ASSERT_EQUAL(0, bad_frames);
+}
+
 }  // namespace
 
 int main() {
@@ -276,5 +341,6 @@ int main() {
   RUN_TEST(test_heading_up_projection);
   RUN_TEST(test_city_in_strips_matches_one_frame);
   RUN_TEST(test_highway_level_and_far_chunks);
+  RUN_TEST(test_ghat_strips_match_along_the_motorway);
   return UNITY_END();
 }
