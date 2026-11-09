@@ -28,6 +28,7 @@ android {
 dependencies {
     api(project(":core:maps"))
     implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -193,6 +193,17 @@ interface RoutingProvider {
   its crash handler, app-open event and IP geolocation. Verified on the phone: the opt-out is
   stored and the event queue stays empty, while search still works.
 
+### OSM online routing (step F4.1, 2026-11-09)
+
+- **Valhalla** (FOSSGIS by default; the URL is a setting): `motorcycle` costing, one request at
+  a time and at most one a second, our User-Agent. "No route" error codes (171, 442, 443) are
+  `NO_ROUTE`; anything else falls back as an error.
+- **GraphHopper:** the free plan's profiles are `car`, `bike` and `foot` only, at most 5 points a
+  request (GraphHopper's docs). Routes use `car` and are marked as car routes on the app's
+  route preview.
+- **Checked on the phone** from the same start to Calangute: Valhalla 33.6 km, 75 min
+  (motorcycle); GraphHopper 33.2 km, 41 min (car).
+
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)
 
 | Part | How it stays alive | Verify |

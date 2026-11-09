@@ -14,5 +14,7 @@ data class DestinationActions(
     val onRemoveRecent: (Place) -> Unit = {},
     val onRemoveSaved: (SavedPlace) -> Unit = {},
     val onClearChosen: () -> Unit = {},
+    /** Route from the origin (null: here) through the stops, at the desk (step F4). */
+    val onRoute: (origin: Place?, stops: List<Place>) -> Unit = { _, _ -> },
     val onBack: () -> Unit = {},
 )

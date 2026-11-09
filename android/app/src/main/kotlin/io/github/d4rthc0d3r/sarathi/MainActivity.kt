@@ -32,6 +32,7 @@ import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
+import io.github.d4rthc0d3r.sarathi.feature.destination.RouteViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.SharedLinkResolver
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
@@ -163,7 +164,13 @@ class MainActivity : ComponentActivity() {
                 shared = null
             }
         }
+        val routeModel =
+            viewModel {
+                RouteViewModel(MapsRegistry.get(context).routing) { LastLocation.get(context) }
+            }
+        val route = routeModel.ui.collectAsStateWithLifecycle()
         val ui = model.ui.collectAsStateWithLifecycle()
+        LaunchedEffect(ui.value.chosen, ui.value.trip) { routeModel.clear() }
         DestinationScreen(
             ui.value,
             DestinationActions(
@@ -173,9 +180,14 @@ class MainActivity : ComponentActivity() {
                 onSave = model::save,
                 onRemoveRecent = { place -> model.edit { it.removeRecent(place) } },
                 onRemoveSaved = { saved -> model.edit { it.remove(saved) } },
-                onClearChosen = model::clearChosen,
+                onClearChosen = {
+                    model.clearChosen()
+                    routeModel.clear()
+                },
+                onRoute = routeModel::route,
                 onBack = onBack,
             ),
+            route = route.value,
         )
     }
 

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -32,6 +34,7 @@ fun DestinationScreen(
     ui: DestinationUi,
     actions: DestinationActions,
     modifier: Modifier = Modifier,
+    route: RouteUi = RouteUi(),
 ) {
     Scaffold(modifier = modifier) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -54,10 +57,23 @@ fun DestinationScreen(
             Status(ui)
             val chosen = ui.chosen
             when {
-                chosen != null -> ChosenCard(chosen, actions)
-                ui.trip != null -> TripCard(ui.trip, actions)
-                ui.query.trim().length >= DestinationViewModel.MIN_QUERY -> Suggestions(ui, actions)
-                else -> Book(ui.book, actions)
+                chosen != null || ui.trip != null -> {
+                    Column(
+                        Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (chosen != null) ChosenCard(chosen, actions) else ui.trip?.let { TripCard(it, actions) }
+                        RoutePreview(route)
+                    }
+                }
+
+                ui.query.trim().length >= DestinationViewModel.MIN_QUERY -> {
+                    Suggestions(ui, actions)
+                }
+
+                else -> {
+                    Book(ui.book, actions)
+                }
             }
         }
     }

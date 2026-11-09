@@ -2,12 +2,17 @@ package io.github.d4rthc0d3r.sarathi.maps
 
 import android.content.Context
 import io.github.d4rthc0d3r.sarathi.BuildConfig
+import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
+import io.github.d4rthc0d3r.sarathi.core.maps.RoutingProvider
+import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchProvider
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchService
 import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
+import io.github.d4rthc0d3r.sarathi.maps.osm.GraphHopperRouting
 import io.github.d4rthc0d3r.sarathi.maps.osm.PhotonSearch
+import io.github.d4rthc0d3r.sarathi.maps.osm.ValhallaRouting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import okhttp3.OkHttpClient
@@ -31,6 +36,15 @@ class MapsRegistry private constructor(
         )
 
     val search = SearchService(searchProviders::get, { store.settings.value }, { store.guard })
+
+    private val routingProviders: Map<RoutingBackend, RoutingProvider> =
+        mapOf(
+            RoutingBackend.OSM_VALHALLA to ValhallaRouting(http, userAgent, { store.settings.value.valhallaUrl }),
+            RoutingBackend.OSM_GRAPHHOPPER to GraphHopperRouting(http, userAgent, Keys.graphHopper),
+        )
+
+    /** Google and Mappls routing, and offline, join in the next steps of F4. */
+    val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard })
 
     private val noRedirects =
         http

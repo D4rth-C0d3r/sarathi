@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +36,9 @@ internal fun TripCard(
                 }
             Text(stringResource(note), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.dest_routes_later), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { actions.onRoute(trip.origin, trip.via + trip.destination) }) {
+                Text(stringResource(R.string.route_button))
+            }
             TextButton(onClick = actions.onClearChosen) { Text(stringResource(R.string.dest_clear)) }
         }
     }
