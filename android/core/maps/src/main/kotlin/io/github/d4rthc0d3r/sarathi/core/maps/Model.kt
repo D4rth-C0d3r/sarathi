@@ -48,6 +48,7 @@ class SearchSession(
 
 enum class TravelMode { TWO_WHEELER, DRIVING }
 
+@Serializable
 data class RouteRequest(
     val origin: LatLng,
     /** In order; the last is the destination. */
@@ -78,6 +79,7 @@ enum class StepManeuver {
     FERRY,
 }
 
+@Serializable
 data class RouteStep(
     val maneuver: StepManeuver,
     /** Index into [Route.points] where the maneuver happens. */
@@ -90,18 +92,21 @@ data class RouteStep(
 enum class TrafficLevel { FREE, SLOW, JAM, UNKNOWN }
 
 /** Traffic along a route: stretches by distance from its start; gaps are unknown. */
+@Serializable
 data class TrafficStretch(
     val offsetM: Double,
     val lengthM: Double,
     val level: TrafficLevel,
 )
 
+@Serializable
 data class TrafficUpdate(
     val stretches: List<TrafficStretch>,
     /** Remaining time with traffic, if the backend has it. */
     val etaS: Long? = null,
 )
 
+@Serializable
 data class Route(
     val backend: RoutingBackend,
     val points: List<LatLng>,

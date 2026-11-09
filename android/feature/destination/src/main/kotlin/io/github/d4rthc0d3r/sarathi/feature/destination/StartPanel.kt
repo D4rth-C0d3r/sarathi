@@ -33,6 +33,7 @@ internal fun StartPanel(
                 }
             }
         }
+        OutlinedButton(onClick = actions.onRecord) { Text(stringResource(R.string.record_ride)) }
     }
 }
 

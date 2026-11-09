@@ -3,6 +3,7 @@ package io.github.d4rthc0d3r.sarathi
 import android.content.Context
 import android.widget.Toast
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
+import io.github.d4rthc0d3r.sarathi.core.maps.DeskRecording
 import io.github.d4rthc0d3r.sarathi.core.maps.GuidanceEngine
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
@@ -14,11 +15,14 @@ import io.github.d4rthc0d3r.sarathi.feature.navigation.FerrostarGuidance
 import io.github.d4rthc0d3r.sarathi.link.ActiveRide
 import io.github.d4rthc0d3r.sarathi.link.LinkRepository
 import io.github.d4rthc0d3r.sarathi.link.RideLinkService
+import io.github.d4rthc0d3r.sarathi.link.RideNavigation
 import io.github.d4rthc0d3r.sarathi.link.RidePlan
+import io.github.d4rthc0d3r.sarathi.maps.DeskRecordings
 import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
 import io.github.d4rthc0d3r.sarathi.ui.MeterNames
+import io.github.d4rthc0d3r.sarathi.ui.ReplayInfo
 import io.github.d4rthc0d3r.sarathi.ui.SetupState
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
 
@@ -42,6 +46,54 @@ object RideStarter {
         }
         return ok
     }
+
+    /** Keeps the routed result for desk tests (step F8); Google routes aren't kept (its terms). */
+    fun record(
+        context: Context,
+        routeModel: RouteViewModel,
+        destination: String,
+    ) {
+        val route =
+            routeModel.ui.value.result
+                ?.value
+        val request = routeModel.lastRequest
+        val message =
+            when {
+                route == null || request == null -> {
+                    R.string.record_nothing
+                }
+
+                !DeskRecording.canRecord(route) -> {
+                    R.string.record_not_google
+                }
+
+                else -> {
+                    DeskRecordings.save(context, DeskRecording(destination, route, request, System.currentTimeMillis()))
+                    R.string.record_saved
+                }
+            }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+
+    /** Replays the desk-test recording as a simulated ride with scripted traffic (step F8). */
+    fun replay(
+        context: Context,
+        speedup: Int,
+    ) {
+        val r = DeskRecordings.load(context) ?: return
+        ActiveRide.start(RidePlan(r.route, r.request, emptyList(), r.destination, speedup, scriptedTraffic = true))
+        RideLinkService.start(context)
+    }
+
+    /** What Home shows of the desk-test recording; debug builds only. */
+    fun replayInfo(context: Context): ReplayInfo? =
+        if (BuildConfig.DEBUG) {
+            DeskRecordings.load(context)?.let {
+                ReplayInfo(it.destination, RideNavigation.backendName(it.route.backend), it.route.distanceM / M_PER_KM)
+            }
+        } else {
+            null
+        }
 
     fun checks(
         context: Context,
@@ -76,4 +128,5 @@ object RideStarter {
         }
 
     private const val DESK_SPEEDUP = 10f
+    private const val M_PER_KM = 1000.0
 }

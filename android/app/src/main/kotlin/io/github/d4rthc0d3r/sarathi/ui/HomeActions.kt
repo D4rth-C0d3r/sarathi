@@ -13,4 +13,5 @@ data class HomeActions(
     val onMapsSettings: () -> Unit = {},
     val onWhereTo: () -> Unit = {},
     val onEndRide: () -> Unit = {},
+    val onReplay: (speedup: Int) -> Unit = {},
 )

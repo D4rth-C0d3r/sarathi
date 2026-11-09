@@ -11,6 +11,7 @@ import io.github.d4rthc0d3r.sarathi.core.maps.RouteRequest
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
+import io.github.d4rthc0d3r.sarathi.core.maps.TrafficScript
 import io.github.d4rthc0d3r.sarathi.core.maps.TrafficUpdate
 import io.github.d4rthc0d3r.sarathi.core.protocol.BinaryMessage
 import io.github.d4rthc0d3r.sarathi.core.protocol.FrameEpoch
@@ -229,7 +230,8 @@ class RideNavigation(
             trafficJob?.cancel()
             trafficJob =
                 scope.launch {
-                    routing.traffic(route).collect { t ->
+                    val updates = if (plan.scriptedTraffic) TrafficScript.updates(route) else routing.traffic(route)
+                    updates.collect { t ->
                         lastTraffic = t
                         traffic.offer(t)?.let(::queue)
                     }

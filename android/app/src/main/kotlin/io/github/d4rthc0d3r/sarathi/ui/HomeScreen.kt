@@ -58,6 +58,7 @@ fun HomeScreen(
                 RideCard(ride, actions.onEndRide)
             } else {
                 Button(onClick = actions.onWhereTo) { Text(stringResource(R.string.where_to)) }
+                state.replay?.let { ReplayCard(it, actions.onReplay) }
             }
             OutlinedButton(onClick = actions.onMapsSettings) { Text(stringResource(R.string.maps_settings)) }
             if (setup.dashAddress != null) {

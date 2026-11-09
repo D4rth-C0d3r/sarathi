@@ -17,6 +17,8 @@ data class RidePlan(
     val destination: String,
     /** A desk-test ride (step F8): simulated positions this many times real speed; null for real. */
     val simulation: Int? = null,
+    /** A replayed recording: scripted traffic, not the backend's (step F8). */
+    val scriptedTraffic: Boolean = false,
 )
 
 /**

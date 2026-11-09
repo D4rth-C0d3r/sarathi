@@ -55,6 +55,7 @@
     <string name="start_note">The phone can go in your pocket, locked, once the ride starts.</string>
     <string name="simulate_ride_note">Desk test (debug build): the same ride with simulated positions.</string>
     <string name="simulate_ride">Simulate ×%1$d</string>
+    <string name="record_ride">Record for desk tests</string>
     <string name="check_paired">Dash paired</string>
     <string name="check_connected">Dash connected</string>
     <string name="check_background_location">Location all the time</string>

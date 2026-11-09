@@ -10,6 +10,14 @@ data class HomeUi(
     val link: LinkRepository.Status,
     val lock: Lock,
     val ride: RideStatus? = null,
+    /** Debug builds: the desk-test recording, if there is one (step F8). */
+    val replay: ReplayInfo? = null,
+)
+
+data class ReplayInfo(
+    val destination: String,
+    val backend: String,
+    val km: Double,
 )
 
 /** The ride in progress, for Home. */

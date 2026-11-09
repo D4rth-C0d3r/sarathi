@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
@@ -114,6 +115,7 @@ class MainActivity : ComponentActivity() {
                         link.value,
                         lock.value,
                         plan.value?.let { RideStatus(it.destination, guidance.value, it.simulation) },
+                        remember(screen) { RideStarter.replayInfo(this) },
                     ),
                     actions =
                         HomeActions(
@@ -126,6 +128,7 @@ class MainActivity : ComponentActivity() {
                             onMapsSettings = { screen = Screen.MAPS },
                             onWhereTo = { screen = Screen.DESTINATION },
                             onEndRide = ActiveRide::end,
+                            onReplay = { RideStarter.replay(this, it) },
                         ),
                 )
             }
@@ -191,14 +194,13 @@ class MainActivity : ComponentActivity() {
         val setup = this@MainActivity.model.setup.collectAsStateWithLifecycle()
         val link = this@MainActivity.model.link.collectAsStateWithLifecycle()
         LaunchedEffect(ui.value.chosen, ui.value.trip) { routeModel.clear() }
-        val startRide = { speedup: Int? ->
-            val destination =
-                ui.value.chosen?.name ?: ui.value.trip
-                    ?.destination
-                    ?.name
-                    .orEmpty()
-            if (RideStarter.start(this, routeModel, destination, speedup)) onBack()
+        val destination = {
+            ui.value.chosen?.name ?: ui.value.trip
+                ?.destination
+                ?.name
+                .orEmpty()
         }
+        val startRide = { speedup: Int? -> if (RideStarter.start(this, routeModel, destination(), speedup)) onBack() }
         DestinationScreen(
             ui.value,
             DestinationActions(
@@ -217,6 +219,7 @@ class MainActivity : ComponentActivity() {
                 onStopSimulation = routeModel::stopSimulation,
                 onStartRide = { startRide(null) },
                 onSimulateRide = { startRide(it) },
+                onRecord = { RideStarter.record(this, routeModel, destination()) },
                 onBack = onBack,
             ),
             route = route.value,

@@ -61,6 +61,12 @@
     <string name="ride_next">Next: %1$s in %2$d m</string>
     <string name="ride_left">%1$.1f km · %2$d min left</string>
     <string name="ride_end">End the ride</string>
+    <string name="record_saved">Recorded for desk tests: replay it from Home.</string>
+    <string name="record_not_google">Google routes aren\'t recorded: Google\'s terms limit keeping its content.</string>
+    <string name="record_nothing">Nothing routed to record.</string>
+    <string name="replay_title">Desk test: %1$s</string>
+    <string name="replay_detail">%1$s · %2$.1f km · recorded routes and scripted traffic, no backend calls</string>
+    <string name="replay_button">Replay ×%1$d</string>
     <string name="ride_simulated">Simulated ride, ×%1$d: positions aren\'t the phone\'s</string>
     <string name="ride_started">Ride started: the phone can go in your pocket, locked.</string>
     <string name="maps_title">Maps</string>
