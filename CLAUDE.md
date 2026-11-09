@@ -57,7 +57,7 @@ Classic Bluetooth audio on the device.
   phone battery from the Chronos app, with pairing confirmed on the dash. All of
   `docs/phase3-test-plan.md` passes on the device, including the OTA from 0.3.0 to
   `v0.4.0-rc.2`, except navigation on a real ride, which is still to be tried.
-- **Phase 4 (own Android app + protocol) is in design:** ADR-0006 (maps backends),
+- **Phase 4 (own Android app + protocol) is in progress:** ADR-0006 (maps backends),
   ADR-0007 (protocol v1), ADR-0008 (destination input) and ADR-0009 (on-device game-style
   map) are accepted. Spikes done: the rotating map renders at about 18.6 fps without
   flicker (own rasteriser, pre-swapped colours; ADR-0009), and the offline router is
@@ -74,7 +74,20 @@ Classic Bluetooth audio on the device.
   auto-start on dash power-on is deferred (Android never reported the dash as gone). Step E:
   calls (`:feature:calls`) and music (`:feature:media`) on the dash, position once a second
   (`pose`), and the moving lock from GPS speed (protocol 1.1 `lock`, ADR-0011), tested on the
-  phone. On-device checks: `docs/phase4-test-plan.md`.
+  phone. Step F: maps backends (ADR-0006, ADR-0008):
+  - F1 settings and the cost guard
+  - F2 search on Google, Mappls and Photon
+  - F3 shared links (`:core:links`)
+  - F4 routing on Google, Mappls, Valhalla, GraphHopper and offline Valhalla
+  - F5 traffic
+  - F6 guidance (Ferrostar, and Google's own guidance headless)
+  - F7 the confirmation screen and the ride on the dash
+  - F8 desk tests: simulated rides, recordings and a failure drill, read from the dash's serial
+    ride log
+
+  F1–F8 were tested on the phone and the dash. Google traffic during guidance waits for a real
+  ride. The dash doesn't draw map chunks or traffic yet (ADR-0009). On-device checks:
+  `docs/phase4-test-plan.md`.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)

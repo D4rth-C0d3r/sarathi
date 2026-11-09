@@ -59,6 +59,7 @@ build, `adb logcat -v time 'RideLink:V' 'BluetoothGatt:V' '*:S'` running.
 | D7 | Stop | Stop in the app or the notification | The notification goes; the dash shows "No phone" |
 | D8 | Auto-start | Switch on, Stop, lock; dash off 10 min, then on | The link starts by itself |
 | D9 | Pocket ride | Ride with the phone locked in a pocket | The link stays up the whole ride; location fixes about once a second outdoors |
+| D10 | Bluetooth off and on | Link connected; turn Bluetooth off in quick settings, wait 10 s, turn it on. **Not over adb:** `svc bluetooth` can wedge the phone's Bluetooth | Home says Bluetooth is off, then the link reconnects by itself, without restarting the app |
 
 ### Results, 2026-10-31 (Nothing Phone (1), Android 15)
 
@@ -71,6 +72,9 @@ build, `adb logcat -v time 'RideLink:V' 'BluetoothGatt:V' '*:S'` running.
   minutes unplugged), so there was no "appeared" to start the link. Deferred: auto-start that
   keeps the link waiting all the time (ADR-0010).
 - **D9 not done yet** (indoors the check only saw Wi-Fi and cell fixes, about one every 4 s).
+- **D10 passes since 2026-11-09** (`9eae54a`). Before that fix, the link stayed "Bluetooth is off"
+  until the app restarted. Now the dash logs the phone gone when Bluetooth goes off and
+  connected again right after it comes back on.
 
 ## Step E: calls, music, position and the moving lock
 
@@ -99,3 +103,79 @@ The dash on the `crowpanel21-phone` build (protocol 1.1), the phone with the deb
   unknown between fixes and never decides "moving". Outdoors, GPS gives a fix a second. The
   dash logs every change (`[link] motion: ...`) and the phone the speed it sends
   (`pose speed ... km/h`), so a ride's logs show how the lock behaved.
+
+## Step F: maps backends, guidance and the ride on the dash
+
+The dash on the `crowpanel21-phone` build, the phone with the debug app and the keys in
+`~/sarathi-secrets` (`docs/building.md`). The dash's serial ride log (`[link] ride:` and
+`screen:`, step F7) shows what the dash received and showed, so most checks need nobody at the
+dash; the phone's side is in logcat (`Ride`, `Links`, `GoogleNav`). Restore the maps settings
+and recents after a test that changes them. Every Google route bills one destination per stop.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| F1 | Maps settings | Home → Maps settings | Keys present (never shown), usage meters, Mappls caps and the backend choice survive an app restart |
+| F2 | Search | "Where to?" on each maps backend (Google, Mappls, OpenStreetMap); a Mappls Pin (`st5t6t`) | Results from the chosen backend, which also says what was skipped; the place's coordinates; recents and saved places; the usage meters count |
+| F3 | Shared links | Share a place and a route from Google Maps, a place from Mappls, an OSM and an Organic Maps link, a `geo:` link | sārathi in the share sheet and for `geo:`/map links; the place or the stops in order |
+| F4 | Routing | Route to one destination with each backend ("Route with"; offline by failing the online ones) | A route from every backend, with its profile; GraphHopper labelled a car route |
+| F5 | Traffic | Mappls route | Traffic by level and a traffic-aware time on the route card |
+| F6 | Guidance | "Simulate ride", then "Simulate with a detour" (Mappls); Google's simulator | Steps to "arrived"; a detour reroutes and arrives; Google's guidance runs headless to the destination |
+| F7 | Ride on the dash | Route, confirmation screen, **Start the ride**; lock the phone; **End the ride** | Confirmation shows the route, backend, meter and checks; the dash logs frame, backend, route, traffic, nav in that order, nav keeps coming while locked, and "navigation ended" |
+| F8.1 | Simulated ride | Confirmation screen → **Simulate ×20**, phone locked | Turn by turn to the end on the dash, no "Position stale", no reroute |
+| F8.2 | Recorded ride | **Record for desk tests** (not for Google routes), then **Replay** on Home | The recorded route with three scripted traffic updates 30 s apart; no backend calls |
+| F8.3 | Failure drill | Maps settings → **Failure drill** on; simulate with a detour | The dash shows "Now: OSM (Valhalla)", then "Now: OSM offline", with fallback events, route versions 1 and 2, and arrival |
+| F9 | Google traffic in guidance | A real ride with Google guidance | `GoogleNav` "traffic:" lines in logcat; traffic on the dash |
+
+### Results, 2026-10-31 and 2026-11-09 (Nothing Phone (1), Android 15)
+
+F1–F8 pass. F9 waits for a real ride.
+
+- **F1, F2 (2026-10-31):** search works on all three backends, including Mappls Pins. Mappls's
+  analytics are switched off (ADR-0006).
+- **F3:** all 11 recorded links resolve, and so does real sharing from Google Maps and Mappls.
+  - Found and fixed: a crash in recents with two unnamed places of the same name.
+  - Found and fixed: Mappls's place details return nothing on the free plan, so Pins are looked
+    up through autosuggest.
+- **F4:** routes from the phone's position to Calangute Beach:
+
+  | Backend | Result |
+  |---|---|
+  | Google | 31.5 km, 60 min, two-wheeler |
+  | Mappls | 30.6 km, 48 min, `biking` |
+  | Valhalla | 33.6 km, 75 min, motorcycle |
+  | GraphHopper | 33.2 km, 41 min, car (free plan) |
+  | OSM offline | 31.2 km, 31 min, about 7 s including the first copy of the tiles |
+
+- **F5:** Mappls traffic came with the route: 23.2 km free, 3.6 km slow, 0.2 km jam and 4.4 km
+  unknown, 55 min with traffic.
+  - Mappls can't refresh traffic on the free plan, since its answers carry no request ID.
+  - Google sent no traffic before guidance.
+- **F6:**
+  - **Mappls simulated ride:** all 34 steps to "arrived". A 400 m detour rerouted on Mappls and
+    arrived; the simulator's off-road detour rerouted 4 times.
+  - **Google guidance:** ran headless to the destination with Google's simulator. No traffic
+    arrived in 7 minutes, which is why F9 waits for a real ride.
+- **F7:**
+  - **Confirmation:** Mappls, 31.4 km, 58 min, all four checks yes.
+  - **On the dash:** the route arrived as 441 points and 35 markers, in the protocol's order.
+    `nav` kept arriving with the phone locked and dozing.
+  - **Found and fixed:**
+    - Frames of 514 bytes at MTU 517 were refused by Android, so frames are now capped at 512 B.
+    - After a dash reboot the route came before the ride frame and was dropped; `frame` is now
+      sent first.
+    - The first traffic and `nav` could go ahead of the route.
+- **F8:**
+  - **F8.1:** Mappls ×20 ran to "navigation ended" with the phone locked. The first try put
+    fixes 300 m apart and rerouted every 10 s. Simulated fixes are now 15 m apart, and on real
+    rides too, reroutes in a row back off from 10 s up to 5 minutes.
+  - **F8.2:** passes.
+  - **F8.3:** passes, at one Mappls call and no Google destination.
+    - Found and fixed: the dash kept naming the old backend after a mid-ride fallback.
+    - Found and fixed: the drill skipped Google when the maps backend was Mappls.
+- **Usage for all of step F:** 4 of Google's 1,000 destinations this month; Mappls at 30 of 100
+  routing calls on 2026-11-09.
+- **Deferred:**
+  - downloading map data for the route corridor, and drawing traffic on the dash (both wait for
+    the on-device map, ADR-0009)
+  - the Navigation SDK's licence and attribution page (licensing)
+  - auto-start (D8)
