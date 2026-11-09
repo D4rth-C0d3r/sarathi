@@ -261,3 +261,63 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
   15 fps target.
 - **Panel stability:** 30 minutes of continuous rotating rendering in this configuration
   (2026-10-25, owner's visual check): no shift, garbling or flicker.
+
+## Renderer bench (Phase 4 step G1, 2026-11-09)
+
+- **What was measured:** the `crowpanel21-mapbench` build (`firmware/bench/`) on the device:
+  - the recorded chunk sets in `docs/fixtures/map/`: Bengaluru centre (3×3 L0) and the
+    Mumbai–Pune expressway ghat (3 L1, 5×4 L0)
+  - a moving, rotating camera, redrawn every frame, in five 30 s phases
+  - fps, frame, draw and flush times from its serial log
+- **Visual check:** the owner filmed full cycles. Two problems the videos showed were the
+  bench's own, both fixed:
+  - **A 0.3 s freeze every 5 s:** the bench's log line waited for the USB port when a host was
+    attached but not reading.
+  - **The heading snapped at each vertex of the road path:** it is now smoothed over ±25 m.
+  - After those fixes: smooth, no flicker, line shift or garbling.
+- **The densest scene is 2.6 times the first spike's:** about 1,100 road segments on screen at
+  2 m/px in Bengaluru, against 420 for the Pune chunk.
+
+| Phase | Full-screen PSRAM buffers | One 40-row strip buffer in internal RAM |
+|---|---|---|
+| City L0, 2 m/px, ~1,100 segments | 11.4 fps | **21.0 fps** (46 ms a frame) |
+| City, 2 m/px, Racing-style glow (two passes) | 8.0 | **15.6** |
+| City L0, 4 m/px, ~2,100 segments | 10.4 | **16.8** |
+| Highway L1, 10 m/px | 13.8 | **22.6** |
+| Ghat L0, 2 m/px | 16.5 | **30** (LVGL's refresh cap) |
+
+**What decided it:**
+- **PSRAM bandwidth, not drawing, was the limit with full-screen buffers.** A city frame was:
+  - background fill 15 ms
+  - lines 32 ms
+  - flush 22 ms (pre-swapped colours already halved it from 42 ms)
+- **Strips:** one 40-row buffer (38 KB) in internal RAM, so LVGL renders a frame as 12 strips.
+  This cut the background fill to 4.8 ms and the flush to 14.6 ms in all.
+- **One projection per frame:** `core::MapRenderer::Prepare()` culls and projects the visible
+  shapes into a screen-space cache. `Draw()` then rasterises only what crosses each strip.
+  - Lines take their pixels from the original endpoints, so a strip render matches a whole-frame
+    render pixel for pixel (native tests, city and ghat).
+  - The cache is filled major roads first, so if it fills up, the least important roads go
+    first.
+- **Smaller wins:**
+  - 32-bit arithmetic for screen-sized coordinates, and 32-bit fills
+  - `MapView` reports that it covers its area, so LVGL skips what lies under it
+- **One strip buffer, not two:** the flush copies synchronously, so a second buffer gains
+  nothing.
+- **20-row strips (19 KB) are about 10 % slower:** the glow phase falls to 13.6 fps.
+- **City frame now (46 ms):**
+
+  | Part | Time |
+  |---|---|
+  | Prepare | 6.6 ms |
+  | Background | 4.8 ms |
+  | Lines | 12 ms |
+  | Flush | 14.6 ms |
+  | LVGL's own drawing | the rest |
+
+- **Memory:**
+  - **Chunk store:** a dense city chunk takes about 28 KB stored, so 1.5 MB holds about 53.
+  - **Renderer cache:** about 330 KB of PSRAM.
+  - **Bench headroom:** 5 MB of PSRAM free.
+- **Decision:** the map draws in strips from one internal-RAM buffer. The rest of the app moves
+  to the same buffers once its internal RAM is checked with Bluetooth running (step G4).
