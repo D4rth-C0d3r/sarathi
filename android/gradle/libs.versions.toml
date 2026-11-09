@@ -10,6 +10,7 @@ coroutines = "1.11.0"
 serialization = "1.12.0"
 okhttp = "5.5.1"
 valhallaMobile = "0.6.4"
+ferrostar = "0.59.0"
 # What valhalla-mobile 0.6.4 itself depends on; its config types are needed to compile.
 valhallaModels = "0.6.0"
 places = "6.0.2"
@@ -42,6 +43,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 valhalla-models-config = { group = "io.github.rallista", name = "valhalla-models-config", version.ref = "valhallaModels" }
+ferrostar-core = { group = "com.stadiamaps.ferrostar", name = "core", version.ref = "ferrostar" }
 valhalla-mobile = { group = "io.github.rallista", name = "valhalla-mobile", version.ref = "valhallaMobile" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 google-navigation = { group = "com.google.android.libraries.navigation", name = "navigation", version.ref = "navigation" }

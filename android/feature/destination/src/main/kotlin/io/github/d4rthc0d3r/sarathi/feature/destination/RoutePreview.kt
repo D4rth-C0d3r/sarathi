@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -21,7 +22,10 @@ import java.util.Locale
 
 /** The routed result, for the desk: backend, skipped backends, summary and the first steps. */
 @Composable
-internal fun RoutePreview(route: RouteUi) {
+internal fun RoutePreview(
+    route: RouteUi,
+    actions: DestinationActions = DestinationActions(),
+) {
     val small = MaterialTheme.typography.bodySmall
     val result = route.result
     when {
@@ -46,6 +50,7 @@ internal fun RoutePreview(route: RouteUi) {
                     } else {
                         Summary(r)
                         TrafficSummary(route)
+                        SimulationPanel(route.simulation, actions)
                     }
                     result.skipped.forEach {
                         Text(

@@ -12,9 +12,21 @@ class RoutingService(
     private val settings: () -> MapsSettings,
     private val guard: () -> CostGuard,
 ) {
-    suspend fun route(request: RouteRequest): ChainResult<RoutingBackend, Route> =
+    /** Routes [request]; with [prefer], that backend first (a reroute stays on its backend). */
+    suspend fun route(
+        request: RouteRequest,
+        prefer: RoutingBackend? = null,
+    ): ChainResult<RoutingBackend, Route> =
         FallbackChain.run(
-            settings().routingChain(),
+            settings().routingChain().let { chain ->
+                if (prefer ==
+                    null
+                ) {
+                    chain
+                } else {
+                    (listOf(prefer) + chain).distinct()
+                }
+            },
             provider,
             { p -> p.unavailable() ?: overQuota(p.backend, request) },
             FallbackChain.ROUTE_TIMEOUT_MS,

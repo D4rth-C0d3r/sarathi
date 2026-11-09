@@ -28,6 +28,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
+import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
@@ -35,6 +36,7 @@ import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
 import io.github.d4rthc0d3r.sarathi.feature.destination.RouteViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.SharedLinkResolver
+import io.github.d4rthc0d3r.sarathi.feature.navigation.FerrostarGuidance
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
 import io.github.d4rthc0d3r.sarathi.maps.Keys
@@ -177,7 +179,10 @@ class MainActivity : ComponentActivity() {
         }
         val routeModel =
             viewModel {
-                RouteViewModel(MapsRegistry.get(context).routing) { LastLocation.get(context) }
+                RouteViewModel(MapsRegistry.get(context).routing, { LastLocation.get(context) }) { route, request ->
+                    // Google's own guidance comes with step F6.3.
+                    if (route.backend == RoutingBackend.GOOGLE) null else FerrostarGuidance(request)
+                }
             }
         val route = routeModel.ui.collectAsStateWithLifecycle()
         val ui = model.ui.collectAsStateWithLifecycle()
@@ -196,6 +201,8 @@ class MainActivity : ComponentActivity() {
                     routeModel.clear()
                 },
                 onRoute = routeModel::route,
+                onSimulate = routeModel::simulate,
+                onStopSimulation = routeModel::stopSimulation,
                 onBack = onBack,
             ),
             route = route.value,

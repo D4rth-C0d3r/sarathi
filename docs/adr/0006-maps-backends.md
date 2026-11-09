@@ -112,6 +112,16 @@ interface RoutingProvider {
   - **Mappls and OSM:** Ferrostar, fed through `CustomRouteProvider` (Valhalla/OSRM output
     as is; Mappls converted to OSRM form). Off-route triggers `RoutingProvider.reroute` on
     the same backend, then the fallback chain.
+  - **As built (step F6.2, 2026-11-09):** only Ferrostar's navigation controller
+    (`createNavigator`), not `CustomRouteProvider`/`FerrostarCore`: routing, location and the
+    fallback are ours. Every route goes in as one OSRM route (`OsrmJson`, one leg, one step per
+    our step) and progress comes back onto our steps. Controller settings: advance within 30 m
+    of a step's end and 5 m past it (fixes better than 32 m), off the route beyond 50 m (fixes
+    better than 25 m), stops reached within 100 m. `RideGuidance` (pure, in `:core:maps`)
+    reroutes after 3 s off the route, at most every 10 s, same backend first, and shows
+    "rerouting" meanwhile. Checked on the phone with the route simulator: a Mappls ride to
+    Calangute advanced through its 34 steps to "arrived"; a forced 400 m detour rerouted on
+    Mappls (4 times, as the simulator's detour runs off any road) and arrived.
 
 ### Settings
 

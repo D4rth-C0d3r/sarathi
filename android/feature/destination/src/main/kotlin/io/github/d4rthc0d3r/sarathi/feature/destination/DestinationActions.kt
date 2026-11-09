@@ -16,5 +16,8 @@ data class DestinationActions(
     val onClearChosen: () -> Unit = {},
     /** Route from the origin (null: here) through the stops, at the desk (step F4). */
     val onRoute: (origin: Place?, stops: List<Place>) -> Unit = { _, _ -> },
+    /** Rides the routed result in the simulator, with or without a detour (step F6). */
+    val onSimulate: (detour: Boolean) -> Unit = {},
+    val onStopSimulation: () -> Unit = {},
     val onBack: () -> Unit = {},
 )

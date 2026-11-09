@@ -8,6 +8,34 @@ object Polyline {
     private const val OFFSET = 63
     private const val DECIMAL = 10.0
 
+    fun encode(
+        points: List<LatLng>,
+        precision: Int,
+    ): String {
+        val factor = Math.pow(DECIMAL, precision.toDouble())
+        val out = StringBuilder()
+        var lastLat = 0L
+        var lastLng = 0L
+
+        fun put(value: Long) {
+            var v = if (value < 0) (value shl 1).inv() else value shl 1
+            while (v >= MORE) {
+                out.append(((MORE or (v and CHUNK.toLong()).toInt()) + OFFSET).toChar())
+                v = v shr BITS
+            }
+            out.append((v + OFFSET).toInt().toChar())
+        }
+        points.forEach {
+            val lat = Math.round(it.lat * factor)
+            val lng = Math.round(it.lng * factor)
+            put(lat - lastLat)
+            put(lng - lastLng)
+            lastLat = lat
+            lastLng = lng
+        }
+        return out.toString()
+    }
+
     fun decode(
         encoded: String,
         precision: Int,

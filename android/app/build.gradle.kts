@@ -94,6 +94,7 @@ dependencies {
     implementation(project(":maps:mappls"))
     implementation(project(":maps:osm"))
     implementation(project(":feature:destination"))
+    implementation(project(":feature:navigation"))
     implementation(libs.okhttp)
     coreLibraryDesugaring(libs.desugar.jdk.libs.nio)
     implementation(project(":feature:media"))

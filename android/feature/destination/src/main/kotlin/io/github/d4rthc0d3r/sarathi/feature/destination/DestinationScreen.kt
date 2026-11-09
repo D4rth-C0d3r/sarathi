@@ -63,7 +63,7 @@ fun DestinationScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (chosen != null) ChosenCard(chosen, actions) else ui.trip?.let { TripCard(it, actions) }
-                        RoutePreview(route)
+                        RoutePreview(route, actions)
                     }
                 }
 

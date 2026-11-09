@@ -14,7 +14,8 @@ through `core:ble`'s `DashChannel`, and never to each other), position (`PoseSen
 moving lock's settings (ADR-0011). Step F adds the maps backends (ADR-0006, ADR-0008): F1 the
 interfaces, settings and cost guard; F2 search; F3 shared links; F4 routing (F4.1 Valhalla
 and GraphHopper, with a desk-test route preview; F4.2 Mappls; F4.3 Google; F4.4
-offline); F5 traffic. Don't add features or permissions unasked.
+offline); F5 traffic; F6 guidance
+(`:feature:navigation`). Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 
@@ -39,6 +40,7 @@ Before finishing any Android change, run both check lines and report the result.
 | `:core:links` | **pure Kotlin/JVM** | Shared links and text: parsing, offline short codes, redirect rules (ADR-0008) |
 | `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
 | `:feature:destination` | Android library | Search screen, recents and saved places, shared links to places and routes (ADR-0008) |
+| `:feature:navigation` | Android library | Guidance engines (Ferrostar; Google's from F6.3) behind `core:maps`' `GuidanceEngine` |
 | `:feature:media`, `:feature:calls` | Android library | Music and calls on the dash (step E) |
 | `:feature:*` (later) | Android library | `navigation`, `ota` |
 
