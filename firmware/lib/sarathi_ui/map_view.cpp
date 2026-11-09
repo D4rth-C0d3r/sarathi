@@ -59,7 +59,9 @@ void MapView::Set(const core::MapCamera& camera, uint8_t level, const core::MapS
 void MapView::SetRoute(const core::RouteWindow& window, uint16_t route_pixel, uint8_t width_px,
                        core::Rgb maneuver_color, lv_opa_t opa) {
   std::copy(window.points.begin(), window.points.begin() + window.count, route_points_.begin());
-  route_ = core::MapRoute{route_points_.data(), window.count, route_pixel, width_px};
+  const float ox = window.has_position ? window.rider_x_m : 0.0F;
+  const float oy = window.has_position ? window.rider_y_m : 0.0F;
+  route_ = core::MapRoute{ox, oy, route_points_.data(), window.count, route_pixel, width_px};
   has_maneuver_ = window.has_maneuver_point;
   maneuver_ = window.maneuver_point;
   maneuver_color_ = maneuver_color;
@@ -79,8 +81,8 @@ void MapView::DrawMarkers(lv_layer_t* layer, const lv_area_t& obj_area) const {
   camera.anchor_y += obj_area.y1;
   if (route_.count > 0 && has_maneuver_) {
     const core::ScreenPoint m =
-        core::ProjectMetres(camera, camera.x_m + static_cast<float>(maneuver_.x_m),
-                            camera.y_m + static_cast<float>(maneuver_.y_m));
+        core::ProjectMetres(camera, route_.origin_x_m + static_cast<float>(maneuver_.x_m),
+                            route_.origin_y_m + static_cast<float>(maneuver_.y_m));
     lv_draw_rect_dsc_t dot;
     lv_draw_rect_dsc_init(&dot);
     dot.bg_color = theme::Color(maneuver_color_);

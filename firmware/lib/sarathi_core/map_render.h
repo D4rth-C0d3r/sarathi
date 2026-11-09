@@ -51,8 +51,11 @@ struct MapStyle {
   float service_max_metres_per_px = 3;
 };
 
-// The route, drawn over the roads: points relative to the camera's position (a route window).
+// The route, drawn over the roads: points relative to `origin` (a route window and where the
+// rider was when it was cut, in the ride frame).
 struct MapRoute {
+  float origin_x_m = 0;
+  float origin_y_m = 0;
   const RoutePoint* points = nullptr;
   size_t count = 0;
   uint16_t color = 0;

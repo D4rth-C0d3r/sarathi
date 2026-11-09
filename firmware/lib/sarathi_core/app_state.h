@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "fixed_string.h"
+#include "map_follow.h"
 
 namespace sarathi::core {
 
@@ -234,6 +235,8 @@ struct PairingState {
 
 struct AppState {
   NavState nav;
+  // The phone's latest pose (protocol `pose`), for the map's motion between route windows.
+  RiderPose rider;
   CallState call;
   MediaState media;
   Settings settings;

@@ -41,6 +41,7 @@ class AppModel {
                         std::string_view remaining);
   void SetManeuverIcon(const ManeuverIcon& icon);
   void SetRouteWindow(const RouteWindow& window, uint32_t now_ms);
+  void SetRiderPose(const RiderPose& pose) { state_.rider = pose; }
   void EndNav();
   void SetCall(CallPhase phase, std::string_view caller, uint32_t now_ms);
   void SetMedia(const MediaState& media);

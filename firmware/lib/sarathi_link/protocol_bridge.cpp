@@ -133,6 +133,7 @@ void ProtocolBridge::OnLinkEvent(LinkEvent event, core::AppModel& model) {
 // A lost link never leaves stale data showing. The route and the ride frame stay: the phone
 // skips resending a route the device still holds (hello.route).
 void ProtocolBridge::Disconnected(core::AppModel& model) {
+  model.SetRiderPose(core::RiderPose{});
   secured_ = false;
   hello_ = false;
   consumed_ = 0;
@@ -320,6 +321,7 @@ void ProtocolBridge::OnFrameEpoch(uint16_t epoch, core::AppModel& model) {
   n_acked_ = 0;
   n_refused_ = 0;
   has_rider_ = false;
+  model.SetRiderPose(core::RiderPose{});  // positions in the old frame mean nothing now
 }
 
 void ProtocolBridge::ForgetRoute(core::AppModel& model) {
@@ -391,6 +393,17 @@ void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppM
   has_rider_ = true;
   rider_x_m_ = pose.x_dm / 10;
   rider_y_m_ = pose.y_dm / 10;
+  // The map moves with every pose, between route windows. Below walking pace the phone's
+  // heading is noise: keep the last good one.
+  constexpr float kDmPerM = 10.0F;
+  constexpr float kCdegPerDegF = 100.0F;
+  constexpr float kCmPerM = 100.0F;
+  if (pose.speed_cms >= kHeadingMinSpeedCms) {
+    rider_heading_deg_ = static_cast<float>(pose.heading_cdeg) / kCdegPerDegF;
+  }
+  model.SetRiderPose(core::RiderPose{true, static_cast<float>(pose.x_dm) / kDmPerM,
+                                     static_cast<float>(pose.y_dm) / kDmPerM, rider_heading_deg_,
+                                     static_cast<float>(pose.speed_cms) / kCmPerM, now_ms});
   // Poses come five times a second; the map gets a new window at most once a second.
   if (!tracker_.HasRoute() || (!window_due_ && now_ms - window_ms_ < core::kWindowPeriodMs)) {
     return;

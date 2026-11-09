@@ -211,6 +211,7 @@ class ProtocolBridge {
   size_t n_refused_ = 0;
   uint32_t ack_sent_ms_ = 0;
   bool has_rider_ = false;
+  float rider_heading_deg_ = 0;
   int32_t rider_x_m_ = 0;
   int32_t rider_y_m_ = 0;
 

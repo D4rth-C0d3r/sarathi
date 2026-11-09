@@ -209,8 +209,9 @@ void MapRenderer::Prepare(ChunkStore* store, uint8_t level, const MapCamera& cam
   n_route_ = std::min(route_.count, kMaxRoutePoints);
   for (size_t i = 0; i < n_route_; ++i) {
     const RoutePoint& p = route_.points[i];  // NOLINT(*-pointer-arithmetic)
-    route_points_[i] = ProjectMetres(camera, camera.x_m + static_cast<float>(p.x_m),  // NOLINT
-                                     camera.y_m + static_cast<float>(p.y_m));
+    route_points_[i] =
+        ProjectMetres(camera, route_.origin_x_m + static_cast<float>(p.x_m),  // NOLINT
+                      route_.origin_y_m + static_cast<float>(p.y_m));
   }
   stats_.prepare_us += time_us_ != nullptr ? time_us_() - start : 0;
 }

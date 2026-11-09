@@ -8,6 +8,7 @@
 #include "format.h"
 #include "layout.h"
 #include "maneuver_arrow.h"
+#include "map_follow.h"
 #include "map_style.h"
 #include "map_view.h"
 #include "nav_status.h"
@@ -64,6 +65,9 @@ core::MapRenderer* map_renderer = nullptr;  // SetMapData()
 uint32_t map_sequence = 0;                  // the window last drawn
 bool map_stale = false;
 const core::ThemeDescriptor* map_theme = nullptr;
+core::MapFollow follow;          // zoom and motion between poses (ADR-0009)
+core::MapViewPoint map_drawn{};  // the view last drawn
+uint32_t map_drawn_ms = 0;
 RingGauge ring;
 lv_obj_t* card = nullptr;
 ManeuverArrow arrow;
@@ -91,31 +95,67 @@ void ClearMap() {
   map_sequence = 0;
 }
 
-// The map around the rider, heading up, with the route window over it. Redraws only for a new
-// window, staleness or theme (G4.3 adds motion between windows).
-void ShowMap(const core::RouteWindow& window, bool stale, float metres_per_px, bool force) {
-  const core::ThemeDescriptor& t = theme::Current();
-  if (!force && window.sequence == map_sequence && stale == map_stale && &t == map_theme) {
-    return;
-  }
-  map_sequence = window.sequence;
-  map_stale = stale;
-  map_theme = &t;
+constexpr uint32_t kMapFrameMs = 66;  // at most 15 fps (ADR-0009)
+
+// The map's camera: heading up, the rider in the lower third.
+core::MapCamera CameraAt(const core::MapViewPoint& view) {
   core::MapCamera camera;
-  camera.x_m = window.has_position ? window.rider_x_m : 0.0F;
-  camera.y_m = window.has_position ? window.rider_y_m : 0.0F;
-  camera.heading_deg = static_cast<float>(window.heading_deg);
-  camera.metres_per_px = metres_per_px;
+  camera.x_m = view.x_m;
+  camera.y_m = view.y_m;
+  camera.heading_deg = view.heading_deg;
+  camera.metres_per_px = view.metres_per_px;
   camera.anchor_x = layout::kCenter;
   camera.anchor_y = kRiderY;
   camera.view_cx = layout::kCenter;
   camera.view_cy = layout::kCenter;
   camera.view_r = static_cast<int32_t>(kMapCircleRadius);
-  const uint16_t route = theme::Pixel(stale ? t.palette.route_behind : t.palette.route_line);
-  map.SetRoute(window, route, t.components.route_line_px, t.palette.maneuver,
-               stale ? LV_OPA_40 : LV_OPA_COVER);
-  map.SetRider(t.palette.rider);
-  map.Set(camera, metres_per_px > kL1AboveMetresPerPx ? 1 : 0, MapStyleFor(t, metres_per_px));
+  return camera;
+}
+
+// Where the map looks from now. With poses (our phone link): dead-reckoned between them, zoom by
+// speed and before turns. Without (the demo ride, Chronos): the window's own position and heading,
+// zoom by distance to the turn, as before.
+core::MapViewPoint ViewNow(const core::AppState& state, uint32_t now_ms, bool* moving) {
+  const core::NavState& nav = state.nav;
+  const core::RouteWindow& w = nav.window;
+  *moving = state.rider.valid && w.has_position;
+  if (*moving) {
+    const bool has_turn = nav.next.type != core::ManeuverType::kNone;
+    return follow.Update(state.rider, has_turn, nav.distance_m, now_ms);
+  }
+  follow.Reset();
+  return core::MapViewPoint{w.has_position ? w.rider_x_m : 0.0F,
+                            w.has_position ? w.rider_y_m : 0.0F, static_cast<float>(w.heading_deg),
+                            core::NavMetresPerPx(nav.distance_m)};
+}
+
+// The map with the route window over it. Redraws for a new window, staleness, theme, or (with
+// poses) a view that moved enough to see, at most 15 times a second; a still bike costs nothing.
+void ShowMap(const core::AppState& state, bool stale, uint32_t now_ms, bool force) {
+  const core::RouteWindow& window = state.nav.window;
+  const core::ThemeDescriptor& t = theme::Current();
+  bool moving = false;
+  const core::MapViewPoint view = ViewNow(state, now_ms, &moving);
+  const bool data_changed =
+      window.sequence != map_sequence || stale != map_stale || &t != map_theme;
+  const bool view_changed = moving && core::MapFollow::NeedsRedraw(map_drawn, view) &&
+                            now_ms - map_drawn_ms >= kMapFrameMs;
+  if (!force && !data_changed && !view_changed) {
+    return;
+  }
+  map_sequence = window.sequence;
+  map_stale = stale;
+  map_theme = &t;
+  map_drawn = view;
+  map_drawn_ms = now_ms;
+  if (data_changed || force) {
+    const uint16_t route = theme::Pixel(stale ? t.palette.route_behind : t.palette.route_line);
+    map.SetRoute(window, route, t.components.route_line_px, t.palette.maneuver,
+                 stale ? LV_OPA_40 : LV_OPA_COVER);
+    map.SetRider(t.palette.rider);
+  }
+  const float mpp = view.metres_per_px;
+  map.Set(CameraAt(view), mpp > kL1AboveMetresPerPx ? 1 : 0, MapStyleFor(t, mpp));
   map.SetVisible(true);
 }
 
@@ -273,15 +313,15 @@ void Update(const core::AppState& state, uint32_t now_ms) {
     return;
   }
   const bool stale = now_ms - nav.window_received_ms > core::kPositionStaleMs;
-  const float zoom = core::NavMetresPerPx(nav.distance_m);
 #ifdef SARATHI_NAV_STRESS
   // Worst case for smooth rotation: re-project and redraw the map on every update.
-  core::RouteWindow spun = nav.window;
-  spun.heading_deg = static_cast<uint16_t>((spun.heading_deg + stress_spin) % 360);
+  core::AppState spun = state;
+  spun.nav.window.heading_deg =
+      static_cast<uint16_t>((spun.nav.window.heading_deg + stress_spin) % 360);
   stress_spin = static_cast<uint16_t>((stress_spin + 2) % 360);
-  ShowMap(spun, stale, zoom, true);
+  ShowMap(spun, stale, now_ms, true);
 #else
-  ShowMap(nav.window, stale, zoom, false);
+  ShowMap(state, stale, now_ms, false);
 #endif
 }
 
