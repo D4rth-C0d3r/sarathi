@@ -28,6 +28,8 @@ android {
 dependencies {
     api(project(":core:maps"))
     implementation(libs.okhttp)
+    implementation(libs.valhalla.mobile)
+    implementation(libs.valhalla.models.config)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

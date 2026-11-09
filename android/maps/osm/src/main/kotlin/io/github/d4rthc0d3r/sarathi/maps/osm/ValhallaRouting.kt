@@ -96,23 +96,36 @@ class ValhallaRouting(
                 }
             }
 
-        private fun failure(result: HttpResult): ProviderException {
-            val code =
-                runCatching {
-                    JSON
-                        .parseToJsonElement(result.body)
-                        .jsonObject["error_code"]
-                        ?.jsonPrimitive
-                        ?.intOrNull
-                }.getOrNull()
+        private fun failure(result: HttpResult): ProviderException =
+            failure(result.body, "Valhalla HTTP ${result.code}")
+
+        /** Valhalla's error answer as the chain's reason, online or offline. */
+        internal fun failure(
+            body: String,
+            what: String,
+            cause: Throwable? = null,
+        ): ProviderException {
+            val code = errorCode(body)
             val reason = if (code in NO_ROUTE_CODES) Unavailable.NO_ROUTE else Unavailable.ERROR
-            return ProviderException(reason, "Valhalla HTTP ${result.code}, error $code")
+            return ProviderException(reason, "$what, error $code", cause)
         }
+
+        /** Valhalla's `error_code`, if [body] is an error answer. */
+        internal fun errorCode(body: String): Int? =
+            runCatching {
+                JSON
+                    .parseToJsonElement(body)
+                    .jsonObject["error_code"]
+                    ?.jsonPrimitive
+                    ?.intOrNull
+            }.getOrNull()
 
         /** Valhalla's trip: legs joined into one line, maneuvers into steps. */
         fun parse(
             body: String,
             mode: TravelMode,
+            backend: RoutingBackend = RoutingBackend.OSM_VALHALLA,
+            attribution: String = ATTRIBUTION,
         ): Route {
             val trip = JSON.parseToJsonElement(body).jsonObject["trip"]!!.jsonObject
             val points = mutableListOf<LatLng>()
@@ -126,13 +139,13 @@ class ValhallaRouting(
             }
             val summary = trip["summary"]!!.jsonObject
             return Route(
-                backend = RoutingBackend.OSM_VALHALLA,
+                backend = backend,
                 points = points,
                 steps = steps,
                 distanceM = summary["length"]!!.jsonPrimitive.double * M_PER_KM,
                 durationS = summary["time"]!!.jsonPrimitive.double.toLong(),
                 mode = mode,
-                attribution = ATTRIBUTION,
+                attribution = attribution,
                 via = Routes.mainRoad(steps),
             )
         }

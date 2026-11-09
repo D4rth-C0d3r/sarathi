@@ -211,6 +211,13 @@ interface RoutingProvider {
   request; steps come from guidance's feed. The terms dialog is in the app's Maps settings.
   Same trip: 31.5 km, 60 min, one destination counted. The SDK's uncapped legacy Bluetooth
   permissions and `WRITE_EXTERNAL_STORAGE` are removed from the merged manifest.
+- **OSM offline** (step F4.4): valhalla-mobile 0.6.4 over Goa tiles from
+  `tools/build_offline_tiles.sh` (openstreetmap.fr extract, `valhalla:3.9.1` image, 14 MB, 18
+  tiles), packaged as assets only when built and copied out to the app's storage on first use.
+  The same request, answer and parser as online Valhalla. Tiles stamped with another Valhalla
+  version are refused (`NO_DATA`). Offline stays last: the settings no longer offer it as the
+  backend to route with. Same trip, with online Valhalla failing first: 31.2 km, 31 min (the
+  optimistic ETA the spike found), about 7 s including the first copy of the tiles.
   (motorcycle); GraphHopper 33.2 km, 41 min (car).
 
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)

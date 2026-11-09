@@ -14,6 +14,7 @@ import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsRouting
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.GraphHopperRouting
+import io.github.d4rthc0d3r.sarathi.maps.osm.OfflineRouting
 import io.github.d4rthc0d3r.sarathi.maps.osm.PhotonSearch
 import io.github.d4rthc0d3r.sarathi.maps.osm.ValhallaRouting
 import kotlinx.coroutines.Dispatchers
@@ -46,9 +47,9 @@ class MapsRegistry private constructor(
             RoutingBackend.MAPPLS to MapplsRouting(context, Keys.mapplsConfigured),
             RoutingBackend.OSM_VALHALLA to ValhallaRouting(http, userAgent, { store.settings.value.valhallaUrl }),
             RoutingBackend.OSM_GRAPHHOPPER to GraphHopperRouting(http, userAgent, Keys.graphHopper),
+            RoutingBackend.OSM_OFFLINE to OfflineRouting(context),
         )
 
-    /** Offline routing joins in step F4.4. */
     val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard })
 
     private val noRedirects =

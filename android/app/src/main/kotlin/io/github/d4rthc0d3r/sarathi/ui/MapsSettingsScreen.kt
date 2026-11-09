@@ -98,7 +98,14 @@ private fun Advanced(
             onChange { it.copy(searchOverride = b) }
         }
         Text(stringResource(R.string.maps_routing_override))
-        Choices(listOf(null) + RoutingBackend.entries, settings.routingOverride, { routingName(it) }) { b ->
+        Choices(
+            listOf(null) +
+                RoutingBackend.entries.filter {
+                    it != RoutingBackend.OSM_OFFLINE
+                },
+            settings.routingOverride,
+            { routingName(it) },
+        ) { b ->
             onChange { it.copy(routingOverride = b) }
         }
         Text(stringResource(R.string.maps_fallback))

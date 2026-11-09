@@ -434,6 +434,19 @@ All from `android/`:
 ./gradlew installDebug                           # install on the connected phone (adb)
 ```
 
+### Offline routing tiles (optional)
+
+The offline router (ADR-0006) needs routing tiles built from OpenStreetMap data. With Docker
+installed:
+
+```bash
+tools/build_offline_tiles.sh          # Goa (default); writes android/app/offline/valhalla/
+```
+
+The output is gitignored and packaged into the app only when it exists; without it the offline
+router reports "no data" and the others still work. Rebuild after updating valhalla-mobile: the
+script's Valhalla image must match the library's Valhalla version.
+
 ### Maps keys (optional)
 
 The maps backends' keys are build-time secrets kept outside the repository (ADR-0006). The

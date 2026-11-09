@@ -26,6 +26,11 @@ val mapplsFiles =
         .toList()
 val mapplsConfigured = mapplsFiles.map { it.extension }.toSet() == setOf("conf", "olf")
 
+// Offline routing tiles (tools/build_offline_tiles.sh, ADR-0006): packaged when they've been built,
+// at assets/valhalla/. Without them the offline router reports "no data".
+val offlineTiles = layout.projectDirectory.dir("offline")
+val hasOfflineTiles = offlineTiles.file("valhalla/tiles.tar").asFile.exists()
+
 android {
     namespace = "io.github.d4rthc0d3r.sarathi"
     compileSdk =
@@ -64,6 +69,10 @@ android {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
         targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+    }
+
+    if (hasOfflineTiles) {
+        sourceSets["main"].assets.directories += offlineTiles.dir("valhalla").asFile.parent
     }
 
     buildFeatures {

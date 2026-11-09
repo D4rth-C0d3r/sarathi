@@ -15,6 +15,8 @@ android/**/build/
 android/local.properties
 android/.idea/
 android/.kotlin/
+# Offline routing tiles (tools/build_offline_tiles.sh): OSM data, built locally, never committed.
+android/app/offline/
 *.apk
 *.aab
 *.keystore
