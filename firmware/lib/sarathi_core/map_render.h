@@ -99,6 +99,8 @@ class MapRenderer {
 
   // Stats of the prepared frame, and of the drawing since the last call.
   MapRenderStats TakeStats();
+  // Chunks in the last prepared frame (0: none of the map is here yet).
+  [[nodiscard]] uint32_t PreparedChunks() const { return stats_.chunks; }
 
   // A microsecond clock to time the parts of a frame (the bench); none by default.
   void SetClock(uint32_t (*time_us)()) { time_us_ = time_us; }

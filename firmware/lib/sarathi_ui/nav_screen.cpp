@@ -68,6 +68,10 @@ const core::ThemeDescriptor* map_theme = nullptr;
 core::MapFollow follow;          // zoom and motion between poses (ADR-0009)
 core::MapViewPoint map_drawn{};  // the view last drawn
 uint32_t map_drawn_ms = 0;
+StaticLabel<24> map_note;         // "Map loading", or the map's attribution when it starts
+uint32_t map_empty_since_ms = 0;  // no chunk in view since then (0: chunks are in view)
+uint32_t map_started_ms = 0;      // the first chunks of this ride were drawn then
+bool map_started = false;
 RingGauge ring;
 lv_obj_t* card = nullptr;
 ManeuverArrow arrow;
@@ -87,15 +91,52 @@ uint16_t stress_spin = 0;  // extra heading, degrees
 #endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+// A label that only shows (with its card) when it has text. Touches the flag only when it
+// changes: lv_obj_add/remove_flag(HIDDEN) invalidates the object even if nothing changed,
+// which would force a redraw on every update.
+template <size_t N>
+void SetBubble(StaticLabel<N>& label, const char* text) {
+  label.Set("%s", text);
+  SetVisible(label.Obj(), text[0] != '\0');
+}
+
 constexpr float kMapCircleRadius = 225.0F;   // inside the ring gauge
 constexpr float kL1AboveMetresPerPx = 4.0F;  // ADR-0009: L1 only above 4 m/px
 
 void ClearMap() {
   map.SetVisible(false);
   map_sequence = 0;
+  map_started = false;
+  map_empty_since_ms = 0;
+  SetBubble(map_note, "");
 }
 
-constexpr uint32_t kMapFrameMs = 66;  // at most 15 fps (ADR-0009)
+constexpr uint32_t kMapFrameMs = 66;           // at most 15 fps (ADR-0009)
+constexpr uint32_t kMapLoadingAfterMs = 2000;  // don't flash it at every start
+constexpr uint32_t kMapAttributionMs = 10000;  // ADR-0009: shown when the map starts
+constexpr int32_t kMapNoteY = 116;             // between the status spot and the ETA
+
+// Never silent about the map (ADR-0009): "Map loading" while the phone's map isn't here yet, and
+// OpenStreetMap's attribution for a while once it is. Only with a map source.
+void UpdateMapNote(uint32_t now_ms) {
+  const bool loaded = map.ChunksDrawn() > 0;
+  if (map_store == nullptr) {
+    SetBubble(map_note, "");
+    return;
+  }
+  if (loaded && !map_started) {
+    map_started = true;
+    map_started_ms = now_ms;
+  }
+  map_empty_since_ms = loaded ? 0 : (map_empty_since_ms == 0 ? now_ms : map_empty_since_ms);
+  if (!loaded && now_ms - map_empty_since_ms >= kMapLoadingAfterMs) {
+    SetBubble(map_note, "Map loading");
+  } else if (map_started && now_ms - map_started_ms < kMapAttributionMs) {
+    SetBubble(map_note, "OpenStreetMap");  // the fonts have no ©; ODbL attribution (ADR-0009)
+  } else {
+    SetBubble(map_note, "");
+  }
+}
 
 // The map's camera: heading up, the rider in the lower third.
 core::MapCamera CameraAt(const core::MapViewPoint& view) {
@@ -157,15 +198,6 @@ void ShowMap(const core::AppState& state, bool stale, uint32_t now_ms, bool forc
   const float mpp = view.metres_per_px;
   map.Set(CameraAt(view), mpp > kL1AboveMetresPerPx ? 1 : 0, MapStyleFor(t, mpp));
   map.SetVisible(true);
-}
-
-// A label that only shows (with its card) when it has text. Touches the flag only when it
-// changes: lv_obj_add/remove_flag(HIDDEN) invalidates the object even if nothing changed,
-// which would force a redraw on every update.
-template <size_t N>
-void SetBubble(StaticLabel<N>& label, const char* text) {
-  label.Set("%s", text);
-  SetVisible(label.Obj(), text[0] != '\0');
 }
 
 // Shows the note in its own label (each has its role's style); hides the others.
@@ -258,6 +290,8 @@ lv_obj_t* Create() {
   lv_obj_add_style(attribution.Obj(), theme::CardStyle(), 0);
   const lv_font_t* small = lv_obj_get_style_text_font(attribution.Obj(), LV_PART_MAIN);
   lv_obj_set_height(attribution.Obj(), kAttributionLines * lv_font_get_line_height(small));
+  map_note.Create(screen, theme::Text::kSupporting, kMapNoteY);
+  lv_obj_add_style(map_note.Obj(), theme::CardStyle(), 0);
   eta.Create(screen, theme::Text::kSupporting, kEtaY);
   lv_obj_add_style(eta.Obj(), theme::CardStyle(), 0);
 
@@ -323,6 +357,7 @@ void Update(const core::AppState& state, uint32_t now_ms) {
 #else
   ShowMap(state, stale, now_ms, false);
 #endif
+  UpdateMapNote(now_ms);
 }
 
 }  // namespace sarathi::ui::nav_screen

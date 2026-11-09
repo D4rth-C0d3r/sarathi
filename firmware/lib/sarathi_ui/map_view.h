@@ -38,6 +38,10 @@ class MapView {
     has_rider_ = true;
   }
   void SetVisible(bool visible);
+  // Chunks drawn in the last frame; 0 before the first draw or with nothing here.
+  [[nodiscard]] uint32_t ChunksDrawn() const {
+    return renderer_ == nullptr ? 0 : renderer_->PreparedChunks();
+  }
 
   struct Stats {
     uint32_t draws = 0;
