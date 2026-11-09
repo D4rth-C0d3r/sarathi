@@ -14,9 +14,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -50,6 +53,12 @@ class DashLink(
     private var session: PhoneLinkSession? = null
     private val policy = ReconnectPolicy()
 
+    /**
+     * Bluetooth on or off. Android drops a waiting connection when Bluetooth goes off, so an
+     * attempt ends then, and a new one starts as soon as it's back on (no backoff).
+     */
+    private val bluetooth = bluetoothOn(context).stateIn(scope, SharingStarted.Eagerly, false)
+
     fun start() {
         if (job?.isActive == true) return
         job = scope.launch { runForever() }
@@ -70,7 +79,11 @@ class DashLink(
     private suspend fun runForever() {
         var earlyDrops = 0
         while (scope.isActive) {
-            val failure = runOnce()
+            val failure =
+                untilBluetoothOff(
+                    bluetooth,
+                    { LinkState.Failed(LinkProblem.BLUETOOTH_OFF, "Bluetooth turned off") },
+                ) { runOnce() }
             if (failure == null) {
                 earlyDrops = 0
                 _state.value = LinkState.Waiting // a plain disconnect: wait for the dash again
@@ -84,7 +97,12 @@ class DashLink(
                 } else {
                     failure
                 }
-            delay(policy.nextDelayMs())
+            if (failure.problem == LinkProblem.BLUETOOTH_OFF) {
+                bluetooth.first { it }
+                policy.connected() // a fresh start: Bluetooth is back
+            } else {
+                delay(policy.nextDelayMs())
+            }
         }
     }
 
