@@ -1,8 +1,14 @@
 // The on-device map's drawing (ADR-0009 "Device: drawing" and "Performance plan"): stored
-// chunks projected heading-up around the rider and rasterised. Culling by the round screen's
-// circle, first per chunk, then per line and polygon box; one fixed-point (Q16) affine transform
-// per chunk; points that land on the same pixel are skipped. Pure logic, so it runs and is timed
-// natively; sarathi_ui only hands it LVGL's draw buffer.
+// chunks projected heading-up around the rider and rasterised. Pure logic, so it runs and is
+// timed natively; sarathi_ui only hands it LVGL's draw buffer.
+//
+// Two steps, because LVGL renders a frame in strips (step G1 bench: small strips in internal RAM
+// are far faster than full-screen PSRAM buffers):
+// - Prepare(), once per frame: cull chunks and shapes by the round screen, project every
+//   visible point once (one fixed-point transform per chunk, dropping points that land on the
+//   previous pixel) into a screen-space cache with a box per shape.
+// - Draw(), per strip: the background, then the cached shapes whose box crosses the strip:
+//   polygons, then roads from minor to major (glow first, when the style has one).
 
 #pragma once
 
@@ -45,59 +51,59 @@ struct MapStyle {
 };
 
 struct MapRenderStats {
-  uint32_t chunks = 0;    // chunks drawn
-  uint32_t shapes = 0;    // lines and polygons drawn
-  uint32_t segments = 0;  // segments rasterised
+  uint32_t chunks = 0;     // chunks seen by Prepare()
+  uint32_t shapes = 0;     // lines and polygons cached
+  uint32_t segments = 0;   // segments cached
+  bool truncated = false;  // the cache filled up: the least important shapes were left out
+  // Time per part, with a clock set (MapRenderer::SetClock); 0 otherwise. They add up over
+  // frames and strips until TakeStats().
+  uint32_t prepare_us = 0;
+  uint32_t background_us = 0;
+  uint32_t polygons_us = 0;
+  uint32_t lines_us = 0;
 };
 
-namespace detail {
-
-// screen = b + p.x * a_x + p.y * a_y, Q16, for points in one chunk's quanta.
-struct Affine {
-  int32_t bx = 0;
-  int32_t axx = 0;
-  int32_t axy = 0;
-  int32_t by = 0;
-  int32_t ayx = 0;
-  int32_t ayy = 0;
-
-  [[nodiscard]] ScreenPoint Apply(const MapPoint& p) const {
-    constexpr int32_t kHalf = 1 << 15;
-    return ScreenPoint{(bx + p.x * axx + p.y * axy + kHalf) >> 16,
-                       (by + p.x * ayx + p.y * ayy + kHalf) >> 16};
-  }
-};
-
-// The visible circle in one chunk's quanta, for box tests in integers.
-struct QuantaCircle {
-  int32_t cx = 0;
-  int32_t cy = 0;
-  int64_t r2 = 0;
-};
-
-struct ChunkView {
-  StoredChunk chunk;
-  Affine affine;
-  QuantaCircle view;
-};
-
-}  // namespace detail
-
-// Scratch for drawing, kept out of the UI task's small stack: allocate one at init.
+// The cache and scratch, kept out of the UI task's small stack: allocate one at init (about
+// 330 KB; PSRAM on the device).
 class MapRenderer {
  public:
-  static constexpr size_t kMaxVisible = 48;  // chunks drawn in one frame
-  static constexpr size_t kMaxRing = 1024;   // protocol: points per polygon
+  static constexpr size_t kMaxVisibleChunks = 48;
+  static constexpr size_t kMaxShapes = 4096;
+  static constexpr size_t kMaxPoints = 32768;
 
-  // Draws the background, then polygons, then roads from minor to major, of the stored chunks
-  // at `level` that the camera sees, inside the canvas's clip. Marks the drawn chunks with
-  // `frame` for eviction.
+  // Projects what the camera sees of the stored chunks at `level`. Marks those chunks drawn
+  // with `frame` for eviction. Call once per frame, before Draw().
+  void Prepare(ChunkStore& store, uint8_t level, const MapCamera& camera, const MapStyle& style,
+               uint32_t frame);
+  // Draws the prepared frame inside the canvas's clip.
+  void Draw(Canvas& canvas);
+  // Both, for a single canvas.
   MapRenderStats Render(ChunkStore& store, uint8_t level, const MapCamera& camera,
                         const MapStyle& style, Canvas& canvas, uint32_t frame);
 
+  // Stats of the prepared frame, and of the drawing since the last call.
+  MapRenderStats TakeStats();
+
+  // A microsecond clock to time the parts of a frame (the bench); none by default.
+  void SetClock(uint32_t (*time_us)()) { time_us_ = time_us; }
+
  private:
-  detail::ChunkView views_[kMaxVisible];
-  ScreenPoint ring_[kMaxRing];
+  struct Shape {
+    int32_t min_x, min_y, max_x, max_y;  // screen box of the projected points
+    uint32_t first;                      // into points_
+    uint16_t count;
+    uint8_t kind;  // road class, or polygon kind
+    bool polygon;
+  };
+  struct Seen;
+
+  uint32_t (*time_us_)() = nullptr;
+  MapStyle style_{};
+  MapRenderStats stats_{};
+  Shape shapes_[kMaxShapes] = {};
+  size_t n_shapes_ = 0;
+  ScreenPoint points_[kMaxPoints] = {};
+  size_t n_points_ = 0;
 };
 
 // Screen position of a ride-frame point (metres), for tests and overlays.

@@ -31,13 +31,15 @@ class MapView {
     uint32_t draws = 0;
     uint32_t draw_avg_us = 0;
     uint32_t draw_max_us = 0;
-    core::MapRenderStats last;
+    uint32_t queued_us = 0;     // LVGL's queued drawing finished first, last draw
+    core::MapRenderStats last;  // the last prepared frame; draw parts add up since last call
   };
   // Since the last call.
   Stats TakeStats();
 
  private:
   static void OnDraw(lv_event_t* event);
+  static void OnCoverCheck(lv_event_t* event);
 
   lv_obj_t* obj_ = nullptr;
   core::ChunkStore* store_ = nullptr;
@@ -47,6 +49,7 @@ class MapView {
   core::MapStyle style_{};
   uint8_t level_ = 0;
   uint32_t frame_ = 0;
+  bool prepared_ = false;  // the renderer holds this camera's frame
   uint64_t draw_total_us_ = 0;
   Stats stats_{};
 };

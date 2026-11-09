@@ -48,17 +48,20 @@ size_t BufferBytes(int16_t width, int16_t height) {
   return sizeof(uint16_t) * static_cast<size_t>(width) * static_cast<size_t>(height);
 }
 
-bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn tick, AllocFn alloc) {
+bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn tick, AllocFn alloc,
+          int16_t rows) {
   flush_fn = flush;
   touch_fn = touch;
 
   lv_init();
   lv_tick_set_cb(tick);
 
-  const size_t bytes = BufferBytes(width, height);
+  const bool strips = rows > 0 && rows < height;
+  const size_t bytes = BufferBytes(width, strips ? rows : height);
   void* buf1 = alloc(bytes);
-  void* buf2 = alloc(bytes);
-  if (buf1 == nullptr || buf2 == nullptr) {
+  // Strips use one buffer: the flush copies synchronously, so a second one gains nothing.
+  void* buf2 = strips ? nullptr : alloc(bytes);
+  if (buf1 == nullptr || (!strips && buf2 == nullptr)) {
     return false;  // one-time init failure; the caller logs and disables the UI
   }
 

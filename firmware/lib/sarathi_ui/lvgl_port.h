@@ -22,10 +22,13 @@ using TickFn = uint32_t (*)();
 // Allocates a draw buffer once at init; returns nullptr on failure.
 using AllocFn = void* (*)(size_t bytes);
 
-// Initialises LVGL, allocates two full-screen draw buffers with `alloc` (once), and
-// registers the display and touch input. Call once from the UI task. Returns false if a
-// buffer can't be allocated.
-bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn tick, AllocFn alloc);
+// Initialises LVGL, allocates the draw buffers with `alloc` (once), and registers the display
+// and touch input. `rows` 0: two full-screen buffers. Otherwise one buffer of `rows` full rows,
+// and LVGL renders the screen in strips (the flush copies synchronously, so a second buffer
+// would gain nothing). Call once from the UI task. Returns false if a buffer can't be
+// allocated.
+bool Init(int16_t width, int16_t height, FlushFn flush, TouchFn touch, TickFn tick, AllocFn alloc,
+          int16_t rows = 0);
 
 // Size of each draw buffer Init() allocates, for logging.
 size_t BufferBytes(int16_t width, int16_t height);

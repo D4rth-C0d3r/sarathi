@@ -10,6 +10,7 @@ namespace {
 
 constexpr float kDegToRad = 3.14159265358979F / 180.0F;
 constexpr float kOne = 65536.0F;
+constexpr int32_t kHalf = 1 << 15;
 constexpr float kQLimit = 1 << 29;  // larger offsets could overflow; such chunks aren't seen
 constexpr int32_t kMaxMargin = 32;  // px: the widest road plus glow, outside the circle
 
@@ -25,9 +26,16 @@ Basis BasisOf(const MapCamera& c) {
   return Basis{co, -s, s, co};
 }
 
-using detail::Affine;
-using detail::ChunkView;
-using detail::QuantaCircle;
+// screen = b + p.x * a_x + p.y * a_y, Q16, for points in one chunk's quanta.
+struct Affine {
+  int32_t bx, axx, axy;
+  int32_t by, ayx, ayy;
+
+  [[nodiscard]] ScreenPoint Apply(const MapPoint& p) const {
+    return ScreenPoint{(bx + p.x * axx + p.y * axy + kHalf) >> 16,
+                       (by + p.x * ayx + p.y * ayy + kHalf) >> 16};
+  }
+};
 
 bool AffineFor(const MapCamera& c, const Basis& basis, const StoredChunk& chunk, Affine* out) {
   const float inv = 1.0F / c.metres_per_px;
@@ -36,34 +44,40 @@ bool AffineFor(const MapCamera& c, const Basis& basis, const StoredChunk& chunk,
   const float dy = static_cast<float>(chunk.origin_y_m) - c.y_m;
   const float bx = static_cast<float>(c.anchor_x) + (dx * basis.rx + dy * basis.ry) * inv;
   const float by = static_cast<float>(c.anchor_y) - (dx * basis.fx + dy * basis.fy) * inv;
-  if (std::fabs(bx) * kOne > kQLimit || std::fabs(by) * kOne > kQLimit) return false;
+  if (std::fabs(bx) * kOne > kQLimit || std::fabs(by) * kOne > kQLimit) {
+    return false;
+  }
   const auto q16 = [](float v) { return static_cast<int32_t>(std::lround(v * kOne)); };
   *out = Affine{q16(bx), q16(q * basis.rx),  q16(q * basis.ry),
                 q16(by), q16(-q * basis.fx), q16(-q * basis.fy)};
   return true;
 }
 
-bool Sees(const QuantaCircle& v, int32_t min_x, int32_t min_y, int32_t max_x, int32_t max_y) {
-  const int64_t dx = std::max<int64_t>({0, int64_t{min_x} - v.cx, int64_t{v.cx} - max_x});
-  const int64_t dy = std::max<int64_t>({0, int64_t{min_y} - v.cy, int64_t{v.cy} - max_y});
-  return dx * dx + dy * dy <= v.r2;
-}
+// The visible circle in one chunk's quanta, for box tests in integers.
+struct QuantaCircle {
+  int32_t cx, cy;
+  int64_t r2;
 
-void DrawLine(Canvas& canvas, const ChunkView& v, const MapShape& s, int32_t width, uint16_t color,
-              MapRenderStats& stats) {
-  const MapPoint* pts = v.chunk.points + s.first;  // NOLINT(*-pointer-arithmetic)
-  ScreenPoint prev = v.affine.Apply(pts[0]);
-  for (uint32_t k = 1; k < s.count; ++k) {
-    const ScreenPoint p = v.affine.Apply(pts[k]);  // NOLINT(*-pointer-arithmetic)
-    if (p.x == prev.x && p.y == prev.y && k + 1 < s.count) continue;  // under a pixel
-    DrawSegment(canvas, prev, p, width, color);
-    if (width >= 4 && k + 1 < s.count) DrawDot(canvas, p, width, color);
-    ++stats.segments;
-    prev = p;
+  [[nodiscard]] bool Sees(const MapShape& s) const {
+    const int64_t dx = std::max<int64_t>({0, int64_t{s.min_x} - cx, int64_t{cx} - s.max_x});
+    const int64_t dy = std::max<int64_t>({0, int64_t{s.min_y} - cy, int64_t{cy} - s.max_y});
+    return dx * dx + dy * dy <= r2;
   }
+};
+
+bool Crosses(int32_t min_x, int32_t min_y, int32_t max_x, int32_t max_y, int32_t margin,
+             const ClipRect& clip) {
+  return max_x + margin >= clip.x1 && min_x - margin <= clip.x2 && max_y + margin >= clip.y1 &&
+         min_y - margin <= clip.y2;
 }
 
 }  // namespace
+
+struct MapRenderer::Seen {
+  StoredChunk chunk;
+  Affine affine;
+  QuantaCircle view;
+};
 
 ScreenPoint ProjectMetres(const MapCamera& camera, float x_m, float y_m) {
   const Basis b = BasisOf(camera);
@@ -76,94 +90,189 @@ ScreenPoint ProjectMetres(const MapCamera& camera, float x_m, float y_m) {
                                                       (dx * b.fx + dy * b.fy) * inv))};
 }
 
-MapRenderStats MapRenderer::Render(ChunkStore& store, uint8_t level, const MapCamera& camera,
-                                   const MapStyle& style, Canvas& canvas, uint32_t frame) {
-  MapRenderStats stats;
-  FillRect(canvas, canvas.clip, style.background);
+void MapRenderer::Prepare(ChunkStore& store, uint8_t level, const MapCamera& camera,
+                          const MapStyle& style, uint32_t frame) {
+  const uint32_t start = time_us_ != nullptr ? time_us_() : 0;
+  style_ = style;
+  // A new frame's counts; the draw times keep adding up until TakeStats().
+  MapRenderStats fresh;
+  fresh.background_us = stats_.background_us;
+  fresh.polygons_us = stats_.polygons_us;
+  fresh.lines_us = stats_.lines_us;
+  fresh.prepare_us = stats_.prepare_us;
+  stats_ = fresh;
+  n_shapes_ = 0;
+  n_points_ = 0;
   const Basis basis = BasisOf(camera);
   // The visible circle's centre in the ride frame, and its radius with a margin for line width.
   const float u = static_cast<float>(camera.view_cx - camera.anchor_x) * camera.metres_per_px;
   const float w = static_cast<float>(camera.anchor_y - camera.view_cy) * camera.metres_per_px;
-  const float centre_x = camera.x_m + u * basis.rx + w * basis.fx;
-  const float centre_y = camera.y_m + u * basis.ry + w * basis.fy;
-  const float radius_m = static_cast<float>(camera.view_r + kMaxMargin) * camera.metres_per_px;
-  // The clip area in the same terms: LVGL draws in strips, and most chunks miss a strip.
-  const ScreenPoint clip_mid{(canvas.clip.x1 + canvas.clip.x2) / 2,
-                             (canvas.clip.y1 + canvas.clip.y2) / 2};
-  const float clip_half_w = static_cast<float>(canvas.clip.x2 - canvas.clip.x1 + 1) / 2.0F;
-  const float clip_half_h = static_cast<float>(canvas.clip.y2 - canvas.clip.y1 + 1) / 2.0F;
-  const float clip_r =
-      (std::sqrt(clip_half_w * clip_half_w + clip_half_h * clip_half_h) + kMaxMargin) *
-      camera.metres_per_px;
-  const float cu = static_cast<float>(clip_mid.x - camera.anchor_x) * camera.metres_per_px;
-  const float cw = static_cast<float>(camera.anchor_y - clip_mid.y) * camera.metres_per_px;
-  const float clip_x = camera.x_m + cu * basis.rx + cw * basis.fx;
-  const float clip_y = camera.y_m + cu * basis.ry + cw * basis.fy;
-  // The smaller of the two circles is enough to cull with.
-  const bool use_clip = clip_r < radius_m;
-  const float cull_x = use_clip ? clip_x : centre_x;
-  const float cull_y = use_clip ? clip_y : centre_y;
-  const float cull_r = use_clip ? clip_r : radius_m;
+  const float cx = camera.x_m + u * basis.rx + w * basis.fx;
+  const float cy = camera.y_m + u * basis.ry + w * basis.fy;
+  const float r = static_cast<float>(camera.view_r + kMaxMargin) * camera.metres_per_px;
 
-  ChunkView* views = views_;
-  size_t n_views = 0;
-  for (size_t i = 0; i < store.Count() && n_views < kMaxVisible; ++i) {
+  // UI task only; static keeps it off the stack.
+  static Seen
+      seen[kMaxVisibleChunks];  // NOLINT(*-avoid-c-arrays,*-avoid-non-const-global-variables)
+  size_t n_seen = 0;
+  for (size_t i = 0; i < store.Count() && n_seen < kMaxVisibleChunks; ++i) {
     const StoredChunk c = store.At(i);
-    if (c.id.level != level) continue;
+    if (c.id.level != level) {
+      continue;
+    }
     const float dx = std::max(
-        {0.0F, static_cast<float>(c.box.min_x) - cull_x, cull_x - static_cast<float>(c.box.max_x)});
+        {0.0F, static_cast<float>(c.box.min_x) - cx, cx - static_cast<float>(c.box.max_x)});
     const float dy = std::max(
-        {0.0F, static_cast<float>(c.box.min_y) - cull_y, cull_y - static_cast<float>(c.box.max_y)});
-    if (dx * dx + dy * dy > cull_r * cull_r) continue;
-    ChunkView& v = views[n_views];
-    if (!AffineFor(camera, basis, c, &v.affine)) continue;
+        {0.0F, static_cast<float>(c.box.min_y) - cy, cy - static_cast<float>(c.box.max_y)});
+    if (dx * dx + dy * dy > r * r) {
+      continue;
+    }
+    Seen& s = seen[n_seen];  // NOLINT(*-constant-array-index)
+    if (!AffineFor(camera, basis, c, &s.affine)) {
+      continue;
+    }
     const float q_m = static_cast<float>(c.quantum_dm) / 10.0F;
-    const float rq = cull_r / q_m;
-    v.chunk = c;
-    v.view = QuantaCircle{
-        static_cast<int32_t>(std::lround((cull_x - static_cast<float>(c.origin_x_m)) / q_m)),
-        static_cast<int32_t>(std::lround((cull_y - static_cast<float>(c.origin_y_m)) / q_m)),
+    const float rq = r / q_m;
+    s.chunk = c;
+    s.view = QuantaCircle{
+        static_cast<int32_t>(std::lround((cx - static_cast<float>(c.origin_x_m)) / q_m)),
+        static_cast<int32_t>(std::lround((cy - static_cast<float>(c.origin_y_m)) / q_m)),
         static_cast<int64_t>(rq * rq) + 1};
     store.MarkDrawn(i, frame);
-    ++n_views;
+    ++n_seen;
   }
-  stats.chunks = static_cast<uint32_t>(n_views);
+  stats_.chunks = static_cast<uint32_t>(n_seen);
 
-  if (style.draw_polygons) {
-    ScreenPoint* ring = ring_;
-    for (size_t vi = 0; vi < n_views; ++vi) {
-      const ChunkView& v = views[vi];
-      for (uint16_t i = 0; i < v.chunk.n_polys; ++i) {
-        const MapShape& s = v.chunk.polys[i];  // NOLINT(*-pointer-arithmetic)
-        if (!Sees(v.view, s.min_x, s.min_y, s.max_x, s.max_y)) continue;
-        const size_t n = std::min<size_t>(s.count, kMaxRing);
-        for (size_t k = 0; k < n; ++k) {
-          ring[k] = v.affine.Apply(v.chunk.points[s.first + k]);  // NOLINT(*-pointer-arithmetic)
-        }
-        FillPolygon(canvas, ring, n, s.kind == 0 ? style.water : style.park);
-        ++stats.shapes;
-      }
+  // Cache in order of importance (motorway first, polygons last), so a full cache drops the
+  // least important; Draw() walks it backwards, minor first.
+  const auto add = [&](const Seen& s, const MapShape& shape, bool polygon) {
+    if (n_shapes_ == kMaxShapes || n_points_ + shape.count > kMaxPoints) {
+      stats_.truncated = true;
+      return;
     }
-  }
-
+    Shape out{INT32_MAX, INT32_MAX,  INT32_MIN, INT32_MIN, static_cast<uint32_t>(n_points_),
+              0,         shape.kind, polygon};
+    const MapPoint* pts = s.chunk.points + shape.first;  // NOLINT(*-pointer-arithmetic)
+    for (uint32_t k = 0; k < shape.count; ++k) {
+      const ScreenPoint p = s.affine.Apply(pts[k]);  // NOLINT(*-pointer-arithmetic)
+      const bool last = k + 1 == shape.count;
+      if (out.count > 0 && !last) {
+        const ScreenPoint& prev = points_[n_points_ - 1];  // NOLINT(*-constant-array-index)
+        if (p.x == prev.x && p.y == prev.y) {
+          continue;  // under a pixel
+        }
+      }
+      points_[n_points_++] = p;  // NOLINT(*-constant-array-index)
+      ++out.count;
+      out.min_x = std::min(out.min_x, p.x);
+      out.min_y = std::min(out.min_y, p.y);
+      out.max_x = std::max(out.max_x, p.x);
+      out.max_y = std::max(out.max_y, p.y);
+    }
+    if (out.count < (polygon ? 3 : 2)) {
+      n_points_ -= out.count;
+      return;
+    }
+    shapes_[n_shapes_++] = out;  // NOLINT(*-constant-array-index)
+    stats_.segments += polygon ? 0 : out.count - 1;
+  };
   const bool skip_service = camera.metres_per_px > style.service_max_metres_per_px;
-  for (int pass = style.glow_extra_px > 0 ? 0 : 1; pass < 2; ++pass) {
-    for (int cls = kRoadClasses - 1; cls >= 0; --cls) {
-      if (cls == kRoadClasses - 1 && skip_service) continue;
-      const int32_t width = style.road_px[cls] + (pass == 0 ? style.glow_extra_px : 0);
-      const uint16_t color = pass == 0 ? style.glow[cls] : style.road[cls];
-      for (size_t vi = 0; vi < n_views; ++vi) {
-        const ChunkView& v = views[vi];
-        for (uint16_t i = 0; i < v.chunk.n_lines; ++i) {
-          const MapShape& s = v.chunk.lines[i];  // NOLINT(*-pointer-arithmetic)
-          if (s.kind != cls || !Sees(v.view, s.min_x, s.min_y, s.max_x, s.max_y)) continue;
-          DrawLine(canvas, v, s, width, color, stats);
-          ++stats.shapes;
+  for (int cls = 0; cls < kRoadClasses; ++cls) {
+    if (cls == kRoadClasses - 1 && skip_service) {
+      continue;
+    }
+    for (size_t i = 0; i < n_seen; ++i) {
+      const Seen& s = seen[i];  // NOLINT(*-constant-array-index)
+      for (uint16_t k = 0; k < s.chunk.n_lines; ++k) {
+        const MapShape& shape = s.chunk.lines[k];  // NOLINT(*-pointer-arithmetic)
+        if (shape.kind == cls && s.view.Sees(shape)) {
+          add(s, shape, false);
         }
       }
     }
   }
-  return stats;
+  if (style.draw_polygons) {
+    for (size_t i = 0; i < n_seen; ++i) {
+      const Seen& s = seen[i];  // NOLINT(*-constant-array-index)
+      for (uint16_t k = 0; k < s.chunk.n_polys; ++k) {
+        const MapShape& shape = s.chunk.polys[k];  // NOLINT(*-pointer-arithmetic)
+        if (s.view.Sees(shape)) {
+          add(s, shape, true);
+        }
+      }
+    }
+  }
+  stats_.shapes = static_cast<uint32_t>(n_shapes_);
+  stats_.prepare_us += time_us_ != nullptr ? time_us_() - start : 0;
+}
+
+void MapRenderer::Draw(Canvas& canvas) {
+  const auto now = [this] { return time_us_ != nullptr ? time_us_() : 0; };
+  uint32_t mark = now();
+  FillRect(canvas, canvas.clip, style_.background);
+  stats_.background_us += now() - mark;
+
+  mark = now();
+  for (size_t i = n_shapes_; i-- > 0;) {
+    const Shape& s = shapes_[i];  // NOLINT(*-constant-array-index)
+    if (!s.polygon) {
+      break;  // polygons come last in the cache
+    }
+    if (Crosses(s.min_x, s.min_y, s.max_x, s.max_y, 0, canvas.clip)) {
+      FillPolygon(canvas, points_ + s.first, s.count,  // NOLINT(*-pointer-arithmetic)
+                  s.kind == 0 ? style_.water : style_.park);
+    }
+  }
+  stats_.polygons_us += now() - mark;
+
+  mark = now();
+  for (int pass = style_.glow_extra_px > 0 ? 0 : 1; pass < 2; ++pass) {
+    for (size_t i = n_shapes_; i-- > 0;) {
+      const Shape& s = shapes_[i];  // NOLINT(*-constant-array-index)
+      if (s.polygon) {
+        continue;
+      }
+      // NOLINTNEXTLINE(*-constant-array-index)
+      const int32_t width = style_.road_px[s.kind] + (pass == 0 ? style_.glow_extra_px : 0);
+      if (!Crosses(s.min_x, s.min_y, s.max_x, s.max_y, width, canvas.clip)) {
+        continue;
+      }
+      // NOLINTNEXTLINE(*-constant-array-index)
+      const uint16_t color = pass == 0 ? style_.glow[s.kind] : style_.road[s.kind];
+      const ScreenPoint* p = points_ + s.first;  // NOLINT(*-pointer-arithmetic)
+      for (uint32_t k = 1; k < s.count; ++k) {
+        // NOLINTBEGIN(*-pointer-arithmetic)
+        const ScreenPoint& a = p[k - 1];
+        const ScreenPoint& b = p[k];
+        // NOLINTEND(*-pointer-arithmetic)
+        if (!Crosses(std::min(a.x, b.x), std::min(a.y, b.y), std::max(a.x, b.x), std::max(a.y, b.y),
+                     width, canvas.clip)) {
+          continue;
+        }
+        DrawSegment(canvas, a, b, width, color);
+        if (width >= 4 && k + 1 < s.count) {
+          DrawDot(canvas, b, width, color);
+        }
+      }
+    }
+  }
+  stats_.lines_us += now() - mark;
+}
+
+MapRenderStats MapRenderer::Render(ChunkStore& store, uint8_t level, const MapCamera& camera,
+                                   const MapStyle& style, Canvas& canvas, uint32_t frame) {
+  Prepare(store, level, camera, style, frame);
+  Draw(canvas);
+  return TakeStats();
+}
+
+MapRenderStats MapRenderer::TakeStats() {
+  const MapRenderStats s = stats_;
+  stats_.prepare_us = 0;
+  stats_.background_us = 0;
+  stats_.polygons_us = 0;
+  stats_.lines_us = 0;
+  return s;
 }
 
 }  // namespace sarathi::core

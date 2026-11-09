@@ -50,6 +50,15 @@ uint32_t last_perf_ms = 0;
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
 uint32_t TickMs() { return millis(); }
 void* AllocPsram(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM); }
+void* AllocInternal(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL); }
+
+// LVGL's draw buffers: one buffer of SARATHI_BENCH_STRIP_ROWS rows in internal RAM (40, the
+// fastest that fits), or 0 for two full-screen buffers in PSRAM like the app today. Compare with
+// PLATFORMIO_BUILD_FLAGS="-DSARATHI_BENCH_STRIP_ROWS=0" pio run -e crowpanel21-mapbench -t upload
+#ifndef SARATHI_BENCH_STRIP_ROWS
+#define SARATHI_BENCH_STRIP_ROWS 40
+#endif
+constexpr int16_t kStripRows = SARATHI_BENCH_STRIP_ROWS;
 bool NoTouch(int16_t& /*x*/, int16_t& /*y*/) { return false; }
 
 void FlushToDisplay(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
@@ -63,24 +72,30 @@ void LogPerf() {
   const core::FrameStats::Summary flushes = flush_stats.TakeSummary();
   const ui::MapView::Stats map = scene->TakeStats();
   constexpr float kMs = 1000.0F;
+  const float n = frames.count > 0 ? static_cast<float>(frames.count) : 1.0F;
+  const auto per_frame = [&](uint32_t us) {
+    return static_cast<double>(static_cast<float>(us) / n / kMs);
+  };
   ESP_LOGI(kTag,
-           "bench %s | fps %.1f | map draw avg %.1f ms max %.1f ms | frame avg %.1f ms max %.1f "
-           "ms | flush avg %.1f ms max %.1f ms | chunks %u shapes %u segments %u | store %u "
-           "chunks %u KB | psram %u KB free (min %u) | heap int %u KB free",
-           scene->PhaseName(),
-           static_cast<double>(static_cast<float>(frames.count) * kMs / kPerfPeriodMs),
-           static_cast<double>(static_cast<float>(map.draw_avg_us) / kMs),
-           static_cast<double>(static_cast<float>(map.draw_max_us) / kMs),
+           "bench %s | fps %.1f | frame avg %.1f ms max %.1f ms | map per frame: prepare %.1f bg "
+           "%.1f polys %.1f lines %.1f ms (%u strips) | flush per frame %.1f ms (%u) | chunks %u "
+           "shapes %u segments %u%s | store %u chunks %u KB | psram %u KB free | heap int %u KB "
+           "free (largest %u)",
+           scene->PhaseName(), static_cast<double>(n * kMs / kPerfPeriodMs),
            static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
            static_cast<double>(static_cast<float>(frames.max_us) / kMs),
-           static_cast<double>(static_cast<float>(flushes.avg_us) / kMs),
-           static_cast<double>(static_cast<float>(flushes.max_us) / kMs),
-           static_cast<unsigned>(map.last.chunks), static_cast<unsigned>(map.last.shapes),
-           static_cast<unsigned>(map.last.segments), static_cast<unsigned>(scene->Store().Count()),
+           per_frame(map.last.prepare_us), per_frame(map.last.background_us),
+           per_frame(map.last.polygons_us), per_frame(map.last.lines_us),
+           static_cast<unsigned>(static_cast<float>(map.draws) / n + 0.5F),
+           static_cast<double>(static_cast<float>(flushes.avg_us) *
+                               static_cast<float>(flushes.count) / n / kMs),
+           static_cast<unsigned>(flushes.count), static_cast<unsigned>(map.last.chunks),
+           static_cast<unsigned>(map.last.shapes), static_cast<unsigned>(map.last.segments),
+           map.last.truncated ? " TRUNCATED" : "", static_cast<unsigned>(scene->Store().Count()),
            static_cast<unsigned>(scene->Store().UsedBytes() / kKiB),
            static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / kKiB),
-           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
-           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / kKiB));
+           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / kKiB),
+           static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / kKiB));
 }
 
 }  // namespace
@@ -99,7 +114,7 @@ void setup() {
     return;
   }
   if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, NoTouch, TickMs,
-                           AllocPsram)) {
+                           kStripRows > 0 ? AllocInternal : AllocPsram, kStripRows)) {
     ESP_LOGE(kTag, "LVGL buffers failed");
     return;
   }
@@ -117,6 +132,8 @@ void setup() {
   const uint32_t load_start = TimeUs();
   const size_t stored =
       scene->Init(arena, kArenaBytes, scratch, kBenchChunks, kBenchChunkCount, TimeUs);
+  ESP_LOGI(kTag, "draw buffers: %d rows (%s)", kStripRows,
+           kStripRows > 0 ? "strips in internal RAM" : "full screen in PSRAM");
   ESP_LOGI(kTag, "loaded %u of %u chunks (%u KB) in %.1f ms; phases of %u s",
            static_cast<unsigned>(stored), static_cast<unsigned>(kBenchChunkCount),
            static_cast<unsigned>(scene->Store().UsedBytes() / kKiB),

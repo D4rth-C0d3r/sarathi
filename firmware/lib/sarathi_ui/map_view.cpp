@@ -25,6 +25,7 @@ void MapView::Create(lv_obj_t* parent, int32_t x, int32_t y, int32_t w, int32_t 
   store_ = store;
   renderer_ = renderer;
   time_us_ = time_us;
+  renderer_->SetClock(time_us);
   obj_ = lv_obj_create(parent);
   lv_obj_remove_style_all(obj_);
   lv_obj_set_pos(obj_, x, y);
@@ -32,12 +33,25 @@ void MapView::Create(lv_obj_t* parent, int32_t x, int32_t y, int32_t w, int32_t 
   lv_obj_remove_flag(obj_, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_remove_flag(obj_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(obj_, OnDraw, LV_EVENT_DRAW_MAIN, this);
+  // The map fills its whole area, so LVGL can start a refresh here and skip everything under it
+  // (the screen background: a second full-screen fill, about 15 ms in PSRAM).
+  lv_obj_add_event_cb(obj_, OnCoverCheck, LV_EVENT_COVER_CHECK, this);
+}
+
+void MapView::OnCoverCheck(lv_event_t* event) {
+  auto* self = static_cast<MapView*>(lv_event_get_user_data(event));
+  lv_area_t coords;
+  lv_obj_get_coords(self->obj_, &coords);
+  if (_lv_area_is_in(lv_event_get_cover_area(event), &coords, 0)) {
+    lv_event_set_cover_res(event, LV_COVER_RES_COVER);
+  }
 }
 
 void MapView::Set(const core::MapCamera& camera, uint8_t level, const core::MapStyle& style) {
   camera_ = camera;
   level_ = level;
   style_ = style;
+  prepared_ = false;
   lv_obj_invalidate(obj_);
 }
 
@@ -52,8 +66,8 @@ void MapView::SetVisible(bool visible) {
 MapView::Stats MapView::TakeStats() {
   Stats s = stats_;
   s.draw_avg_us = s.draws == 0 ? 0 : static_cast<uint32_t>(draw_total_us_ / s.draws);
+  s.last = renderer_->TakeStats();
   stats_ = Stats{};
-  stats_.last = s.last;
   draw_total_us_ = 0;
   return s;
 }
@@ -66,6 +80,7 @@ void MapView::OnDraw(lv_event_t* event) {
   }
   const uint32_t start = self->time_us_ != nullptr ? self->time_us_() : 0;
   FinishQueued(lv_obj_get_display(self->obj_), layer);
+  self->stats_.queued_us = self->time_us_ != nullptr ? self->time_us_() - start : 0;
 
   // Draw only inside both the area being refreshed and this object.
   lv_area_t obj_area;
@@ -81,14 +96,18 @@ void MapView::OnDraw(lv_event_t* event) {
   canvas.buf_x = layer->buf_area.x1;
   canvas.buf_y = layer->buf_area.y1;
   canvas.clip = core::ClipRect{clip.x1, clip.y1, clip.x2, clip.y2};
-  // The camera is in this object's coordinates; the canvas in the screen's.
-  core::MapCamera camera = self->camera_;
-  camera.anchor_x += obj_area.x1;
-  camera.anchor_y += obj_area.y1;
-  camera.view_cx += obj_area.x1;
-  camera.view_cy += obj_area.y1;
-  self->stats_.last = self->renderer_->Render(*self->store_, self->level_, camera, self->style_,
-                                              canvas, ++self->frame_);
+  if (!self->prepared_) {
+    // The first strip of a frame projects it; every strip then draws its part.
+    // The camera is in this object's coordinates; the canvas in the screen's.
+    core::MapCamera camera = self->camera_;
+    camera.anchor_x += obj_area.x1;
+    camera.anchor_y += obj_area.y1;
+    camera.view_cx += obj_area.x1;
+    camera.view_cy += obj_area.y1;
+    self->renderer_->Prepare(*self->store_, self->level_, camera, self->style_, ++self->frame_);
+    self->prepared_ = true;
+  }
+  self->renderer_->Draw(canvas);
   if (self->time_us_ != nullptr) {
     const uint32_t took = self->time_us_() - start;
     self->draw_total_us_ += took;

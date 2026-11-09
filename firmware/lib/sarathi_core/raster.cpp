@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <utility>
 
@@ -10,6 +11,18 @@ namespace sarathi::core {
 namespace {
 
 // NOLINTBEGIN(*-pointer-arithmetic): pixel rows are addressed by offset.
+
+// Two pixels per 32-bit store: about twice as fast as 16-bit stores.
+void Fill16(uint16_t* p, int32_t n, uint16_t color) {
+  if (n > 0 && (reinterpret_cast<uintptr_t>(p) & 2U) != 0) {  // NOLINT(*-reinterpret-cast)
+    *p++ = color;
+    --n;
+  }
+  const uint32_t pair = (uint32_t{color} << 16U) | color;
+  auto* w = reinterpret_cast<uint32_t*>(p);  // NOLINT(*-reinterpret-cast)
+  for (; n >= 2; n -= 2) *w++ = pair;
+  if (n > 0) *reinterpret_cast<uint16_t*>(w) = color;  // NOLINT(*-reinterpret-cast)
+}
 
 void VSpan(Canvas& c, int32_t x, int32_t y1, int32_t y2, uint16_t color) {
   if (x < c.clip.x1 || x > c.clip.x2) return;
@@ -24,15 +37,15 @@ void HSpan(Canvas& c, int32_t y, int32_t x1, int32_t x2, uint16_t color) {
   x1 = std::max(x1, c.clip.x1);
   x2 = std::min(x2, c.clip.x2);
   if (x1 > x2) return;
-  uint16_t* p = c.px + (y - c.buf_y) * c.stride + (x1 - c.buf_x);
-  std::fill(p, p + (x2 - x1 + 1), color);
+  Fill16(c.px + (y - c.buf_y) * c.stride + (x1 - c.buf_x), x2 - x1 + 1, color);
 }
 
 // NOLINTEND(*-pointer-arithmetic)
 
 enum : uint8_t { kLeft = 1, kRight = 2, kTop = 4, kBottom = 8 };
 
-uint8_t Outcode(int64_t x, int64_t y, const ClipRect& r) {
+template <typename T>
+uint8_t Outcode(T x, T y, const ClipRect& r) {
   uint8_t code = 0;
   if (x < r.x1) code |= kLeft;
   if (x > r.x2) code |= kRight;
@@ -41,16 +54,18 @@ uint8_t Outcode(int64_t x, int64_t y, const ClipRect& r) {
   return code;
 }
 
-// Cohen-Sutherland in 64 bits; false if the segment misses the rectangle.
-bool ClipSegment(int64_t& x0, int64_t& y0, int64_t& x1, int64_t& y1, const ClipRect& r) {
+// Cohen-Sutherland in T (32 bits for screen-sized coordinates, else 64); false if the segment
+// misses the rectangle.
+template <typename T>
+bool ClipSegment(T& x0, T& y0, T& x1, T& y1, const ClipRect& r) {
   uint8_t c0 = Outcode(x0, y0, r);
   uint8_t c1 = Outcode(x1, y1, r);
   for (int guard = 0; guard < 8; ++guard) {
     if ((c0 | c1) == 0) return true;
     if ((c0 & c1) != 0) return false;
     const uint8_t out = c0 != 0 ? c0 : c1;
-    int64_t x = 0;
-    int64_t y = 0;
+    T x = 0;
+    T y = 0;
     if ((out & kBottom) != 0) {
       x = x0 + (x1 - x0) * (r.y2 - y0) / (y1 - y0);
       y = r.y2;
@@ -85,10 +100,12 @@ void FillRect(Canvas& canvas, const ClipRect& rect, uint16_t color) {
   for (int32_t y = y1; y <= y2; ++y) HSpan(canvas, y, rect.x1, rect.x2, color);
 }
 
-void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color) {
-  width = std::max<int32_t>(width, 1);
-  const int64_t adx = std::abs(int64_t{b.x} - a.x);
-  const int64_t ady = std::abs(int64_t{b.y} - a.y);
+namespace {
+
+template <typename T>
+void DrawSegmentIn(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color) {
+  const T adx = std::abs(T{b.x} - T{a.x});
+  const T ady = std::abs(T{b.y} - T{a.y});
   const bool x_major = adx >= ady;
   // The span across the line, so diagonal lines keep their width: width * length / major axis.
   int32_t span = width;
@@ -104,27 +121,29 @@ void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, ui
   // endpoints, so a line drawn in strips matches the line drawn whole.
   const ClipRect grown{canvas.clip.x1 - span, canvas.clip.y1 - span, canvas.clip.x2 + span,
                        canvas.clip.y2 + span};
-  int64_t cx0 = a.x;
-  int64_t cy0 = a.y;
-  int64_t cx1 = b.x;
-  int64_t cy1 = b.y;
-  if (!ClipSegment(cx0, cy0, cx1, cy1, grown)) return;
+  T cx0 = a.x;
+  T cy0 = a.y;
+  T cx1 = b.x;
+  T cy1 = b.y;
+  if (!ClipSegment<T>(cx0, cy0, cx1, cy1, grown)) {
+    return;
+  }
   // Walk the major axis from low to high: m is the major coordinate, n the minor one.
-  int64_t m0 = x_major ? a.x : a.y;
-  int64_t n0 = x_major ? a.y : a.x;
-  int64_t m1 = x_major ? b.x : b.y;
-  int64_t n1 = x_major ? b.y : b.x;
+  T m0 = x_major ? a.x : a.y;
+  T n0 = x_major ? a.y : a.x;
+  T m1 = x_major ? b.x : b.y;
+  T n1 = x_major ? b.y : b.x;
   if (m1 < m0) {
     std::swap(m0, m1);
     std::swap(n0, n1);
   }
-  int64_t lo = x_major ? std::min(cx0, cx1) : std::min(cy0, cy1);
-  int64_t hi = x_major ? std::max(cx0, cx1) : std::max(cy0, cy1);
+  T lo = x_major ? std::min(cx0, cx1) : std::min(cy0, cy1);
+  T hi = x_major ? std::max(cx0, cx1) : std::max(cy0, cy1);
   // Integer clip points are rounded towards the line's start: widen by one, then bound.
-  lo = std::max(lo - 1, m0);
-  hi = std::min(hi + 1, m1);
-  const int64_t dm = m1 - m0;
-  const int64_t dn = n1 - n0;
+  lo = std::max<T>(lo - 1, m0);
+  hi = std::min<T>(hi + 1, m1);
+  const T dm = m1 - m0;
+  const T dn = n1 - n0;
   if (dm == 0) {  // a single point
     if (x_major) {
       VSpan(canvas, static_cast<int32_t>(m0), static_cast<int32_t>(n0) - before,
@@ -136,16 +155,16 @@ void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, ui
     return;
   }
   // n(m) = n0 + floor((2 * dn * (m - m0) + dm) / (2 * dm)): exact, then stepped incrementally.
-  const int64_t den = 2 * dm;
-  const int64_t t = 2 * dn * (lo - m0) + dm;
-  int64_t q = t / den;
-  int64_t r = t % den;
+  const T den = 2 * dm;
+  const T t = 2 * dn * (lo - m0) + dm;
+  T q = t / den;
+  T r = t % den;
   if (r < 0) {
     r += den;
     --q;
   }
-  const int64_t step = 2 * dn;  // |step| <= den, so one correction per step at most
-  for (int64_t m = lo; m <= hi; ++m) {
+  const T step = 2 * dn;  // |step| <= den, so one correction per step at most
+  for (T m = lo; m <= hi; ++m) {
     const auto n = static_cast<int32_t>(n0 + q);
     if (x_major) {
       VSpan(canvas, static_cast<int32_t>(m), n - before, n + after, color);
@@ -160,6 +179,22 @@ void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, ui
       r += den;
       --q;
     }
+  }
+}
+
+}  // namespace
+
+void DrawSegment(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t width, uint16_t color) {
+  width = std::max<int32_t>(width, 1);
+  // 32-bit arithmetic is exact while every coordinate stays within +-8192 (products below 2^31)
+  // and much faster on the ESP32-S3 than 64-bit; far-off points take the 64-bit path.
+  constexpr int32_t kSmall = 8192;
+  const bool small = std::abs(a.x) < kSmall && std::abs(a.y) < kSmall && std::abs(b.x) < kSmall &&
+                     std::abs(b.y) < kSmall && canvas.clip.x2 < kSmall && canvas.clip.y2 < kSmall;
+  if (small) {
+    DrawSegmentIn<int32_t>(canvas, a, b, width, color);
+  } else {
+    DrawSegmentIn<int64_t>(canvas, a, b, width, color);
   }
 }
 
