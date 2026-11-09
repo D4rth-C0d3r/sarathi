@@ -67,6 +67,9 @@ class RouteViewModel(
     private var simulationJob: Job? = null
     private var request: RouteRequest? = null
 
+    /** What the last route was asked for: the plan the rider starts. */
+    val lastRequest: RouteRequest? get() = request
+
     /** From [origin], or the current position when it's null, through [stops] in order. */
     fun route(
         origin: Place?,

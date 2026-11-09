@@ -35,7 +35,6 @@ internal fun TripCard(
                     else -> R.string.dest_mode_two_wheeler
                 }
             Text(stringResource(note), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.dest_routes_later), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { actions.onRoute(trip.origin, trip.via + trip.destination) }) {
                 Text(stringResource(R.string.route_button))
             }

@@ -146,6 +146,23 @@ the expected parse in `docs/fixtures/share-links.json`. Short links were resolve
 - **Up-front checks:** the device is connected and paired; the map corridor is downloading
   (with progress); background location and battery-optimisation exemption are granted.
 
+### Confirmation and start, as built (step F7, 2026-11-09)
+
+- The route card is the confirmation: distance, traffic-aware time, main road, backend and
+  attribution, the backends passed over and why, the cost-guard line for the routing backend
+  ("Mappls routes: 13 of 100 today"), and the up-front checks (dash paired and connected,
+  location all the time, no battery limits). **Start the ride** needs a paired dash; the
+  ride then runs in the ride service and the phone can be locked. Home shows the ride with
+  **End the ride**. Map-corridor download waits for ADR-0009's on-device map.
+- The ride on the dash follows protocol section 5: frame, backend, route, traffic, then nav
+  (every second and on change); a reroute event, a new route version and its traffic on
+  reroutes; the whole ride again when the dash reconnects; `nav_end` on arrival or End.
+- **Checked on the phone and the dash** (from the dash's serial ride log): a Mappls ride
+  arrives in the protocol's order (route of 441 points and 35 markers), `nav` keeps coming
+  with the phone locked and dozing, and End leaves the dash on "No navigation". Indoors the
+  phone has a position every half minute or so, so the dash rightly shows "Position stale"
+  between them.
+
 ## Consequences
 
 - **Destinations come from anywhere the owner already plans rides,** without retyping them.

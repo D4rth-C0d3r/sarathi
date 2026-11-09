@@ -1,6 +1,8 @@
 package io.github.d4rthc0d3r.sarathi.core.maps
 
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** A position fix, from the phone's GPS or the [RouteSimulator]. */
 data class Fix(
@@ -54,4 +56,7 @@ interface GuidanceEngine {
 
     /** The stops not reached yet, last the destination: where a reroute goes. */
     fun remainingStops(): List<LatLng>
+
+    /** New routes from engines that reroute themselves (Google), for the dash. */
+    val routeChanges: Flow<Route> get() = emptyFlow()
 }

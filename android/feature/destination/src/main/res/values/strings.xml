@@ -21,7 +21,6 @@
     <string name="dest_save_favourite">Save as favourite</string>
     <string name="dest_favourite_name">Name for this favourite</string>
     <string name="dest_save">Save</string>
-    <string name="dest_routes_later">Routes and starting a ride come in later steps (F4, F7).</string>
     <string name="dest_home">Home</string>
     <string name="dest_work">Work</string>
     <string name="dest_needs_lookup">looked up again when chosen</string>
@@ -33,7 +32,7 @@
     <string name="link_not_supported">This link or text has no place sārathi can read</string>
     <string name="link_not_resolved">The short link could not be followed</string>
     <string name="link_not_found">That place could not be found</string>
-    <string name="route_button">Route (desk test)</string>
+    <string name="route_button">Route</string>
     <string name="route_routing">Routing…</string>
     <string name="route_no_position">No current position yet: turn on location and try again.</string>
     <string name="route_none">No backend could route this.</string>
@@ -52,6 +51,14 @@
     <string name="sim_next">Next: %1$s%2$s in %3$d m</string>
     <string name="sim_left">%1$.1f km · %2$d min left · step %3$d%4$s</string>
     <string name="sim_reroutes">Reroutes: %1$d</string>
+    <string name="start_ride">Start the ride</string>
+    <string name="start_note">The phone can go in your pocket, locked, once the ride starts.</string>
+    <string name="check_paired">Dash paired</string>
+    <string name="check_connected">Dash connected</string>
+    <string name="check_background_location">Location all the time</string>
+    <string name="check_battery">No battery limits</string>
+    <string name="check_ok">yes</string>
+    <string name="check_not_yet">not yet</string>
     <string name="reason_no_key">no key in this build</string>
     <string name="reason_no_terms">terms not accepted</string>
     <string name="reason_over_quota">over its free allowance</string>

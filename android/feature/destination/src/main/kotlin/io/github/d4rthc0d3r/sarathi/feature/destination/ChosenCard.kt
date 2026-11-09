@@ -67,7 +67,6 @@ internal fun ChosenCard(
                     favourite = null
                 }) { Text(stringResource(R.string.dest_save)) }
             }
-            Text(stringResource(R.string.dest_routes_later), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(
                 onClick = { actions.onRoute(null, listOf(place)) },
             ) { Text(stringResource(R.string.route_button)) }

@@ -67,19 +67,26 @@ class GoogleNavRouting(
                     nav.setDestinations(waypoints, RoutingOptions().travelMode(mode)) { cont.resume(it.routeStatus) }
                 }
             if (status != Status.OK) throw ProviderException(reason(status), "Google: $status")
-            val time =
-                nav.currentTimeAndDistance ?: throw ProviderException(Unavailable.ERROR, "Google: no time and distance")
-            Route(
-                backend = backend,
-                points = nav.routeSegments.flatMap { s -> s.latLngs.map { LatLng(it.latitude, it.longitude) } },
-                steps = emptyList(),
-                distanceM = time.meters.toDouble(),
-                durationS = time.seconds.toLong(),
-                mode = request.mode,
-                attribution = ATTRIBUTION,
-                traffic = trafficNow(nav),
-            )
+            routeNow(nav, request.mode) ?: throw ProviderException(Unavailable.ERROR, "Google: no time and distance")
         }
+
+    /** The route the navigator holds now: after routing, and after Google's own reroutes. */
+    internal fun routeNow(
+        nav: Navigator,
+        mode: TravelMode,
+    ): Route? {
+        val time = nav.currentTimeAndDistance ?: return null
+        return Route(
+            backend = backend,
+            points = nav.routeSegments.flatMap { s -> s.latLngs.map { LatLng(it.latitude, it.longitude) } },
+            steps = emptyList(),
+            distanceM = time.meters.toDouble(),
+            durationS = time.seconds.toLong(),
+            mode = mode,
+            attribution = ATTRIBUTION,
+            traffic = trafficNow(nav),
+        )
+    }
 
     /** Google's traffic updates are free while the route is set (ADR-0006); each comes with the ETA. */
     override fun traffic(route: Route): Flow<TrafficUpdate> =

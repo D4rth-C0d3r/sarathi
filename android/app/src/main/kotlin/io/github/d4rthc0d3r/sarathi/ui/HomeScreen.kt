@@ -30,12 +30,14 @@ import io.github.d4rthc0d3r.sarathi.link.LinkText
 /** Everything the rider does before a ride, on one screen: setup, then the ride link. */
 @Composable
 fun HomeScreen(
-    setup: SetupState,
-    link: LinkRepository.Status,
-    lock: Lock,
+    state: HomeUi,
     actions: HomeActions,
     modifier: Modifier = Modifier,
 ) {
+    val setup = state.setup
+    val link = state.link
+    val lock = state.lock
+    val ride = state.ride
     Scaffold(modifier = modifier) { padding ->
         Column(
             modifier =
@@ -52,7 +54,11 @@ fun HomeScreen(
                 LockCard(lock, actions.onLock)
             }
             if (SetupStep.BATTERY in setup.done) BatteryCard()
-            Button(onClick = actions.onWhereTo) { Text(stringResource(R.string.where_to)) }
+            if (ride != null) {
+                RideCard(ride, actions.onEndRide)
+            } else {
+                Button(onClick = actions.onWhereTo) { Text(stringResource(R.string.where_to)) }
+            }
             OutlinedButton(onClick = actions.onMapsSettings) { Text(stringResource(R.string.maps_settings)) }
             if (setup.dashAddress != null) {
                 OutlinedButton(onClick = actions.onForget) { Text(stringResource(R.string.forget_dash)) }
@@ -129,16 +135,18 @@ private fun BatteryCard() {
 @Preview
 @Composable
 private fun HomeScreenSetupPreview() {
-    HomeScreen(SetupState(done = setOf(SetupStep.NEARBY)), LinkRepository.Status(), Lock(), HomeActions())
+    HomeScreen(HomeUi(SetupState(done = setOf(SetupStep.NEARBY)), LinkRepository.Status(), Lock()), HomeActions())
 }
 
 @Preview
 @Composable
 private fun HomeScreenReadyPreview() {
     HomeScreen(
-        SetupState(done = SetupStep.entries.toSet(), dashAddress = "44:BD:8D:71:CA:F9", autoStartSupported = true),
-        LinkRepository.Status(running = true, link = LinkState.Waiting, locationActive = true, locationFixes = 42),
-        Lock(),
+        HomeUi(
+            SetupState(done = SetupStep.entries.toSet(), dashAddress = "44:BD:8D:71:CA:F9", autoStartSupported = true),
+            LinkRepository.Status(running = true, link = LinkState.Waiting, locationActive = true, locationFixes = 42),
+            Lock(),
+        ),
         HomeActions(),
     )
 }

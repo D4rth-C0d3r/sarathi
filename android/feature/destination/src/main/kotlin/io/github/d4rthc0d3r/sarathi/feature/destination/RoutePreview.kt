@@ -25,6 +25,7 @@ import java.util.Locale
 internal fun RoutePreview(
     route: RouteUi,
     actions: DestinationActions = DestinationActions(),
+    checks: StartChecks = StartChecks(),
 ) {
     val small = MaterialTheme.typography.bodySmall
     val result = route.result
@@ -50,6 +51,7 @@ internal fun RoutePreview(
                     } else {
                         Summary(r)
                         TrafficSummary(route)
+                        StartPanel(checks, actions)
                         SimulationPanel(route.simulation, actions)
                     }
                     result.skipped.forEach {

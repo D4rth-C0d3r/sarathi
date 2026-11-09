@@ -35,6 +35,7 @@ fun DestinationScreen(
     actions: DestinationActions,
     modifier: Modifier = Modifier,
     route: RouteUi = RouteUi(),
+    checks: StartChecks = StartChecks(),
 ) {
     Scaffold(modifier = modifier) { padding ->
         Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -63,7 +64,7 @@ fun DestinationScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (chosen != null) ChosenCard(chosen, actions) else ui.trip?.let { TripCard(it, actions) }
-                        RoutePreview(route, actions)
+                        RoutePreview(route, actions, checks)
                     }
                 }
 

@@ -12,4 +12,5 @@ data class HomeActions(
     val onLock: (Lock) -> Unit = {},
     val onMapsSettings: () -> Unit = {},
     val onWhereTo: () -> Unit = {},
+    val onEndRide: () -> Unit = {},
 )

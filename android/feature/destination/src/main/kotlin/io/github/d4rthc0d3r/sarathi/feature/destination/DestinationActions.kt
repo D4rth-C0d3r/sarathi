@@ -19,5 +19,7 @@ data class DestinationActions(
     /** Rides the routed result in the simulator, with or without a detour (step F6). */
     val onSimulate: (detour: Boolean) -> Unit = {},
     val onStopSimulation: () -> Unit = {},
+    /** Starts the ride on the routed result (step F7). */
+    val onStartRide: () -> Unit = {},
     val onBack: () -> Unit = {},
 )

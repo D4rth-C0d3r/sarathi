@@ -39,6 +39,7 @@ class RideSession(
     private var media: MediaFeature? = null
     private var calls: CallsFeature? = null
     private var pose: PoseSender? = null
+    private var navigation: RideNavigation? = null
     private val timeWatcher = TimeWatcher(context) { send(timeNow()) }
 
     fun start() {
@@ -68,11 +69,18 @@ class RideSession(
     /** Starts sending position, once the service runs with location (ADR-0010). */
     fun startPosition() {
         if (pose == null) pose = PoseSender(context, dash, scope).takeIf { it.start() }
+        // Guidance needs position: the ride follows ActiveRide only once there is any.
+        val p = pose
+        if (navigation == null && p != null) {
+            navigation = RideNavigation(context, dash, scope, p.frame, p.fixes).also { it.start() }
+        }
     }
 
     val positionActive: Boolean get() = pose != null
 
     fun stop() {
+        navigation?.stop()
+        navigation = null
         pose?.stop()
         pose = null
         timeWatcher.stop()

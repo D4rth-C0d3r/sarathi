@@ -12,10 +12,13 @@ import io.github.d4rthc0d3r.sarathi.core.maps.GuidanceState
 import io.github.d4rthc0d3r.sarathi.core.maps.LatLng
 import io.github.d4rthc0d3r.sarathi.core.maps.Route
 import io.github.d4rthc0d3r.sarathi.core.maps.StepManeuver
+import io.github.d4rthc0d3r.sarathi.core.maps.TravelMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -45,8 +48,16 @@ class GoogleGuidance(
             state.value =
                 state.value?.copy(arrived = true, distanceToManeuverM = 0.0)
         }
+    private val changes = MutableSharedFlow<Route>(extraBufferCapacity = 4)
+    private var mode = TravelMode.TWO_WHEELER
+
+    /** Google's own reroutes, as new routes for the dash. */
+    override val routeChanges: Flow<Route> = changes
+    private val routeChanged =
+        Navigator.RouteChangedListener { navigator?.let { routing.routeNow(it, mode) }?.let { changes.tryEmit(it) } }
 
     override fun start(route: Route) {
+        mode = route.mode
         job?.cancel()
         GoogleNavFeed.clear()
         job =
@@ -64,6 +75,7 @@ class GoogleGuidance(
                         .build(),
                 )
                 nav.addArrivalListener(arrival)
+                nav.addRouteChangedListener(routeChanged)
                 nav.startGuidance()
                 if (simulate) {
                     nav.simulator.simulateLocationsAlongExistingRoute(
@@ -82,6 +94,7 @@ class GoogleGuidance(
         navigator?.let {
             if (simulate) it.simulator.unsetUserLocation()
             it.removeArrivalListener(arrival)
+            it.removeRouteChangedListener(routeChanged)
             it.stopGuidance()
             it.unregisterServiceForNavUpdates()
         }

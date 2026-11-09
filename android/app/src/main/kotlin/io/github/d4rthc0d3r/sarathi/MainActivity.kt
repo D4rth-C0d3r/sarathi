@@ -27,8 +27,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
+import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
 import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
@@ -36,9 +38,14 @@ import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
 import io.github.d4rthc0d3r.sarathi.feature.destination.RouteViewModel
 import io.github.d4rthc0d3r.sarathi.feature.destination.SharedLinkResolver
+import io.github.d4rthc0d3r.sarathi.feature.destination.StartChecks
 import io.github.d4rthc0d3r.sarathi.feature.navigation.FerrostarGuidance
+import io.github.d4rthc0d3r.sarathi.link.ActiveRide
 import io.github.d4rthc0d3r.sarathi.link.DashAssociation
 import io.github.d4rthc0d3r.sarathi.link.DashNotificationListener
+import io.github.d4rthc0d3r.sarathi.link.LinkRepository
+import io.github.d4rthc0d3r.sarathi.link.RideLinkService
+import io.github.d4rthc0d3r.sarathi.link.RidePlan
 import io.github.d4rthc0d3r.sarathi.maps.Keys
 import io.github.d4rthc0d3r.sarathi.maps.LastLocation
 import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
@@ -47,10 +54,14 @@ import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleNavRouting
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
+import io.github.d4rthc0d3r.sarathi.ui.HomeUi
 import io.github.d4rthc0d3r.sarathi.ui.MainViewModel
 import io.github.d4rthc0d3r.sarathi.ui.MapsSettingsActions
 import io.github.d4rthc0d3r.sarathi.ui.MapsSettingsScreen
 import io.github.d4rthc0d3r.sarathi.ui.MapsStatus
+import io.github.d4rthc0d3r.sarathi.ui.MeterNames
+import io.github.d4rthc0d3r.sarathi.ui.RideStatus
+import io.github.d4rthc0d3r.sarathi.ui.SetupState
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
 import io.github.d4rthc0d3r.sarathi.ui.theme.SarathiTheme
 
@@ -95,10 +106,15 @@ class MainActivity : ComponentActivity() {
                 val setup = model.setup.collectAsStateWithLifecycle()
                 val link = model.link.collectAsStateWithLifecycle()
                 val lock = model.lock.collectAsStateWithLifecycle()
+                val plan = ActiveRide.plan.collectAsStateWithLifecycle()
+                val guidance = ActiveRide.guidance.collectAsStateWithLifecycle()
                 HomeScreen(
-                    setup = setup.value,
-                    link = link.value,
-                    lock = lock.value,
+                    HomeUi(
+                        setup.value,
+                        link.value,
+                        lock.value,
+                        plan.value?.let { RideStatus(it.destination, guidance.value) },
+                    ),
                     actions =
                         HomeActions(
                             onSetupStep = ::runStep,
@@ -109,6 +125,7 @@ class MainActivity : ComponentActivity() {
                             onLock = model::setLock,
                             onMapsSettings = { screen = Screen.MAPS },
                             onWhereTo = { screen = Screen.DESTINATION },
+                            onEndRide = ActiveRide::end,
                         ),
                 )
             }
@@ -161,41 +178,18 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Destination(onBack: () -> Unit) {
         val context = applicationContext
-        val model =
-            viewModel {
-                val maps = MapsRegistry.get(context)
-                val near = { LastLocation.get(context) }
-                DestinationViewModel(
-                    maps.search,
-                    FilePlacesStore(context),
-                    SharedLinkResolver(maps.search, near, maps::redirect) { Log.i("Links", it) },
-                    near,
-                )
-            }
+        val model = destinationViewModel(context)
         LaunchedEffect(shared) {
             shared?.let {
                 model.onShared(it)
                 shared = null
             }
         }
-        val routeModel =
-            viewModel {
-                RouteViewModel(MapsRegistry.get(context).routing, { LastLocation.get(context) }) { route, request ->
-                    // The desk test: Google's guidance drives Google's own simulator along the route.
-                    if (route.backend == RoutingBackend.GOOGLE) {
-                        GoogleGuidance(
-                            context,
-                            MapsRegistry.get(context).googleRouting,
-                            simulate = true,
-                            speedMultiplier = 10f,
-                        )
-                    } else {
-                        FerrostarGuidance(request)
-                    }
-                }
-            }
+        val routeModel = routeViewModel(context)
         val route = routeModel.ui.collectAsStateWithLifecycle()
         val ui = model.ui.collectAsStateWithLifecycle()
+        val setup = this@MainActivity.model.setup.collectAsStateWithLifecycle()
+        val link = this@MainActivity.model.link.collectAsStateWithLifecycle()
         LaunchedEffect(ui.value.chosen, ui.value.trip) { routeModel.clear() }
         DestinationScreen(
             ui.value,
@@ -213,9 +207,26 @@ class MainActivity : ComponentActivity() {
                 onRoute = routeModel::route,
                 onSimulate = routeModel::simulate,
                 onStopSimulation = routeModel::stopSimulation,
+                onStartRide = {
+                    val destination =
+                        ui.value.chosen?.name ?: ui.value.trip
+                            ?.destination
+                            ?.name
+                            .orEmpty()
+                    if (RideStarter.start(this, routeModel, destination)) onBack()
+                },
                 onBack = onBack,
             ),
             route = route.value,
+            checks =
+                RideStarter.checks(
+                    this,
+                    setup.value,
+                    link.value,
+                    route.value.result
+                        ?.value
+                        ?.backend,
+                ),
         )
     }
 

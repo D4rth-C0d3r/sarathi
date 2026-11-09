@@ -12,12 +12,21 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import io.github.d4rthc0d3r.sarathi.core.ble.DashChannel
+import io.github.d4rthc0d3r.sarathi.core.maps.LatLng
 import io.github.d4rthc0d3r.sarathi.core.protocol.Fix
 import io.github.d4rthc0d3r.sarathi.core.protocol.FrameEpoch
 import io.github.d4rthc0d3r.sarathi.core.protocol.PoseBuilder
+import io.github.d4rthc0d3r.sarathi.core.protocol.RideFrame
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import io.github.d4rthc0d3r.sarathi.core.maps.Fix as MapsFix
 
 /**
  * The phone's position for the dash, once a second: `frame` when a ride frame starts or the dash
@@ -35,6 +44,16 @@ class PoseSender(
     private var frameSent = false
     private var job: Job? = null
     private var loggedKmh = -1.0
+
+    private val _frame = MutableStateFlow<RideFrame?>(null)
+
+    /** The ride's frame, once the first fix has started one; a new epoch when it re-anchors. */
+    val frame: StateFlow<RideFrame?> = _frame.asStateFlow()
+
+    private val _fixes = MutableSharedFlow<MapsFix>(extraBufferCapacity = FIX_BUFFER)
+
+    /** Every fix, for guidance (ADR-0006), as it arrives. */
+    val fixes: SharedFlow<MapsFix> = _fixes.asSharedFlow()
 
     @SuppressLint("MissingPermission") // checked just above the request
     fun start(): Boolean {
@@ -68,6 +87,8 @@ class PoseSender(
             )
         }
         val pose = builder.pose(location.toFix())
+        if (builder.frameChanged) _frame.value = builder.frame
+        _fixes.tryEmit(location.toMapsFix())
         val kmh = pose.speedCms * CMS_TO_KMH
         if (kotlin.math.abs(kmh - loggedKmh) >= 1) {
             loggedKmh = kmh
@@ -98,7 +119,18 @@ class PoseSender(
             accuracyM = if (hasAccuracy()) accuracy else null,
         )
 
+    private fun Location.toMapsFix() =
+        MapsFix(
+            at = LatLng(latitude, longitude),
+            timeMs = elapsedRealtimeNanos / NANOS_PER_MS,
+            speedMps = if (hasSpeed()) speed.toDouble() else null,
+            bearingDeg = if (hasBearing()) bearing.toDouble() else null,
+            accuracyM = if (hasAccuracy()) accuracy.toDouble() else UNKNOWN_ACCURACY_M,
+        )
+
     private companion object {
+        const val FIX_BUFFER = 8
+        const val UNKNOWN_ACCURACY_M = 50.0
         const val TAG = "RideLink"
         const val INTERVAL_MS = 1_000L
         const val NANOS_PER_MS = 1_000_000L

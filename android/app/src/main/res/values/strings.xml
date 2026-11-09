@@ -56,6 +56,12 @@
     <string name="back">Back</string>
     <string name="maps_settings">Maps settings</string>
     <string name="where_to">Where to?</string>
+    <string name="ride_to">Riding to %1$s</string>
+    <string name="ride_waiting">Waiting for the first position…</string>
+    <string name="ride_next">Next: %1$s in %2$d m</string>
+    <string name="ride_left">%1$.1f km · %2$d min left</string>
+    <string name="ride_end">End the ride</string>
+    <string name="ride_started">Ride started: the phone can go in your pocket, locked.</string>
     <string name="maps_title">Maps</string>
     <string name="maps_backend">Maps backend</string>
     <string name="maps_backend_reason">Used for searching places and for routes. If it can\'t be used (no key, over quota, no network), the next one in the fallback order takes over.</string>

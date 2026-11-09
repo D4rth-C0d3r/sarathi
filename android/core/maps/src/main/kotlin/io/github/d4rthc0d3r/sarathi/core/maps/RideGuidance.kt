@@ -52,7 +52,11 @@ class RideGuidance(
         engine = e
         _route.value = route
         stateJob =
-            scope.launch { e.state.collect { s -> _state.value = s?.copy(rerouting = rerouting || s.rerouting) } }
+            scope.launch {
+                launch { e.state.collect { s -> _state.value = s?.copy(rerouting = rerouting || s.rerouting) } }
+                // An engine that reroutes itself (Google) keeps going; only the route changes.
+                e.routeChanges.collect { r -> _route.value = r }
+            }
     }
 
     fun update(fix: Fix) {
