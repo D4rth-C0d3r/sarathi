@@ -35,3 +35,6 @@ secrets/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Map bench chunks, generated from docs/fixtures/map at build time (bench/embed_chunks.py)
+firmware/bench/generated/

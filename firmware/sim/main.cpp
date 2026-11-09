@@ -8,9 +8,10 @@
 //   Mouse button inside circle   -> touch at that point
 //   S                            -> pause/resume the demo ride (the bike stops; settings unlock)
 // Usage: program [--speed N]   replay the ride N times faster. Close the window to quit.
-//        program --tour DIR     scripted walk through the UI, screenshots in DIR
-//        program --gallery DIR  every screen in every theme, screenshots in DIR
-//        add --chronos          a pretend Chronos phone instead of the demo ride (ADR-0005)
+//        program --mapbench DIR the map renderer bench's phases (Phase 4 step G1), screenshots in
+//        DIR program --tour DIR     scripted walk through the UI, screenshots in DIR program
+//        --gallery DIR  every screen in every theme, screenshots in DIR add --chronos          a
+//        pretend Chronos phone instead of the demo ride (ADR-0005)
 //
 // Simulator wiring only: no backlight, panel timing or ESP32-S3 performance limits.
 
@@ -20,6 +21,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -34,6 +39,7 @@
 #include "fake_chronos.h"
 #include "input_test_model.h"
 #include "lvgl_port.h"
+#include "map_bench_scene.h"
 #include "ota_update.h"
 #include "screen_manager.h"
 #include "settings_codec.h"
@@ -472,6 +478,42 @@ bool RunTour(Tour& tour, lv_display_t* display, uint32_t now) {
   return true;
 }
 
+// ---- --mapbench DIR: one screenshot per phase of the map bench (bench/map_bench_scene) ----
+
+int RunMapBench(lv_display_t* display, const char* dir) {
+  static std::vector<std::vector<uint8_t>> files;
+  static std::vector<sarathi::bench::ChunkBlob> blobs;
+  for (const char* set : {"bengaluru", "expressway"}) {
+    const std::filesystem::path folder =
+        std::filesystem::path(SARATHI_MAP_FIXTURES_DIR) / "chunks" / set;
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+      std::ifstream in(entry.path(), std::ios::binary);
+      files.emplace_back((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    }
+  }
+  for (const auto& f : files) {
+    blobs.push_back({f.data(), f.size()});
+  }
+  static std::vector<uint8_t> arena(1536 * 1024);
+  static std::vector<uint8_t> scratch(sarathi::bench::MapBenchScene::kScratchBytes);
+  static auto scene = std::make_unique<sarathi::bench::MapBenchScene>();
+  const size_t stored =
+      scene->Init(arena.data(), arena.size(), scratch.data(), blobs.data(), blobs.size(), TimeUs);
+  std::printf("sim: map bench, %zu of %zu chunks stored (%zu KB)\n", stored, blobs.size(),
+              scene->Store().UsedBytes() / 1024);
+  for (size_t phase = 0; phase < scene->PhaseCount(); ++phase) {
+    scene->Show(phase, 10000);
+    std::array<char, 32> name{};
+    std::snprintf(name.data(), name.size(), "mapbench-%zu", phase);
+    SaveScreenshot(display, dir, name.data());
+    const ui::MapView::Stats s = scene->TakeStats();
+    std::printf("sim: %s: %u chunks, %u shapes, %u segments, draw %.2f ms\n", scene->PhaseName(),
+                s.last.chunks, s.last.shapes, s.last.segments,
+                static_cast<double>(s.draw_max_us) / 1000.0);
+  }
+  return 0;
+}
+
 const char* ParseDirOption(int argc, char** argv, const char* option) {
   for (int i = 1; i + 1 < argc; ++i) {
     if (std::strcmp(argv[i], option) == 0) {  // NOLINT(*-pointer-arithmetic)
@@ -754,6 +796,10 @@ int main(int argc, char** argv) {
   ui::lvgl_port::AttachFrameTimer(display, TimeUs);
   CreateBacklightShade();  // under the round mask
   CreateRoundMask();
+
+  if (const char* bench_dir = ParseDirOption(argc, argv, "--mapbench"); bench_dir != nullptr) {
+    return RunMapBench(display, bench_dir);
+  }
 
   std::printf(
       "sārathi sim (ride speed x%u): arrows/wheel = knob, Enter = button (double-click = next "
