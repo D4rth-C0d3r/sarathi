@@ -54,6 +54,11 @@ struct RouteWindow {
   bool has_maneuver_point = false;
   RoutePoint maneuver_point{};  // where the next maneuver is, relative to the rider
   uint32_t sequence = 0;        // increases with every new window
+  // Where the rider is in the ride frame (metres), so the map's chunks line up (ADR-0009). The
+  // demo ride and Chronos have no ride frame.
+  bool has_position = false;
+  float rider_x_m = 0.0F;
+  float rider_y_m = 0.0F;
 };
 
 // The phone's own maneuver icon (Chronos, ADR-0005): 48x48, 1 bit per pixel, row-major, most

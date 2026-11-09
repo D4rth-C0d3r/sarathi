@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "raster.h"
+#include "theme_binding.h"
 
 namespace sarathi::ui {
 
@@ -55,6 +56,54 @@ void MapView::Set(const core::MapCamera& camera, uint8_t level, const core::MapS
   lv_obj_invalidate(obj_);
 }
 
+void MapView::SetRoute(const core::RouteWindow& window, uint16_t route_pixel, uint8_t width_px,
+                       core::Rgb maneuver_color, lv_opa_t opa) {
+  std::copy(window.points.begin(), window.points.begin() + window.count, route_points_.begin());
+  route_ = core::MapRoute{route_points_.data(), window.count, route_pixel, width_px};
+  has_maneuver_ = window.has_maneuver_point;
+  maneuver_ = window.maneuver_point;
+  maneuver_color_ = maneuver_color;
+  opa_ = opa;
+  prepared_ = false;
+  lv_obj_invalidate(obj_);
+}
+
+// The maneuver dot and the rider's chevron, queued as LVGL drawing over the map's pixels.
+void MapView::DrawMarkers(lv_layer_t* layer, const lv_area_t& obj_area) const {
+  constexpr int32_t kManeuverRadius = 10;
+  constexpr lv_value_precise_t kChevronHalfWidth = 13;
+  constexpr lv_value_precise_t kChevronTip = 18;
+  constexpr lv_value_precise_t kChevronTail = 12;
+  core::MapCamera camera = camera_;
+  camera.anchor_x += obj_area.x1;
+  camera.anchor_y += obj_area.y1;
+  if (route_.count > 0 && has_maneuver_) {
+    const core::ScreenPoint m =
+        core::ProjectMetres(camera, camera.x_m + static_cast<float>(maneuver_.x_m),
+                            camera.y_m + static_cast<float>(maneuver_.y_m));
+    lv_draw_rect_dsc_t dot;
+    lv_draw_rect_dsc_init(&dot);
+    dot.bg_color = theme::Color(maneuver_color_);
+    dot.bg_opa = opa_;
+    dot.radius = LV_RADIUS_CIRCLE;
+    const lv_area_t area{m.x - kManeuverRadius, m.y - kManeuverRadius, m.x + kManeuverRadius,
+                         m.y + kManeuverRadius};
+    lv_draw_rect(layer, &dot, &area);
+  }
+  if (has_rider_) {
+    lv_draw_triangle_dsc_t chevron;
+    lv_draw_triangle_dsc_init(&chevron);
+    chevron.bg_color = theme::Color(rider_color_);
+    chevron.bg_opa = LV_OPA_COVER;
+    const auto rx = static_cast<lv_value_precise_t>(camera.anchor_x);
+    const auto ry = static_cast<lv_value_precise_t>(camera.anchor_y);
+    chevron.p[0] = {rx, ry - kChevronTip};
+    chevron.p[1] = {rx - kChevronHalfWidth, ry + kChevronTail};
+    chevron.p[2] = {rx + kChevronHalfWidth, ry + kChevronTail};
+    lv_draw_triangle(layer, &chevron);
+  }
+}
+
 void MapView::SetVisible(bool visible) {
   if (visible) {
     lv_obj_remove_flag(obj_, LV_OBJ_FLAG_HIDDEN);
@@ -75,7 +124,8 @@ MapView::Stats MapView::TakeStats() {
 void MapView::OnDraw(lv_event_t* event) {
   auto* self = static_cast<MapView*>(lv_event_get_user_data(event));
   lv_layer_t* layer = lv_event_get_layer(event);
-  if (layer->draw_buf == nullptr || layer->color_format != LV_COLOR_FORMAT_RGB565) {
+  if (self->renderer_ == nullptr || layer->draw_buf == nullptr ||
+      layer->color_format != LV_COLOR_FORMAT_RGB565) {
     return;
   }
   const uint32_t start = self->time_us_ != nullptr ? self->time_us_() : 0;
@@ -104,10 +154,12 @@ void MapView::OnDraw(lv_event_t* event) {
     camera.anchor_y += obj_area.y1;
     camera.view_cx += obj_area.x1;
     camera.view_cy += obj_area.y1;
-    self->renderer_->Prepare(*self->store_, self->level_, camera, self->style_, ++self->frame_);
+    self->renderer_->SetRoute(self->route_);
+    self->renderer_->Prepare(self->store_, self->level_, camera, self->style_, ++self->frame_);
     self->prepared_ = true;
   }
   self->renderer_->Draw(canvas);
+  self->DrawMarkers(layer, obj_area);
   if (self->time_us_ != nullptr) {
     const uint32_t took = self->time_us_() - start;
     self->draw_total_us_ += took;

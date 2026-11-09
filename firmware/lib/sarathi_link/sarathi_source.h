@@ -13,6 +13,7 @@
 
 #include <cstdint>
 
+#include "chunk_store.h"
 #include "data_source.h"
 
 namespace sarathi::link {
@@ -30,6 +31,9 @@ class SarathiSource final : public core::DataSource {
 
   // Advertising or connected: the boot self-check's "BLE up" (ADR-0004 §5).
   [[nodiscard]] bool BleUp() const;
+
+  // The map's chunks from the phone (ADR-0009), or null if there was no PSRAM for them. UI task.
+  [[nodiscard]] static core::ChunkStore* Chunks();
 
   void Poll(uint32_t now_ms, core::AppModel& model) override;
   void OnCommand(const core::Command& command, uint32_t now_ms, core::AppModel& model) override;

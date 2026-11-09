@@ -8,10 +8,11 @@
 #include "format.h"
 #include "layout.h"
 #include "maneuver_arrow.h"
+#include "map_style.h"
+#include "map_view.h"
 #include "nav_status.h"
 #include "nav_zoom.h"
 #include "ring_gauge.h"
-#include "route_view.h"
 #include "static_label.h"
 #include "theme_binding.h"
 #include "visibility.h"
@@ -57,7 +58,12 @@ constexpr int32_t kInstructionLines = 2;
 constexpr int32_t kArrowEtaY = 165;
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-RouteView route;
+MapView map;
+core::ChunkStore* map_store = nullptr;      // SetMapData(); null: no map source
+core::MapRenderer* map_renderer = nullptr;  // SetMapData()
+uint32_t map_sequence = 0;                  // the window last drawn
+bool map_stale = false;
+const core::ThemeDescriptor* map_theme = nullptr;
 RingGauge ring;
 lv_obj_t* card = nullptr;
 ManeuverArrow arrow;
@@ -77,13 +83,40 @@ uint16_t stress_spin = 0;  // extra heading, degrees
 #endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-core::ProjectionParams MapProjection() {
-  core::ProjectionParams p;
-  p.metres_per_px = core::kZoomFarMetresPerPx;
-  p.rider = {layout::kCenter, kRiderY};
-  p.circle_center = {layout::kCenter, layout::kCenter};
-  p.circle_radius_px = 225.0F;  // inside the ring gauge
-  return p;
+constexpr float kMapCircleRadius = 225.0F;   // inside the ring gauge
+constexpr float kL1AboveMetresPerPx = 4.0F;  // ADR-0009: L1 only above 4 m/px
+
+void ClearMap() {
+  map.SetVisible(false);
+  map_sequence = 0;
+}
+
+// The map around the rider, heading up, with the route window over it. Redraws only for a new
+// window, staleness or theme (G4.3 adds motion between windows).
+void ShowMap(const core::RouteWindow& window, bool stale, float metres_per_px, bool force) {
+  const core::ThemeDescriptor& t = theme::Current();
+  if (!force && window.sequence == map_sequence && stale == map_stale && &t == map_theme) {
+    return;
+  }
+  map_sequence = window.sequence;
+  map_stale = stale;
+  map_theme = &t;
+  core::MapCamera camera;
+  camera.x_m = window.has_position ? window.rider_x_m : 0.0F;
+  camera.y_m = window.has_position ? window.rider_y_m : 0.0F;
+  camera.heading_deg = static_cast<float>(window.heading_deg);
+  camera.metres_per_px = metres_per_px;
+  camera.anchor_x = layout::kCenter;
+  camera.anchor_y = kRiderY;
+  camera.view_cx = layout::kCenter;
+  camera.view_cy = layout::kCenter;
+  camera.view_r = static_cast<int32_t>(kMapCircleRadius);
+  const uint16_t route = theme::Pixel(stale ? t.palette.route_behind : t.palette.route_line);
+  map.SetRoute(window, route, t.components.route_line_px, t.palette.maneuver,
+               stale ? LV_OPA_40 : LV_OPA_COVER);
+  map.SetRider(t.palette.rider);
+  map.Set(camera, metres_per_px > kL1AboveMetresPerPx ? 1 : 0, MapStyleFor(t, metres_per_px));
+  map.SetVisible(true);
 }
 
 // A label that only shows (with its card) when it has text. Touches the flag only when it
@@ -114,9 +147,8 @@ void ShowArrowMode(bool on) {
   big_arrow.SetVisible(on);
   big_distance.SetVisible(on);
   SetVisible(instruction.Obj(), on);
-  route.SetVisible(!on);
   if (on) {
-    route.Clear();
+    ClearMap();
     ShowNote(core::NavNote{});
     SetBubble(eta, "");
   } else {
@@ -153,11 +185,17 @@ void UpdateArrowMode(const core::AppState& state) {
 
 }  // namespace
 
+void SetMapData(core::ChunkStore* store, core::MapRenderer* renderer) {
+  map_store = store;
+  map_renderer = renderer;
+}
+
 lv_obj_t* Create() {
   lv_obj_t* screen = theme::MakeScreen();
   // Draw order: map, card, ring, then text. The ring sits above the card so the card never
   // dims it.
-  route.Create(screen, 0, MapProjection());
+  map.Create(screen, 0, 0, layout::kScreenSize, layout::kScreenSize, map_store, map_renderer);
+  map.SetVisible(false);
 
   card = lv_obj_create(screen);
   lv_obj_remove_style_all(card);
@@ -208,7 +246,7 @@ void Update(const core::AppState& state, uint32_t now_ms) {
     distance.SetValue("");
     street.Set("%s", core::NavIdleText(state));
     ring.Set(0.0F);
-    route.Clear();
+    ClearMap();
     ShowNote(core::NavNote{});
     SetBubble(eta, "");
     return;
@@ -231,7 +269,7 @@ void Update(const core::AppState& state, uint32_t now_ms) {
 
   ShowNote(core::NavStatus(state, now_ms));
   if (!nav.has_window) {
-    route.Clear();
+    ClearMap();
     return;
   }
   const bool stale = now_ms - nav.window_received_ms > core::kPositionStaleMs;
@@ -241,9 +279,9 @@ void Update(const core::AppState& state, uint32_t now_ms) {
   core::RouteWindow spun = nav.window;
   spun.heading_deg = static_cast<uint16_t>((spun.heading_deg + stress_spin) % 360);
   stress_spin = static_cast<uint16_t>((stress_spin + 2) % 360);
-  route.Set(spun, stale, zoom, true);
+  ShowMap(spun, stale, zoom, true);
 #else
-  route.Set(nav.window, stale, zoom);
+  ShowMap(nav.window, stale, zoom, false);
 #endif
 }
 

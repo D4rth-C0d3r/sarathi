@@ -9,6 +9,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <new>
 
 #include <Arduino.h>
 #include <esp_flash.h>
@@ -38,6 +39,8 @@
 #include "input_test_model.h"
 #include "knob.h"
 #include "lvgl_port.h"
+#include "map_render.h"
+#include "nav_screen.h"
 #include "nvs_settings.h"
 #include "nvs_wifi.h"
 #include "ota_update.h"
@@ -118,6 +121,7 @@ bool BeginSource() { return chronos.Begin("sarathi"); }
 void SetBlePaused(bool paused) { chronos.SetBlePaused(paused); }
 bool BleStopped() { return chronos.BleStopped(); }
 bool BleUp() { return chronos.BleUp(); }
+core::ChunkStore* MapChunks() { return nullptr; }  // Chronos sends no map (ADR-0005)
 #elif defined(SARATHI_BACKEND_PHONE)
 constexpr bool kHasBle = true;
 sarathi::link::SarathiSource phone;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -126,6 +130,7 @@ bool BeginSource() { return phone.Begin("sarathi"); }
 void SetBlePaused(bool paused) { phone.SetBlePaused(paused); }
 bool BleStopped() { return phone.BleStopped(); }
 bool BleUp() { return phone.BleUp(); }
+core::ChunkStore* MapChunks() { return sarathi::link::SarathiSource::Chunks(); }
 #else
 constexpr bool kHasBle = false;
 core::DemoRide demo_ride;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -134,6 +139,7 @@ bool BeginSource() { return true; }
 void SetBlePaused(bool /*paused*/) {}
 bool BleStopped() { return true; }
 bool BleUp() { return false; }
+core::ChunkStore* MapChunks() { return nullptr; }  // the demo ride has no map
 #endif
 
 uint32_t TimeUs() { return static_cast<uint32_t>(esp_timer_get_time()); }
@@ -457,6 +463,11 @@ void setup() {
     ESP_LOGE(kTag, "data source failed to start");
   }
   ui::theme::SetPanelSwapsRedBlue(pins::kSwapRedBlue);  // before the first theme is bound
+  // The map's renderer (about 330 KB of cache) in PSRAM, once; before the screens are made.
+  void* renderer_memory = heap_caps_calloc(1, sizeof(core::MapRenderer), MALLOC_CAP_SPIRAM);
+  ui::nav_screen::SetMapData(MapChunks(), renderer_memory == nullptr ? nullptr
+                                                                     : new (renderer_memory)
+                                                                           core::MapRenderer());
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, Random);
   if (boot_state.rolled_back && nvs.LoadMarker(kRollbackMarker) != boot_state.invalid_address) {

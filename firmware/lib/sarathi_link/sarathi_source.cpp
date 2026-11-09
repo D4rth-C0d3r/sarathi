@@ -410,6 +410,8 @@ T* PsramArray(size_t n) {
 
 }  // namespace
 
+core::ChunkStore* SarathiSource::Chunks() { return chunk_store; }
+
 bool SarathiSource::Begin(const char* name) {
   rx_queue = xQueueCreateWithCaps(kRxQueueLength, sizeof(RxFrame), MALLOC_CAP_SPIRAM);
   tx_queue = xQueueCreateWithCaps(kTxQueueLength, sizeof(TxMessage), MALLOC_CAP_SPIRAM);

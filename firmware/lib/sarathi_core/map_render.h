@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "app_state.h"
 #include "chunk_store.h"
 #include "raster.h"
 
@@ -50,6 +51,14 @@ struct MapStyle {
   float service_max_metres_per_px = 3;
 };
 
+// The route, drawn over the roads: points relative to the camera's position (a route window).
+struct MapRoute {
+  const RoutePoint* points = nullptr;
+  size_t count = 0;
+  uint16_t color = 0;
+  uint8_t width_px = 0;
+};
+
 struct MapRenderStats {
   uint32_t chunks = 0;     // chunks seen by Prepare()
   uint32_t shapes = 0;     // lines and polygons cached
@@ -73,8 +82,12 @@ class MapRenderer {
 
   // Projects what the camera sees of the stored chunks at `level`. Marks those chunks drawn
   // with `frame` for eviction. Call once per frame, before Draw().
-  void Prepare(ChunkStore& store, uint8_t level, const MapCamera& camera, const MapStyle& style,
+  // `store` may be null (no map source): then only the route draws. Level 0 also draws level-2
+  // chunks, the quarters of dense L0 tiles (protocol 1.2).
+  void Prepare(ChunkStore* store, uint8_t level, const MapCamera& camera, const MapStyle& style,
                uint32_t frame);
+  // The route for the next Prepare(); count 0 for none.
+  void SetRoute(const MapRoute& route) { route_ = route; }
   // Draws the prepared frame inside the canvas's clip.
   void Draw(Canvas& canvas);
   // Both, for a single canvas.
@@ -104,6 +117,9 @@ class MapRenderer {
   size_t n_shapes_ = 0;
   ScreenPoint points_[kMaxPoints] = {};
   size_t n_points_ = 0;
+  MapRoute route_{};
+  ScreenPoint route_points_[kMaxRoutePoints] = {};
+  size_t n_route_ = 0;
 };
 
 // Screen position of a ride-frame point (metres), for tests and overlays.

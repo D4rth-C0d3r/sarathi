@@ -40,6 +40,7 @@
 #include "input_test_model.h"
 #include "lvgl_port.h"
 #include "map_bench_scene.h"
+#include "nav_screen.h"
 #include "ota_update.h"
 #include "screen_manager.h"
 #include "settings_codec.h"
@@ -791,6 +792,8 @@ int main(int argc, char** argv) {
   lv_indev_set_display(touch, display);
 
   LoadSettingsFile();  // before the shell, so the saved theme applies from the first frame
+  static auto map_renderer = std::make_unique<sarathi::core::MapRenderer>();
+  ui::nav_screen::SetMapData(nullptr, map_renderer.get());  // the demo ride has no map chunks
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, SimRandom);
   ui::lvgl_port::AttachFrameTimer(display, TimeUs);

@@ -409,6 +409,9 @@ void ProtocolBridge::OnPose(const proto::Pose& pose, uint32_t now_ms, core::AppM
   tracker_.Window(rider, fix, heading, core::kWindowBehindM, core::kWindowAheadM,
                   core::kWindowToleranceM, window);
   window.sequence = ++window_sequence_;
+  window.has_position = true;
+  window.rider_x_m = rider.x;
+  window.rider_y_m = rider.y;
   model.SetRouteWindow(window, now_ms);
 }
 

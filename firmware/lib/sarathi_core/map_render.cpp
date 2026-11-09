@@ -11,8 +11,9 @@ namespace {
 constexpr float kDegToRad = 3.14159265358979F / 180.0F;
 constexpr float kOne = 65536.0F;
 constexpr int32_t kHalf = 1 << 15;
-constexpr float kQLimit = 1 << 29;  // larger offsets could overflow; such chunks aren't seen
-constexpr int32_t kMaxMargin = 32;  // px: the widest road plus glow, outside the circle
+constexpr float kQLimit = 1 << 29;    // larger offsets could overflow; such chunks aren't seen
+constexpr int32_t kMaxMargin = 32;    // px: the widest road plus glow, outside the circle
+constexpr uint8_t kQuarterLevel = 2;  // protocol 1.2: a z15 quarter of an L0 tile
 
 struct Basis {
   float rx, ry;  // screen right, in the ride frame
@@ -90,7 +91,7 @@ ScreenPoint ProjectMetres(const MapCamera& camera, float x_m, float y_m) {
                                                       (dx * b.fx + dy * b.fy) * inv))};
 }
 
-void MapRenderer::Prepare(ChunkStore& store, uint8_t level, const MapCamera& camera,
+void MapRenderer::Prepare(ChunkStore* store, uint8_t level, const MapCamera& camera,
                           const MapStyle& style, uint32_t frame) {
   const uint32_t start = time_us_ != nullptr ? time_us_() : 0;
   style_ = style;
@@ -115,9 +116,11 @@ void MapRenderer::Prepare(ChunkStore& store, uint8_t level, const MapCamera& cam
   static Seen
       seen[kMaxVisibleChunks];  // NOLINT(*-avoid-c-arrays,*-avoid-non-const-global-variables)
   size_t n_seen = 0;
-  for (size_t i = 0; i < store.Count() && n_seen < kMaxVisibleChunks; ++i) {
-    const StoredChunk c = store.At(i);
-    if (c.id.level != level) {
+  const size_t n_stored = store == nullptr ? 0 : store->Count();
+  for (size_t i = 0; i < n_stored && n_seen < kMaxVisibleChunks; ++i) {
+    const StoredChunk c = store->At(i);
+    const bool quarter_of_l0 = level == 0 && c.id.level == kQuarterLevel;
+    if (c.id.level != level && !quarter_of_l0) {
       continue;
     }
     const float dx = std::max(
@@ -138,7 +141,7 @@ void MapRenderer::Prepare(ChunkStore& store, uint8_t level, const MapCamera& cam
         static_cast<int32_t>(std::lround((cx - static_cast<float>(c.origin_x_m)) / q_m)),
         static_cast<int32_t>(std::lround((cy - static_cast<float>(c.origin_y_m)) / q_m)),
         static_cast<int64_t>(rq * rq) + 1};
-    store.MarkDrawn(i, frame);
+    store->MarkDrawn(i, frame);
     ++n_seen;
   }
   stats_.chunks = static_cast<uint32_t>(n_seen);
@@ -203,6 +206,12 @@ void MapRenderer::Prepare(ChunkStore& store, uint8_t level, const MapCamera& cam
     }
   }
   stats_.shapes = static_cast<uint32_t>(n_shapes_);
+  n_route_ = std::min(route_.count, kMaxRoutePoints);
+  for (size_t i = 0; i < n_route_; ++i) {
+    const RoutePoint& p = route_.points[i];  // NOLINT(*-pointer-arithmetic)
+    route_points_[i] = ProjectMetres(camera, camera.x_m + static_cast<float>(p.x_m),  // NOLINT
+                                     camera.y_m + static_cast<float>(p.y_m));
+  }
   stats_.prepare_us += time_us_ != nullptr ? time_us_() - start : 0;
 }
 
@@ -256,12 +265,21 @@ void MapRenderer::Draw(Canvas& canvas) {
       }
     }
   }
+  // The route over the roads: wider than any road, joints filled.
+  for (size_t i = 1; i < n_route_; ++i) {
+    // NOLINTBEGIN(*-constant-array-index)
+    DrawSegment(canvas, route_points_[i - 1], route_points_[i], route_.width_px, route_.color);
+    if (i + 1 < n_route_) {
+      DrawDot(canvas, route_points_[i], route_.width_px, route_.color);
+    }
+    // NOLINTEND(*-constant-array-index)
+  }
   stats_.lines_us += now() - mark;
 }
 
 MapRenderStats MapRenderer::Render(ChunkStore& store, uint8_t level, const MapCamera& camera,
                                    const MapStyle& style, Canvas& canvas, uint32_t frame) {
-  Prepare(store, level, camera, style, frame);
+  Prepare(&store, level, camera, style, frame);
   Draw(canvas);
   return TakeStats();
 }

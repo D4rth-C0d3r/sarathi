@@ -236,7 +236,7 @@ void test_city_in_strips_matches_one_frame() {
   // LVGL draws in strips: 24 strips of 20 rows into a strip-sized buffer.
   Image strips(480, 480);
   std::vector<uint16_t> strip(480 * 20);
-  renderer->Prepare(*store, 0, cam, style, 99);  // once per frame, as on the device
+  renderer->Prepare(store.get(), 0, cam, style, 99);  // once per frame, as on the device
   for (int32_t top = 0; top < 480; top += 20) {
     Canvas c{strip.data(), 480, 0, top, ClipRect{0, top, 479, top + 19}};
     renderer->Draw(c);
@@ -307,7 +307,7 @@ void test_ghat_strips_match_along_the_motorway() {
     renderer->Render(*store, 0, cam, style, full, 1);
     Image strips(480, 480);
     std::vector<uint16_t> strip(480 * 40);
-    renderer->Prepare(*store, 0, cam, style, 2);
+    renderer->Prepare(store.get(), 0, cam, style, 2);
     for (int32_t top = 0; top < 480; top += 40) {
       Canvas c{strip.data(), 480, 0, top, ClipRect{0, top, 479, top + 39}};
       renderer->Draw(c);
