@@ -5,8 +5,10 @@
 // crowpanel21-chronos, ADR-0005), or our own phone link (env crowpanel21-phone, ADR-0007). Also
 // logs chip, flash and PSRAM info at boot.
 
+#include <array>
 #include <cinttypes>
 #include <cstdint>
+#include <cstdio>
 
 #include <Arduino.h>
 #include <esp_flash.h>
@@ -216,6 +218,20 @@ uint32_t TickMs() { return millis(); }
 
 void* AllocPsram(size_t bytes) { return heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM); }
 
+// LVGL renders in strips of this many rows from one buffer in internal RAM: far faster than
+// full-screen buffers in PSRAM (ADR-0009 "Renderer bench"). PSRAM only if internal RAM is short.
+constexpr int16_t kLvglStripRows = 40;
+const char* lvgl_buffer_place = "internal RAM";  // NOLINT(*-avoid-non-const-global-variables)
+
+void* AllocStrip(size_t bytes) {
+  void* p = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (p == nullptr) {
+    lvgl_buffer_place = "PSRAM (internal RAM short)";
+    p = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
+  }
+  return p;
+}
+
 void LogHello() {
   uint32_t flash_physical = 0;
   if (esp_flash_get_physical_size(esp_flash_default_chip, &flash_physical) != ESP_OK) {
@@ -242,24 +258,35 @@ void LogPerf() {
 #else
   constexpr const char* kBuild = "normal";
 #endif
-  ESP_LOGI(kTag,
-           "perf %s %s | frames %u/%us | frame avg %.1f ms max %.1f ms | flush avg %.1f ms max "
-           "%.1f ms (%u) | heap int %u KB free (min %u, largest %u) | psram %u KB free (min "
-           "%u) | stack free ui %u B, knob %u B",
-           kBuild, ui::app_shell::CurrentScreenName(), static_cast<unsigned>(frames.count),
-           static_cast<unsigned>(kPerfPeriodMs / 1000),
-           static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
-           static_cast<double>(static_cast<float>(frames.max_us) / kMs),
-           static_cast<double>(static_cast<float>(flushes.avg_us) / kMs),
-           static_cast<double>(static_cast<float>(flushes.max_us) / kMs),
-           static_cast<unsigned>(flushes.count),
-           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / kKiB),
-           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / kKiB),
-           static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / kKiB),
-           static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / kKiB),
-           static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
-           static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
-           static_cast<unsigned>(knob.StackFreeBytes()));
+  // Formatted first and written only if the USB port has room: ESP_LOGx waits up to the 1 ms
+  // timeout per write when a host is attached but not reading, which froze the UI for about
+  // 0.3 s every 5 s (seen in the map bench, step G1).
+  static std::array<char, 400> line{};  // NOLINT(*-avoid-non-const-global-variables)
+  const int len = std::snprintf(
+      line.data(), line.size(),
+      "[main] perf %s %s | frames %u/%us | frame avg %.1f ms max %.1f ms | flush avg %.1f ms max "
+      "%.1f ms (%u) | heap int %u KB free (min %u, largest %u) | psram %u KB free (min "
+      "%u) | stack free ui %u B, knob %u B",
+      kBuild, ui::app_shell::CurrentScreenName(), static_cast<unsigned>(frames.count),
+      static_cast<unsigned>(kPerfPeriodMs / 1000),
+      static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
+      static_cast<double>(static_cast<float>(frames.max_us) / kMs),
+      static_cast<double>(static_cast<float>(flushes.avg_us) / kMs),
+      static_cast<double>(static_cast<float>(flushes.max_us) / kMs),
+      static_cast<unsigned>(flushes.count),
+      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / kKiB),
+      static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / kKiB),
+      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / kKiB),
+      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / kKiB),
+      static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
+      static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+      static_cast<unsigned>(knob.StackFreeBytes()));
+  if (len > 0 && static_cast<size_t>(len) < line.size() - 1) {
+    line.at(static_cast<size_t>(len)) = '\n';
+    if (Serial.availableForWrite() > len) {
+      Serial.write(line.data(), static_cast<size_t>(len) + 1);
+    }
+  }
 }
 
 // Wi-Fi setup and OTA: hand jobs to the platform, feed results back (ADR-0004).
@@ -408,13 +435,14 @@ void setup() {
   }
   held_since_boot = knob.ButtonPressed();
   const auto buffer_bytes =
-      static_cast<unsigned>(ui::lvgl_port::BufferBytes(pins::kScreenWidth, pins::kScreenHeight));
+      static_cast<unsigned>(ui::lvgl_port::BufferBytes(pins::kScreenWidth, kLvglStripRows));
   if (!ui::lvgl_port::Init(pins::kScreenWidth, pins::kScreenHeight, FlushToDisplay, ReadTouch,
-                           TickMs, AllocPsram)) {
-    ESP_LOGE(kTag, "LVGL draw buffer alloc failed (2 x %u B in PSRAM); UI disabled", buffer_bytes);
+                           TickMs, AllocStrip, kLvglStripRows)) {
+    ESP_LOGE(kTag, "LVGL draw buffer alloc failed (%u B); UI disabled", buffer_bytes);
     return;
   }
-  ESP_LOGI(kTag, "LVGL ready (2 x %u B buffers in PSRAM)", buffer_bytes);
+  ESP_LOGI(kTag, "LVGL ready (one %u-row strip buffer, %u B, in %s)", kLvglStripRows, buffer_bytes,
+           lvgl_buffer_place);
   ui::lvgl_port::AttachFrameTimer(lv_display_get_default(), TimeUs);
   if (nvs_wifi.Begin()) {
     core::WifiCredentials saved;

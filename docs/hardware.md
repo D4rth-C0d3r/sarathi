@@ -152,8 +152,10 @@ is invisible) and maps with `percent × 255 / 100`, as the demo does. Starts at 
 
 ## LVGL
 
-Two full-screen RGB565 draw buffers (2 × 460,800 B) in PSRAM, allocated once in
-`lvgl_port::Init()`, partial render mode. The flush callback copies
+One RGB565 strip buffer of 40 rows (38,400 B) in internal RAM, allocated once in
+`lvgl_port::Init()`, partial render mode: LVGL renders a frame in 12 strips. This replaced two
+full-screen buffers in PSRAM in Phase 4 step G4.1 (ADR-0009 "Renderer bench": PSRAM bandwidth
+was the limit). It falls back to PSRAM if internal RAM is short. The flush callback copies
 the area into the panel framebuffer with `draw16bitRGBBitmap()`. Labels use
 `lv_label_set_text_static()` with fixed buffers, because `lv_conf.h` routes LVGL's
 allocations to the C heap.

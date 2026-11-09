@@ -230,8 +230,10 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   `Wire.begin(38,39)` → PCF8574 begin → P3 HIGH → LCD reset (P4) → touch reset (P0, P2 HIGH)
   → `gfx->begin()` → MADCTL → backlight on → **P3 LOW** (`VDD_LCD` on) → touch begin
   → `lv_init()`. The wiki and lessons only set P3 HIGH; see `docs/hardware.md`.
-- **LVGL buffers:** 480×480×2 B = 460,800 B each. Allocate two in PSRAM
-  (`MALLOC_CAP_SPIRAM`) once at init, using `LV_DISPLAY_RENDER_MODE_PARTIAL`.
+- **LVGL buffers:** one strip buffer of 40 rows (480×40×2 B = 38,400 B) in internal RAM,
+  allocated once at init, `LV_DISPLAY_RENDER_MODE_PARTIAL`: LVGL draws a frame in 12 strips.
+  Full-screen buffers in PSRAM were too slow for the map (ADR-0009 "Renderer bench"); it falls
+  back to PSRAM only if internal RAM is short.
 - **Image size:** Elecrow's image-heavy demo is about 6 MB, which barely fits our 6 MB OTA
   slots. Keep image assets small; prefer vector shapes and fonts over full-screen bitmaps.
   Theme budget (ADR-0003): no image asset over 16 KB, ≤ 256 KB of images across all themes,
