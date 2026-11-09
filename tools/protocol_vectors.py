@@ -410,7 +410,7 @@ def decode_binary(name: str, data: bytes) -> dict:
         return {"route_id": rid, "version": ver, "entries": entries}
     if name == "chunk":
         (_, level, tx, ty, dver, prov, epoch, ox, oy, q, extent) = r.take("<BBIIIBHiiBH")
-        _limit(level <= 1 and prov in (1, 2) and q >= 1 and extent >= 1, "header")
+        _limit(level <= 2 and prov in (1, 2) and q >= 1 and extent >= 1, "header")
         total = 0
         nl = r.varint()
         _limit(nl <= 4096, "n_lines")
@@ -447,7 +447,7 @@ def decode_binary(name: str, data: bytes) -> dict:
         entries = []
         for _ in range(n):
             level, tx, ty, ver = r.take("<BIII")
-            _limit(level <= 1, "level")
+            _limit(level <= 2, "level")
             entries.append([level, tx, ty, ver])
         r.done()
         return {"epoch": epoch, "entries": entries}
@@ -532,6 +532,8 @@ JSON_VALID = [
     ("lock-default", "phone", {"t": "lock", "enabled": True, "move_kmh": 5, "move_s": 2, "stop_kmh": 3, "stop_s": 5}),
     ("lock-off", "phone", {"t": "lock", "enabled": False, "move_kmh": 10, "move_s": 0, "stop_kmh": 0, "stop_s": 60}),
     ("chunk-ack", "device", {"t": "chunk_ack", "stored": [[0, 11553, 7334, 20261018]], "refused": [[1, 2888, 1833, 20261018, "full"]]}),
+    ("chunk-ack-evicted", "device", {"t": "chunk_ack", "stored": [[2, 23106, 14668, 20261101]], "refused": [],
+                                     "evicted": [[0, 11553, 7334, 20261018], [1, 2888, 1833, 20261018]]}),
     ("flow", "device", {"t": "flow", "window": 32, "consumed": 1}),
     ("style", "device", {"t": "style", "map": "hud", "layers": ["water"]}),
     ("call-action", "device", {"t": "call_action", "action": "reject"}),
@@ -577,6 +579,10 @@ def binary_valid() -> list[tuple[str, str, dict]]:
                                   "lines": [[0, [[0, 0], [500, 40], [1160, 90]]], [2, [[300, -10], [320, 600]]]],
                                   "polys": [[0, [[10, 10], [60, 10], [40, 70]]]]}),
         ("chunk-city", "chunk", _city_chunk()),
+        ("chunk-quarter", "chunk", {"level": 2, "tile_x": 23106, "tile_y": 14668, "data_version": 20261101,
+                                    "provenance": 1, "epoch": 7, "origin_x_m": -1160, "origin_y_m": 0,
+                                    "quantum_dm": 20, "extent": 580,
+                                    "lines": [[5, [[0, 0], [290, 10], [580, 20]]]], "polys": []}),
         ("chunk-have", "chunk_have", {"epoch": 7, "entries": [[0, 11553, 7334, 20261018], [1, 2888, 1833, 20261018]]}),
         ("chunk-have-empty", "chunk_have", {"epoch": 0, "entries": []}),
     ]
@@ -589,6 +595,8 @@ def binary_invalid() -> list[tuple[str, str, str, str]]:
     one_point = bytearray(struct.pack("<BIHBHBB", 1, 1, 0, 0, 7, 0, 10)) + varint(1) + _points([[0, 0]]) + varint(0)
     bad_prov = bytearray(chunk)
     bad_prov[14] = 0  # provenance byte
+    bad_level = bytearray(chunk)
+    bad_level[1] = 3  # level byte: 0-2 are defined
     overlap = encode_binary("traffic", {"route_id": 3, "version": 2, "entries": [[0, 800, 0]]}) \
         + b""  # rebuilt below with an overlap
     overlap = bytearray(struct.pack("<BIH", 1, 3, 2)) + varint(2) + varint(0) + varint(800) + b"\x00" + varint(500) + varint(10) + b"\x01"
@@ -604,6 +612,7 @@ def binary_invalid() -> list[tuple[str, str, str, str]]:
         ("route-out-of-range", "route", (bytearray(struct.pack("<BIHBHBB", 1, 1, 0, 0, 7, 0, 10)) + varint(2)
                                          + _points([[ROUTE_LIMIT - 1, 0], [ROUTE_LIMIT, 0]]) + varint(0)).hex(), "invalid"),
         ("chunk-provenance-0", "chunk", bytes(bad_prov).hex(), "invalid"),
+        ("chunk-level-3", "chunk", bytes(bad_level).hex(), "invalid"),
         ("traffic-overlap", "traffic", bytes(overlap).hex(), "invalid"),
         ("chunk-have-too-many", "chunk_have", bytes(many).hex(), "invalid"),
     ]

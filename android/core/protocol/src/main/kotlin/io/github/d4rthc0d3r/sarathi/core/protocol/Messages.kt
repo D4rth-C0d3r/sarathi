@@ -55,7 +55,7 @@ object MsgType {
 
 object ProtocolVersion {
     const val MAJOR = 1
-    const val MINOR = 1
+    const val MINOR = 2
 }
 
 /** Which side sends a message; the vectors' `direction`. */
@@ -241,10 +241,18 @@ data class ChunkKey(
     val dataVersion: Long,
 ) {
     init {
-        require(level in 0..1) { "level" }
+        require(level in 0..MAX_LEVEL) { "level" }
         requireU32(tileX, "tile_x")
         requireU32(tileY, "tile_y")
         requireU32(dataVersion, "data_version")
+    }
+
+    companion object {
+        /** 0 L0 (z14), 1 L1 (z12), 2 (1.2) a z15 quarter of a dense L0 tile. */
+        const val MAX_LEVEL = 2
+
+        /** Level 2 exists since protocol 1.2: send it only to devices that say so. */
+        const val QUARTER = 2
     }
 }
 

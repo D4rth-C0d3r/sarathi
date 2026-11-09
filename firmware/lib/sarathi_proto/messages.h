@@ -43,7 +43,7 @@ enum class MsgType : uint8_t {
 [[nodiscard]] std::string_view MsgTypeName(uint8_t type);
 
 constexpr uint8_t kProtoMajor = 1;
-constexpr uint8_t kProtoMinor = 1;
+constexpr uint8_t kProtoMinor = 2;
 constexpr size_t kMaxJson = 2048;
 
 enum class Routing : uint8_t { kGoogle, kMappls, kOsmOnline, kOsmOffline };
@@ -214,6 +214,9 @@ struct ChunkAck {
   size_t stored_count = 0;
   const RefusedChunk* refused = nullptr;
   size_t refused_count = 0;
+  // 1.2: chunks dropped from the cache since the last chunk_ack; written only when there are any.
+  const ChunkKey* evicted = nullptr;
+  size_t evicted_count = 0;
 };
 
 struct Flow {

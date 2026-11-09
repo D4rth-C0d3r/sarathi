@@ -1,4 +1,4 @@
-# sārathi phone ↔ device protocol, version 1.1
+# sārathi phone ↔ device protocol, version 1.2
 
 The protocol between the sārathi Android app ("phone") and the dash ("device"), decided in
 ADR-0007. This file is the specification. JSON Schemas for the JSON messages are in
@@ -171,7 +171,7 @@ Unknown types are ignored (versioning, section 6).
 
 | Message | Fields | When |
 |---|---|---|
-| `hello` | `proto` [major, minor] = [1, 1]; `app` app version (≤ 32 B); `caps` list of strings from `google`, `mappls`, `osm`, `offline`, `traffic`, `calls`, `media` | First message after connecting (Write with response) |
+| `hello` | `proto` [major, minor] = [1, 2]; `app` app version (≤ 32 B); `caps` list of strings from `google`, `mappls`, `osm`, `offline`, `traffic`, `calls`, `media` | First message after connecting (Write with response) |
 | `time` | `local` local time `YYYY-MM-DDTHH:MM:SS`; `utc_offset_min` −720…840 | After `hello`, then every 10 min |
 | `phone_batt` | `level` 0–100; `charging` bool | After `hello`, then on change |
 | `frame` | `epoch` 0–65,535 | At ride start and when re-anchoring (ADR-0009) |
@@ -205,10 +205,10 @@ An unknown `m` (a newer minor version) is drawn as `straight`.
 
 | Message | Fields | When |
 |---|---|---|
-| `hello` | `proto` [1, 1]; `fw` firmware version (≤ 16 B); `seq` firmware seq; `caps`: `styles` (list of map style names), `chunk_kb` chunk cache size, `max_msg` (15,360); `route`: `{ "id", "v" }` of the route it holds, or `null`; `epoch` it holds, or `null` | Reply to the phone's `hello` |
+| `hello` | `proto` [1, 2]; `fw` firmware version (≤ 16 B); `seq` firmware seq; `caps`: `styles` (list of map style names), `chunk_kb` chunk cache size, `max_msg` (15,360); `route`: `{ "id", "v" }` of the route it holds, or `null`; `epoch` it holds, or `null` | Reply to the phone's `hello` |
 | `flow` | `window` 1–64 frames; `consumed` u32 | See section 1 |
 | `style` | `map` active map style (`classic`, `hud`, `racing`, `minimal`); `layers` list from `water`, `parks` | After `hello`, then on change |
-| `chunk_ack` | `stored` list of keys `[level, tile_x, tile_y, data_version]`; `refused` list of `[level, tile_x, tile_y, data_version, reason]`, reason `full`, `invalid`, `epoch` | After receiving chunks (batched, at most every 500 ms) |
+| `chunk_ack` | `stored` list of keys `[level, tile_x, tile_y, data_version]`; `refused` list of `[level, tile_x, tile_y, data_version, reason]`, reason `full`, `invalid`, `epoch`; `evicted` (1.2, optional) list of keys the device dropped from its cache to make room since its last `chunk_ack`, so the phone sends them again when the rider comes back | After receiving chunks (batched, at most every 500 ms) |
 | `call_action` | `action` `accept` or `reject` | Knob press on the call screen |
 | `media_cmd` | `cmd` `play_pause`, `next` or `prev` | Knob press on the music screen |
 
@@ -271,7 +271,7 @@ An unknown `m` (a newer minor version) is drawn as `straight`.
 | Field | Type | Meaning |
 |---|---|---|
 | `ver` | u8 | 1 |
-| `level` | u8 | 0 = L0 (z14 tile), 1 = L1 (z12 tile) |
+| `level` | u8 | 0 = L0 (z14 tile), 1 = L1 (z12 tile), 2 (1.2) = one z15 quarter of an L0 tile too dense for one message: `tile_x`, `tile_y` at z15, L0's classes and quantum, drawn with L0. A phone sends level 2 only to a device whose `hello` says 1.2 or later; a 1.1 device drops it as `invalid`. |
 | `tile_x`, `tile_y` | u32, u32 | Tile coordinates at the level's zoom |
 | `data_version` | u32 | Version of the source data (for example `20261018` for the OpenFreeMap build of that day) |
 | `provenance` | u8 | 1 `osm_openfreemap`, 2 `osm_protomaps_offline`. 0 is invalid. Only OSM-derived data is ever sent as a chunk. |
@@ -285,7 +285,7 @@ An unknown `m` (a newer minor version) is drawn as `straight`.
 | polygons | `kind` u8, `n` varint (3–1,024), points as zigzag varint pairs | Kind 0 water, 1 park. One closed outer ring; the last point isn't repeated. |
 
 Limits across a chunk: at most 8,192 points in total, within the 15,360-byte message limit.
-The phone splits a denser tile into more chunks, at the next zoom level.
+The phone sends a denser L0 tile as its four z15 quarters (level 2), each clipped to its quarter.
 
 ### `chunk_have` (0x44, device → phone)
 
@@ -294,7 +294,7 @@ The phone splits a denser tile into more chunks, at the next zoom level.
 | `ver` | u8 | 1 |
 | `epoch` | u16 | The device's current ride frame (0 if none) |
 | `n` | varint | 0–512 |
-| entries | `level` u8, `tile_x` u32, `tile_y` u32, `data_version` u32 | The chunks it holds |
+| entries | `level` u8 (0–2), `tile_x` u32, `tile_y` u32, `data_version` u32 | The chunks it holds |
 
 ## 5. Sequences
 
@@ -351,7 +351,9 @@ lock for movement.
   says.
 - **Binary layouts change only with a new `ver` byte.**
 - **History:** 1.0 (2026-10-31), the first version. 1.1 (2026-10-31) adds `lock`; a 1.0 peer
-  ignores it and the device keeps its defaults.
+  ignores it and the device keeps its defaults. 1.2 (2026-11-09) adds chunk level 2 (z15
+  quarters of dense L0 tiles, sent only to 1.2 devices) and `chunk_ack`'s optional `evicted`
+  list (ADR-0009, Phase 4 step G3); a 1.1 phone ignores the list.
 
 ## 7. Rates (typical)
 

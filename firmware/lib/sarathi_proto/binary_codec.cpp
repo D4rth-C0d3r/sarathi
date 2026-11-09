@@ -357,8 +357,8 @@ BinError DecodeChunk(const uint8_t* data, size_t size, Chunk* out, Buffer<ChunkS
   if (!r.U8(&m.key.level) || !r.U32(&m.key.tile_x) || !r.U32(&m.key.tile_y) ||
       !r.U32(&m.key.data_version) || !r.U8(&m.provenance) || !r.U16(&m.epoch) ||
       !r.I32(&m.origin_x_m) || !r.I32(&m.origin_y_m) || !r.U8(&m.quantum_dm) || !r.U16(&m.extent) ||
-      m.key.level > 1 || (m.provenance != 1 && m.provenance != 2) || m.quantum_dm < 1 ||
-      m.extent < 1) {
+      m.key.level > kMaxChunkLevel || (m.provenance != 1 && m.provenance != 2) ||
+      m.quantum_dm < 1 || m.extent < 1) {
     return BinError::kInvalid;
   }
   size_t n_shapes = 0;

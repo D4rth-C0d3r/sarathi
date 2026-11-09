@@ -162,6 +162,13 @@
    "canonical": "{\"t\":\"chunk_ack\",\"stored\":[[0,11553,7334,20261018]],\"refused\":[[1,2888,1833,20261018,\"full\"]]}"
   },
   {
+   "name": "chunk-ack-evicted",
+   "direction": "device",
+   "type": 16,
+   "payload": "{\"t\":\"chunk_ack\",\"stored\":[[2,23106,14668,20261101]],\"refused\":[],\"evicted\":[[0,11553,7334,20261018],[1,2888,1833,20261018]]}",
+   "canonical": "{\"t\":\"chunk_ack\",\"stored\":[[2,23106,14668,20261101]],\"refused\":[],\"evicted\":[[0,11553,7334,20261018],[1,2888,1833,20261018]]}"
+  },
+  {
    "name": "flow",
    "direction": "device",
    "type": 17,

@@ -551,7 +551,8 @@ size_t EncodeJson(const HelloDevice& m, char* out, size_t capacity) {
 size_t EncodeJson(const ChunkAck& m, char* out, size_t capacity) {
   if (m.stored_count > kMaxAckEntries || m.refused_count > kMaxAckEntries ||
       (m.stored_count > 0 && m.stored == nullptr) ||
-      (m.refused_count > 0 && m.refused == nullptr)) {
+      (m.refused_count > 0 && m.refused == nullptr) || m.evicted_count > kMaxAckEntries ||
+      (m.evicted_count > 0 && m.evicted == nullptr)) {
     return 0;
   }
   JsonWriter w = Begin(out, capacity, MsgType::kChunkAck);
@@ -574,6 +575,16 @@ size_t EncodeJson(const ChunkAck& m, char* out, size_t capacity) {
     w.EndArray();
   }
   w.EndArray();
+  if (m.evicted_count > 0) {
+    w.Key("evicted");
+    w.BeginArray();
+    for (size_t i = 0; i < m.evicted_count; ++i) {
+      w.BeginArray();
+      WriteKey(w, m.evicted[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      w.EndArray();
+    }
+    w.EndArray();
+  }
   return Done(w);
 }
 

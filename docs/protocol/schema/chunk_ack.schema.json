@@ -15,7 +15,7 @@
           {
             "type": "integer",
             "minimum": 0,
-            "maximum": 1
+            "maximum": 2
           },
           {
             "type": "integer",
@@ -46,7 +46,7 @@
           {
             "type": "integer",
             "minimum": 0,
-            "maximum": 1
+            "maximum": 2
           },
           {
             "type": "integer",
@@ -75,6 +75,38 @@
         "minItems": 5
       },
       "maxItems": 64
+    },
+    "evicted": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        ],
+        "items": false,
+        "minItems": 4
+      },
+      "maxItems": 64,
+      "description": "1.2: keys the device dropped to make room since its last chunk_ack"
     }
   },
   "required": [

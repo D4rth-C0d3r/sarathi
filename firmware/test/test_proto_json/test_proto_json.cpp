@@ -94,6 +94,9 @@ std::map<std::string, std::string> DeviceMessages() {
   const ChunkKey stored{0, 11553, 7334, 20261018};
   const RefusedChunk refused{{1, 2888, 1833, 20261018}, RefuseReason::kFull};
   out["chunk-ack"] = Encode(ChunkAck{&stored, 1, &refused, 1});
+  const ChunkKey quarter{2, 23106, 14668, 20261101};
+  const ChunkKey evicted[] = {{0, 11553, 7334, 20261018}, {1, 2888, 1833, 20261018}};
+  out["chunk-ack-evicted"] = Encode(ChunkAck{&quarter, 1, nullptr, 0, evicted, 2});
   out["flow"] = Encode(Flow{32, 1});
   out["style"] = Encode(Style{MapStyle::kHud, Bit(MapLayer::kWater)});
   out["call-action"] = Encode(CallAction{CallChoice::kReject});

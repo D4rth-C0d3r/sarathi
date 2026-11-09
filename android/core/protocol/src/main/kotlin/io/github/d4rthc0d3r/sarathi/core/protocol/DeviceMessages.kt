@@ -101,11 +101,15 @@ data class RefusedChunk(
 data class ChunkAck(
     val stored: List<ChunkKey>,
     val refused: List<RefusedChunk>,
+    /** 1.2: chunks the device dropped to make room since its last `chunk_ack`; resend them later. */
+    val evicted: List<ChunkKey> = emptyList(),
 ) : JsonMessage {
     override val type get() = MsgType.CHUNK_ACK
 
     init {
-        require(stored.size <= MAX_ENTRIES && refused.size <= MAX_ENTRIES) { "over $MAX_ENTRIES entries" }
+        require(stored.size <= MAX_ENTRIES && refused.size <= MAX_ENTRIES && evicted.size <= MAX_ENTRIES) {
+            "over $MAX_ENTRIES entries"
+        }
     }
 
     override fun write(w: CanonicalJsonWriter) {
@@ -126,6 +130,16 @@ data class ChunkAck(
             w.endArray()
         }
         w.endArray()
+        if (evicted.isNotEmpty()) {
+            w.key("evicted")
+            w.beginArray()
+            evicted.forEach {
+                w.beginArray()
+                w.chunkKey(it)
+                w.endArray()
+            }
+            w.endArray()
+        }
     }
 
     companion object {
@@ -141,6 +155,7 @@ data class ChunkAck(
                         wireValue(Fields.textOf((it as JsonArray).items[KEY_ITEMS], "reason")),
                     )
                 },
+                if (f.has("evicted")) f.array("evicted").map { readKey(it, KEY_ITEMS) } else emptyList(),
             )
 
         private fun readKey(
@@ -151,7 +166,7 @@ data class ChunkAck(
             require(items.size == size) { "chunk key: $size items" }
             val n = items.map { (it as? JsonNumber)?.toLongOrNull() }
             return ChunkKey(
-                Fields.longOf(items[0], 0L..1L, "level").toInt(),
+                Fields.longOf(items[0], 0L..ChunkKey.MAX_LEVEL.toLong(), "level").toInt(),
                 requireNotNull(n[1]) { "tile_x" },
                 requireNotNull(n[2]) { "tile_y" },
                 requireNotNull(n[KEY_ITEMS - 1]) { "data_version" },

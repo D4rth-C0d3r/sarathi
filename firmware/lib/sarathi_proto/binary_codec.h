@@ -24,6 +24,8 @@ constexpr size_t kMaxShapePoints = 1024;
 constexpr size_t kMaxChunkPoints = 8192;
 constexpr int32_t kChunkOverscan = 64;  // coordinates may stray this far outside the extent
 constexpr size_t kMaxChunkHave = 512;
+constexpr uint8_t kMaxChunkLevel =
+    2;  // 0 L0 (z14), 1 L1 (z12), 2 (1.2) a z15 quarter of an L0 tile
 
 enum class BinError : uint8_t {
   kNone,
