@@ -39,6 +39,7 @@ Before finishing any Android change, run both check lines and report the result.
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
 | `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard, search service, recents and saved places (ADR-0006, ADR-0008) |
 | `:core:links` | **pure Kotlin/JVM** | Shared links and text: parsing, offline short codes, redirect rules (ADR-0008) |
+| `:core:mapdata` | **pure Kotlin/JVM** | Vector tiles to the device's map chunks (ADR-0009): tile reader, clip, merge, simplify, projection; matches `tools/make_chunks.py` byte for byte |
 | `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
 | `:feature:destination` | Android library | Search screen, recents and saved places, shared links to places and routes (ADR-0008) |
 | `:feature:navigation` | Android library | Ferrostar's guidance engine behind `core:maps`' `GuidanceEngine` (Google's lives in `:maps:google`) |
