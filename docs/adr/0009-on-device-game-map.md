@@ -321,3 +321,35 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
   - **Bench headroom:** 5 MB of PSRAM free.
 - **Decision:** the map draws in strips from one internal-RAM buffer. The rest of the app moves
   to the same buffers once its internal RAM is checked with Bluetooth running (step G4).
+
+## Chunk sync (Phase 4 step G3, 2026-11-09)
+
+- **Protocol 1.2:**
+  - `chunk_ack` lists the chunks the dash evicted.
+  - Level 2 chunks are z15 quarters of L0 tiles too dense for one message, sent only to 1.2
+    dashes.
+- **The phone (`link/ChunkSender`):**
+  - **What to send:** `core:mapdata`'s `Corridor` plans, most urgent first:
+    1. L0 tiles within 1.5 km and L1 tiles within 5 km of the rider
+    2. L0 tiles within 700 m of the next 10 km of route, with their L1 tiles
+    3. L1 tiles along the rest of the route
+  - **Pacing:** one chunk in flight at a time, as a bulk message (single-frame messages go
+    between its frames), waiting for its `chunk_ack`.
+  - **What the dash holds:** tracked from `chunk_have` and the acknowledgements, so a reconnect
+    resends only what's missing.
+- **The dash:**
+  - keeps chunks in its 1.5 MB store, never evicting within 3 km of the rider
+  - acknowledges at most every 500 ms
+  - drops everything on a new ride frame
+- **Measured on the phone and dash:** the recorded Panaji–Calangute ride (Mappls), replayed at
+  108 km/h, with OpenFreeMap online and the dash's cache emptied first:
+
+| | Measured | ADR-0009's budget |
+|---|---|---|
+| Ride start | 21 chunks, 67 KB, in the first 10 s (6.6 KB/s) | about 80 KB in 10 s |
+| Steady, 108 km/h | 16 KB in the next 194 s: **about 85 B/s** | 60–100 B/s for chunks |
+| Refused, evicted | none; 180 KB of the 1.5 MB store used after 5 minutes | — |
+
+- **Guidance wasn't delayed:** `nav` kept coming every second through the start-up burst, with
+  no "Position stale" or "Navigation stale".
+- **Stress test:** at ×20 (1,080 km/h), 96 KB arrived in the first minute, with nothing refused.

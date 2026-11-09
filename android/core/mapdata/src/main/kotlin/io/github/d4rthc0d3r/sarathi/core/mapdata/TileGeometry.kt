@@ -3,6 +3,18 @@ package io.github.d4rthc0d3r.sarathi.core.mapdata
 import kotlin.math.max
 import kotlin.math.min
 
+/** A rectangle in tile units: the whole tile, or a quarter of it (chunk level 2). */
+internal data class TileRect(
+    val minX: Double,
+    val minY: Double,
+    val maxX: Double,
+    val maxY: Double,
+) {
+    companion object {
+        val FULL = TileRect(0.0, 0.0, TileGeometry.EXTENT, TileGeometry.EXTENT)
+    }
+}
+
 /**
  * Geometry in tile units (0..4096, y down), exactly as tools/make_chunks.py does it: the same
  * order of work and the same arithmetic, so the phone's chunks match the reference byte for byte.
@@ -17,7 +29,10 @@ internal object TileGeometry {
     ) = TilePoint(x + 0.0, y + 0.0)
 
     /** Parts of a polyline inside the tile (Liang-Barsky per segment). */
-    fun clipLine(points: List<TilePoint>): List<List<TilePoint>> {
+    fun clipLine(
+        points: List<TilePoint>,
+        rect: TileRect = TileRect.FULL,
+    ): List<List<TilePoint>> {
         val parts = mutableListOf<List<TilePoint>>()
         var current = mutableListOf<TilePoint>()
         for (k in 0 until points.size - 1) {
@@ -25,7 +40,7 @@ internal object TileGeometry {
             val (x1, y1) = points[k + 1]
             val dx = x1 - x0
             val dy = y1 - y0
-            val range = clipRange(dx, dy, x0, y0)
+            val range = clipRange(dx, dy, x0, y0, rect)
             if (range == null) {
                 if (current.size >= 2) parts += current
                 current = mutableListOf()
@@ -54,10 +69,12 @@ internal object TileGeometry {
         dy: Double,
         x0: Double,
         y0: Double,
+        rect: TileRect,
     ): Pair<Double, Double>? {
         var t0 = 0.0
         var t1 = 1.0
-        val edges = arrayOf(-dx to x0, dx to EXTENT - x0, -dy to y0, dy to EXTENT - y0)
+        // With the whole tile, x0 - 0.0 is x0 exactly: the same arithmetic as the reference.
+        val edges = arrayOf(-dx to x0 - rect.minX, dx to rect.maxX - x0, -dy to y0 - rect.minY, dy to rect.maxY - y0)
         var outside = false
         for ((p, q) in edges) {
             if (outside) break
@@ -73,16 +90,19 @@ internal object TileGeometry {
     }
 
     /** Sutherland-Hodgman against the tile's four edges. */
-    fun clipPolygon(ring: List<TilePoint>): List<TilePoint> {
+    fun clipPolygon(
+        ring: List<TilePoint>,
+        rect: TileRect = TileRect.FULL,
+    ): List<TilePoint> {
         fun atX(xe: Double) = { a: TilePoint, b: TilePoint -> pt(xe, a.y + (b.y - a.y) * (xe - a.x) / (b.x - a.x)) }
 
         fun atY(ye: Double) = { a: TilePoint, b: TilePoint -> pt(a.x + (b.x - a.x) * (ye - a.y) / (b.y - a.y), ye) }
         val passes =
             listOf<Pair<(TilePoint) -> Boolean, (TilePoint, TilePoint) -> TilePoint>>(
-                { p: TilePoint -> p.x >= 0 } to atX(0.0),
-                { p: TilePoint -> p.x <= EXTENT } to atX(EXTENT),
-                { p: TilePoint -> p.y >= 0 } to atY(0.0),
-                { p: TilePoint -> p.y <= EXTENT } to atY(EXTENT),
+                { p: TilePoint -> p.x >= rect.minX } to atX(rect.minX),
+                { p: TilePoint -> p.x <= rect.maxX } to atX(rect.maxX),
+                { p: TilePoint -> p.y >= rect.minY } to atY(rect.minY),
+                { p: TilePoint -> p.y <= rect.maxY } to atY(rect.maxY),
             )
         var pts = ring
         for ((inside, cross) in passes) {

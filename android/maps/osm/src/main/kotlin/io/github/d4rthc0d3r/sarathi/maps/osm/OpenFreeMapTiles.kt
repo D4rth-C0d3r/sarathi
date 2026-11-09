@@ -14,21 +14,31 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 
 /**
  * OpenFreeMap's vector tiles (ADR-0009): no key and no request limits. The TileJSON names the
  * current planet build; its date is the data version every chunk carries. Rechecked hourly.
+ * Without signal it fails fast: short timeouts, and for [BACKOFF_MS] after a failure it doesn't
+ * try at all, so the map falls back to the cache and the offline region at once.
  */
 class OpenFreeMapTiles(
-    private val http: OkHttpClient,
+    http: OkHttpClient,
     private val userAgent: String,
     private val tileJsonUrl: String = TILEJSON,
     private val now: () -> Long = System::currentTimeMillis,
 ) : TileSource {
     override val schema = MapSchema.OpenMapTiles
 
+    private val http =
+        http
+            .newBuilder()
+            .connectTimeout(TIMEOUT_S, TimeUnit.SECONDS)
+            .readTimeout(TIMEOUT_S, TimeUnit.SECONDS)
+            .build()
     private val lock = Mutex()
+    private var failedAt: Long? = null
     private var template: String? = null
     private var version: Long? = null
     private var checkedAt = 0L
@@ -59,7 +69,17 @@ class OpenFreeMapTiles(
         return get(url)?.let(::gunzipIfNeeded)
     }
 
-    private suspend fun get(url: String): ByteArray? =
+    private suspend fun get(url: String): ByteArray? {
+        failedAt?.let { if (now() - it < BACKOFF_MS) throw IOException("no signal a moment ago") }
+        return try {
+            fetch(url).also { failedAt = null }
+        } catch (e: IOException) {
+            failedAt = now()
+            throw e
+        }
+    }
+
+    private suspend fun fetch(url: String): ByteArray? =
         runInterruptible(Dispatchers.IO) {
             val request =
                 Request
@@ -83,6 +103,8 @@ class OpenFreeMapTiles(
         const val TILEJSON = "https://tiles.openfreemap.org/planet"
         const val ATTRIBUTION = "© OpenMapTiles, data from OpenStreetMap"
         private const val RECHECK_MS = 60 * 60 * 1000L
+        private const val TIMEOUT_S = 5L
+        const val BACKOFF_MS = 60_000L
         private const val HTTP_NOT_FOUND = 404
         private const val HTTP_NO_CONTENT = 204
         private const val VERSION_DIGITS = 8

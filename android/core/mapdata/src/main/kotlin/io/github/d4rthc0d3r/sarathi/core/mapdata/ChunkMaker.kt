@@ -91,6 +91,7 @@ object ChunkMaker {
     private const val POLYGON = 3
     private const val PARK = MapSchema.PARK
     private const val MIN_RING = 3
+    private const val QUARTER_LEVEL = 2 // protocol 1.2
 
     fun shapes(
         tile: Map<String, List<TileFeature>>,
@@ -156,6 +157,51 @@ object ChunkMaker {
         frame: RideFrame,
         epoch: Int,
     ): Chunk {
+        val key = ChunkKey(shapes.level.code, shapes.tileX.toLong(), shapes.tileY.toLong(), shapes.dataVersion)
+        return chunkOfRect(shapes, shapes.lines, shapes.polys, TileRect.FULL, key, frame, epoch)
+    }
+
+    /**
+     * An L0 tile too dense for one message as its four z15 quarters (protocol 1.2, level 2), each
+     * clipped to its quarter. Only for devices that say 1.2 or later in hello.
+     */
+    fun quarters(
+        shapes: TileShapes,
+        frame: RideFrame,
+        epoch: Int,
+    ): List<Chunk> {
+        require(shapes.level == MapLevel.L0) { "only L0 tiles are split" }
+        val half = EXTENT / 2
+        return listOf(0 to 0, 1 to 0, 0 to 1, 1 to 1).map { (qx, qy) ->
+            val rect = TileRect(qx * half, qy * half, (qx + 1) * half, (qy + 1) * half)
+            val lines =
+                shapes.lines.flatMap { s ->
+                    TileGeometry.clipLine(s.points, rect).map { TileShape(s.kind, it) }
+                }
+            val polys =
+                shapes.polys.mapNotNull { s ->
+                    TileGeometry
+                        .clipPolygon(
+                            s.points,
+                            rect,
+                        ).takeIf { it.size >= MIN_RING }
+                        ?.let { TileShape(s.kind, it) }
+                }
+            val key = ChunkKey(QUARTER_LEVEL, 2L * shapes.tileX + qx, 2L * shapes.tileY + qy, shapes.dataVersion)
+            chunkOfRect(shapes, lines, polys, rect, key, frame, epoch)
+        }
+    }
+
+    @Suppress("LongParameterList") // the parts of one chunk; kept apart so quarters reuse it
+    private fun chunkOfRect(
+        shapes: TileShapes,
+        roads: List<TileShape>,
+        areas: List<TileShape>,
+        rect: TileRect,
+        key: ChunkKey,
+        frame: RideFrame,
+        epoch: Int,
+    ): Chunk {
         val level = shapes.level
         val z = level.zoom
         val q = level.quantumM
@@ -163,8 +209,9 @@ object ChunkMaker {
             val (lat, lon) = tileToLatLon(z, shapes.tileX, shapes.tileY, u, v)
             frame.project(lat, lon)
         }
-        val sw = project(0.0, EXTENT)
-        val ne = project(EXTENT, 0.0)
+        // The origin is the south-west corner; tile y grows southwards.
+        val sw = project(rect.minX, rect.maxY)
+        val ne = project(rect.maxX, rect.minY)
         val ox = roundHalfUp(sw.x)
         val oy = roundHalfUp(sw.y)
         val extent = ceil(max(ne.x - sw.x, ne.y - sw.y) / q).toInt()
@@ -178,7 +225,7 @@ object ChunkMaker {
             out
         }
         val lines = mutableListOf<Shape>()
-        for (s in shapes.lines) {
+        for (s in roads) {
             val qp = quantize(s.points)
             var start = 0
             while (start < qp.size - 1) {
@@ -188,7 +235,7 @@ object ChunkMaker {
             }
         }
         val polys = mutableListOf<Shape>()
-        for (s in shapes.polys) {
+        for (s in areas) {
             var qr: List<Point> = quantize(s.points)
             if (qr.size > 1 && qr.first() == qr.last()) qr = qr.dropLast(1)
             if (qr.size >= MIN_RING &&
@@ -198,7 +245,7 @@ object ChunkMaker {
             }
         }
         return Chunk(
-            key = ChunkKey(level.code, shapes.tileX.toLong(), shapes.tileY.toLong(), shapes.dataVersion),
+            key = key,
             provenance = shapes.provenance,
             epoch = epoch,
             originXM = ox,

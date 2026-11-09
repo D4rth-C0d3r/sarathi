@@ -29,7 +29,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -54,6 +56,11 @@ class RideNavigation(
     private val fixes: Flow<MapsFix> = pose.fixes
 
     private val outbox = Channel<Any>(OUTBOX)
+
+    private val _route = MutableStateFlow<Route?>(null)
+
+    /** The route being ridden (rerouted ones too), for the map chunks; null without a ride. */
+    val route: StateFlow<Route?> = _route.asStateFlow()
     private val jobs = mutableListOf<Job>()
     private var ride: Ride? = null
 
@@ -116,6 +123,7 @@ class RideNavigation(
             guidance.start(plan.route, plan.request)
             events()
             rideJobs += scope.launch { fixes.collect { guidance.update(it) } }
+            rideJobs += scope.launch { guidance.route.collect { _route.value = it } }
             rideJobs +=
                 scope.launch {
                     guidance.route
@@ -144,6 +152,7 @@ class RideNavigation(
             rideJobs.forEach { it.cancel() }
             guidance.stop()
             pose.simulate(false)
+            _route.value = null
             ActiveRide.publish(null)
         }
 

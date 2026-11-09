@@ -2,6 +2,7 @@ package io.github.d4rthc0d3r.sarathi.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -31,11 +32,16 @@ fun ReplayCard(
                 stringResource(R.string.replay_detail, replay.backend, replay.km),
                 style = MaterialTheme.typography.bodySmall,
             )
-            OutlinedButton(
-                onClick = { onReplay(REPLAY_SPEEDUP) },
-            ) { Text(stringResource(R.string.replay_button, REPLAY_SPEEDUP)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // ×2 is about 108 km/h: the map's bandwidth at highway speed (step G3).
+                for (speedup in REPLAY_SPEEDUPS) {
+                    OutlinedButton(
+                        onClick = { onReplay(speedup) },
+                    ) { Text(stringResource(R.string.replay_button, speedup)) }
+                }
+            }
         }
     }
 }
 
-private const val REPLAY_SPEEDUP = 20
+private val REPLAY_SPEEDUPS = listOf(2, 20) // simulated rides go 54 km/h before the speed-up

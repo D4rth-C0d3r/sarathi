@@ -40,6 +40,7 @@ class RideSession(
     private var calls: CallsFeature? = null
     private var pose: PoseSender? = null
     private var navigation: RideNavigation? = null
+    private var chunks: ChunkSender? = null
     private val timeWatcher = TimeWatcher(context) { send(timeNow()) }
 
     fun start() {
@@ -72,13 +73,17 @@ class RideSession(
         // Guidance needs position: the ride follows ActiveRide only once there is any.
         val p = pose
         if (navigation == null && p != null) {
-            navigation = RideNavigation(context, dash, scope, p).also { it.start() }
+            val nav = RideNavigation(context, dash, scope, p).also { it.start() }
+            navigation = nav
+            chunks = ChunkSender(context, dash, scope, p, nav.route).also { it.start() }
         }
     }
 
     val positionActive: Boolean get() = pose != null
 
     fun stop() {
+        chunks?.stop()
+        chunks = null
         navigation?.stop()
         navigation = null
         pose?.stop()
