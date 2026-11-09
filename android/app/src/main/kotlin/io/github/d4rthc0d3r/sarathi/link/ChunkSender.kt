@@ -49,7 +49,13 @@ class ChunkSender(
 
     fun start() {
         jobs += scope.launch { pose.fixes.collect { rider = GeoPoint(it.at.lat, it.at.lng) } }
-        jobs += scope.launch { dash.chunkHave.collect { held.reset(it.epoch, it.entries) } }
+        jobs +=
+            scope.launch {
+                dash.chunkHave.collect {
+                    held.reset(it.epoch, it.entries)
+                    Log.i(TAG, "map: the dash holds ${it.entries.size} chunks (frame ${it.epoch})")
+                }
+            }
         jobs +=
             scope.launch {
                 dash.received.collect { m ->
