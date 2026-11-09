@@ -18,7 +18,7 @@ const ThemeDescriptor kRacingTheme = {
         0xFFD60A,  // warning
         0xFF2D2D,  // danger
         0xFFD60A,  // route_line
-        0x5C5030,  // route_behind
+        0x6E6038,  // route_behind
         0xFFD60A,  // maneuver
         0xFFFFFF,  // rider
         0xFF7A00,  // traffic_slow
@@ -40,6 +40,18 @@ const ThemeDescriptor kRacingTheme = {
         64,  // list_row_height_px
     },
     Ornament::kRacingTach,
+    // Map: neon, thin bright purple roads over a wider dim glow; the route in yellow.
+    ThemeMapStyle{
+        0x0B0B0D,  // ground
+        true,      // fill_areas
+        0x0B2A44,  // water
+        0x0E2A1A,  // park
+        {0xB04CFF, 0xB04CFF, 0x9A3FE6, 0x8434CC, 0x6E2BAD, 0x58228A, 0x431A6A},
+        {3, 3, 2, 2, 2, 1, 1},
+        4,  // glow_extra_px
+        {0x3A1A55, 0x3A1A55, 0x33174B, 0x2C1441, 0x251137, 0x1E0E2D, 0x170B23},
+        2,  // route_casing_px
+    },
 };
 
 }  // namespace sarathi::core

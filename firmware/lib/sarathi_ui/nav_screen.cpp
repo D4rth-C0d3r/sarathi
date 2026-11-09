@@ -10,6 +10,7 @@
 #include "maneuver_arrow.h"
 #include "map_follow.h"
 #include "map_style.h"
+#include "map_theme.h"
 #include "map_view.h"
 #include "nav_status.h"
 #include "nav_zoom.h"
@@ -142,23 +143,15 @@ void UpdateMapNote(uint32_t now_ms) {
   }
 }
 
-// The route by traffic level (ADR-0009), never by colour alone: free solid in the route colour;
-// slow long dashes; jam wider with cross-ticks; unknown thinner and dimmed. A stale route is dim.
+// The route by traffic level, from the theme (core::RouteLookFor, checked by the legibility
+// tests): never by colour alone.
 using RouteStyles4 = core::MapRouteStyle[core::kTrafficLevels];  // NOLINT(*-avoid-c-arrays)
 const RouteStyles4& RouteStyles(const core::ThemeDescriptor& t, bool stale) {
   static RouteStyles4 styles;  // NOLINT(*-avoid-non-const-global-variables)
-  constexpr uint8_t kJamExtraPx = 4;
-  constexpr uint8_t kUnknownLessPx = 2;
-  const uint8_t w = t.components.route_line_px;
-  const auto dim = [&](core::Rgb c) { return theme::Pixel(stale ? t.palette.route_behind : c); };
-  using core::RoutePattern;
-  styles[0] = {dim(t.palette.route_line), w, RoutePattern::kSolid};
-  styles[1] = {dim(t.palette.traffic_slow), w, RoutePattern::kDashed};
-  styles[2] = {dim(t.palette.traffic_jam), static_cast<uint8_t>(w + kJamExtraPx),
-               RoutePattern::kTicks};
-  styles[3] = {theme::Pixel(t.palette.route_behind),
-               static_cast<uint8_t>(w > kUnknownLessPx + 1 ? w - kUnknownLessPx : w),
-               RoutePattern::kSolid};
+  for (size_t i = 0; i < core::kTrafficLevels; ++i) {
+    const core::RouteLook look = core::RouteLookFor(t, static_cast<core::TrafficLevel>(i), stale);
+    styles[i] = {theme::Pixel(look.color), look.width_px, look.pattern};  // NOLINT
+  }
   return styles;
 }
 

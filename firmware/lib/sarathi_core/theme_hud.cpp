@@ -40,6 +40,18 @@ const ThemeDescriptor kFighterHudTheme = {
         60,  // list_row_height_px
     },
     Ornament::kHudReticle,
+    // Map: wireframe, thin single strokes in dim HUD green, no fills; the route brighter.
+    ThemeMapStyle{
+        0x000000,  // ground
+        false,     // fill_areas
+        0x000000,  // water (not drawn)
+        0x000000,  // park (not drawn)
+        {0x2E7D2E, 0x2E7D2E, 0x276927, 0x205720, 0x1A471A, 0x143814, 0x0F2A0F},
+        {2, 2, 2, 1, 1, 1, 1},
+        0,  // glow_extra_px
+        {},
+        2,  // route_casing_px
+    },
 };
 
 }  // namespace sarathi::core

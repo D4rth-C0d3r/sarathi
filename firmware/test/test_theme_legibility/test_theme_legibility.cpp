@@ -3,6 +3,7 @@
 #include <unity.h>
 
 #include "legibility.h"
+#include "map_theme.h"
 #include "ornament.h"
 #include "theme_registry.h"
 
@@ -105,6 +106,61 @@ void TestCheckerCatchesThickRing() {
   TEST_ASSERT_FALSE(CheckLegibility(bad).Passed());
 }
 
+void TestColourVisionAndDeltaE() {
+  using sarathi::core::DeltaE;
+  using sarathi::core::Simulate;
+  using sarathi::core::Vision;
+  TEST_ASSERT_FLOAT_WITHIN(0.5F, 100.0F, DeltaE(0xFFFFFF, 0x000000));
+  TEST_ASSERT_FLOAT_WITHIN(0.01F, 0.0F, DeltaE(0x3366AA, 0x3366AA));
+  TEST_ASSERT_EQUAL_HEX32(0x3366AA, Simulate(0x3366AA, Vision::kNormal));
+  for (const Vision v : {Vision::kProtanopia, Vision::kDeuteranopia, Vision::kTritanopia}) {
+    // Black and white stay put (the matrices keep greys).
+    TEST_ASSERT_TRUE(DeltaE(Simulate(0xFFFFFF, v), 0xFFFFFF) < 2.0F);
+    TEST_ASSERT_TRUE(DeltaE(Simulate(0x000000, v), 0x000000) < 0.5F);
+  }
+  // A red and a green of similar lightness: plainly apart normally, close for a deuteranope.
+  TEST_ASSERT_TRUE(DeltaE(0xB45A00, 0x6E8C00) > 30.0F);
+  TEST_ASSERT_TRUE(DeltaE(Simulate(0xB45A00, Vision::kDeuteranopia),
+                          Simulate(0x6E8C00, Vision::kDeuteranopia)) < 15.0F);
+}
+
+void TestRouteLooks() {
+  using sarathi::core::RouteLookFor;
+  using sarathi::core::RoutePattern;
+  using sarathi::core::TrafficLevel;
+  const ThemeDescriptor& t = kClassicTheme;
+  const auto free = RouteLookFor(t, TrafficLevel::kFree, false);
+  const auto slow = RouteLookFor(t, TrafficLevel::kSlow, false);
+  const auto jam = RouteLookFor(t, TrafficLevel::kJam, false);
+  const auto unknown = RouteLookFor(t, TrafficLevel::kUnknown, false);
+  TEST_ASSERT_EQUAL_HEX32(t.palette.route_line, free.color);
+  TEST_ASSERT_EQUAL(RoutePattern::kSolid, free.pattern);
+  TEST_ASSERT_EQUAL_HEX32(t.palette.traffic_slow, slow.color);
+  TEST_ASSERT_EQUAL(RoutePattern::kDashed, slow.pattern);
+  TEST_ASSERT_EQUAL_HEX32(t.palette.traffic_jam, jam.color);
+  TEST_ASSERT_EQUAL(RoutePattern::kTicks, jam.pattern);
+  TEST_ASSERT_TRUE(jam.width_px > free.width_px);
+  TEST_ASSERT_TRUE(unknown.width_px < free.width_px);
+  // Stale traffic: every level dims to the "unknown" colour, patterns kept.
+  TEST_ASSERT_EQUAL_HEX32(t.palette.route_behind, RouteLookFor(t, TrafficLevel::kJam, true).color);
+  TEST_ASSERT_EQUAL(RoutePattern::kTicks, RouteLookFor(t, TrafficLevel::kJam, true).pattern);
+}
+
+void TestCheckerCatchesMapProblems() {
+  ThemeDescriptor bad = kClassicTheme;
+  bad.palette.traffic_slow = 0xB45A00;  // red/green pair: fails for colour-blind riders
+  bad.palette.traffic_jam = 0x6E8C00;
+  TEST_ASSERT_FALSE(CheckLegibility(bad).Passed());
+  bad = kClassicTheme;
+  bad.map.ground = 0x606060;  // the route's yellow loses contrast on a grey ground
+  bad.palette.traffic_jam = 0x707070;
+  TEST_ASSERT_FALSE(CheckLegibility(bad).Passed());
+  bad = kClassicTheme;
+  bad.map.route_casing_px = 0;  // no casing: the route must stand out from the roads itself
+  bad.map.road[0] = 0xD8C040;
+  TEST_ASSERT_FALSE(CheckLegibility(bad).Passed());
+}
+
 // Prints each theme's contrast pairs, for the step report (pio test -v).
 void PrintContrastTable() {
   for (size_t i = 0; i < ThemeCount(); ++i) {
@@ -147,6 +203,9 @@ int main() {
   RUN_TEST(TestThemesHaveTheirOrnaments);
   RUN_TEST(TestOrnamentZone);
   RUN_TEST(TestCheckerCatchesThickRing);
+  RUN_TEST(TestColourVisionAndDeltaE);
+  RUN_TEST(TestRouteLooks);
+  RUN_TEST(TestCheckerCatchesMapProblems);
   PrintContrastTable();
   return UNITY_END();
 }

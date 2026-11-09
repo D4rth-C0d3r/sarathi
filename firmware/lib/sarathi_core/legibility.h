@@ -22,6 +22,14 @@ constexpr float kMinContrastNonText = 3.0F;     // focus ring, danger cue (WCAG 
 // WCAG 2 contrast ratio between two colours, 1.0 to 21.0.
 [[nodiscard]] float ContrastRatio(Rgb a, Rgb b);
 
+// Colour vision (ADR-0009): the traffic levels must stay apart for colour-blind riders.
+enum class Vision : uint8_t { kNormal, kProtanopia, kDeuteranopia, kTritanopia };
+// How `c` looks with `vision` (Machado, Oliveira and Fernandes 2009, severity 1.0).
+[[nodiscard]] Rgb Simulate(Rgb c, Vision vision);
+// CIE76 colour difference (Lab, D65): about 2.3 is just noticeable; 15 is plainly different.
+[[nodiscard]] float DeltaE(Rgb a, Rgb b);
+constexpr float kMinTrafficDeltaE = 15.0F;
+
 // `top` drawn at `top_percent` opacity over `bottom` (per-channel, like LVGL's blending).
 [[nodiscard]] Rgb Blend(Rgb top, Rgb bottom, uint8_t top_percent);
 

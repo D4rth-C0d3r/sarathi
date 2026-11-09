@@ -1,6 +1,5 @@
-// The map's look for a theme (ADR-0009 "Per-theme map styles"). Provisional for step G4: a
-// quiet, neutral road style under the theme's route colour, so the route and the maneuver stand
-// out. Step G6 replaces it with real per-theme styles from the theme descriptors.
+// The map's look for a theme (ADR-0009 "Per-theme map styles"): the theme's map data
+// (core::ThemeMapStyle, checked by the legibility tests) as raw pixels for the renderer.
 
 #pragma once
 

@@ -68,6 +68,22 @@ constexpr uint8_t kCardOpacityPercent = 80;
 // Decorative layer drawn behind everything, inside the ornament zone (ornament.h).
 enum class Ornament : uint8_t { kNone, kHudReticle, kRacingTach };
 
+// The on-device map's look (ADR-0009 "Per-theme map styles"). Road widths are at 2 m/px and
+// thin out when zoomed out; colours are the theme's, converted for the panel by sarathi_ui.
+constexpr size_t kMapRoadClasses =
+    7;  // motorway, trunk, primary, secondary, tertiary, minor, service
+struct ThemeMapStyle {
+  Rgb ground;       // under the map
+  bool fill_areas;  // water and parks filled (the HUD's wireframe has none)
+  Rgb water;
+  Rgb park;
+  std::array<Rgb, kMapRoadClasses> road;
+  std::array<uint8_t, kMapRoadClasses> road_px;
+  uint8_t glow_extra_px;  // a wider dim pass under each road (Racing's neon), 0 for none
+  std::array<Rgb, kMapRoadClasses> glow;
+  uint8_t route_casing_px;  // an outline in the ground colour around the route, each side
+};
+
 struct ThemeDescriptor {
   ThemeId id;
   const char* name;        // in the theme list
@@ -76,6 +92,7 @@ struct ThemeDescriptor {
   ThemeTypography fonts;
   ThemeComponentStyle components;
   Ornament ornament;
+  ThemeMapStyle map;
 };
 
 }  // namespace sarathi::core

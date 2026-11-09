@@ -39,6 +39,18 @@ const ThemeDescriptor kClassicTheme = {
         64,  // list_row_height_px
     },
     Ornament::kNone,
+    // Map: filled roads on dark ground, quiet greys under the light-blue route.
+    ThemeMapStyle{
+        0x000000,  // ground
+        true,      // fill_areas
+        0x1E3A5F,  // water
+        0x1E3F2A,  // park
+        {0x5C6068, 0x5C6068, 0x535760, 0x4A4E56, 0x42464D, 0x383B41, 0x2E3136},
+        {7, 7, 6, 5, 4, 3, 2},
+        0,  // glow_extra_px
+        {},
+        2,  // route_casing_px
+    },
 };
 
 }  // namespace sarathi::core

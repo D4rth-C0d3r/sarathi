@@ -67,9 +67,9 @@ void MapView::SetRoute(const core::RouteWindow& window, const core::TrafficState
                                              core::kMaxTrafficPieces);
   }
   std::copy(std::begin(styles), std::end(styles), std::begin(route_.styles));
-  constexpr uint8_t kCasingPx = 2;
-  route_.casing_color = theme::Pixel(theme::Current().palette.background);
-  route_.casing_px = kCasingPx;
+  const core::ThemeMapStyle& map = theme::Current().map;
+  route_.casing_color = theme::Pixel(map.ground);
+  route_.casing_px = map.route_casing_px;
   has_maneuver_ = window.has_maneuver_point;
   maneuver_ = window.maneuver_point;
   maneuver_color_ = maneuver_color;
