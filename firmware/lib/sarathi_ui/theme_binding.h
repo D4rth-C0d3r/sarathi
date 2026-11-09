@@ -17,12 +17,19 @@ namespace sarathi::ui::theme {
 enum class Text : uint8_t { kPrimary, kEssential, kSupporting, kStoppedOnly, kWarning };
 enum class Fill : uint8_t { kAccept, kReject, kNeutral };
 
+// Whether the panel shows RGB565 with red and blue exchanged (the CrowPanel does,
+// board_pins.h). Colours are then converted once here, already exchanged, and the flush copies
+// pixels as they are (ADR-0009). Call before the first Apply(); the simulator leaves it off.
+void SetPanelSwapsRedBlue(bool swaps);
+
 // The first call also initialises the styles. Safe to call again with the same theme.
 void Apply(const core::ThemeDescriptor& theme);
 
 [[nodiscard]] const core::ThemeDescriptor& Current();
 
 [[nodiscard]] lv_color_t Color(core::Rgb rgb);
+// The same colour as a raw pixel in the draw buffer, for code that writes pixels itself (the map).
+[[nodiscard]] uint16_t Pixel(core::Rgb rgb);
 [[nodiscard]] const lv_font_t* Font(core::FontRole role);
 
 // Shared styles. Add with lv_obj_add_style(obj, style, selector).

@@ -5,6 +5,7 @@
 
 #include "layout.h"
 #include "ornament.h"
+#include "rgb565.h"
 #include "theme_registry.h"
 
 namespace sarathi::ui::theme {
@@ -28,6 +29,7 @@ lv_style_t gauge_track_style;
 lv_style_t gauge_indicator_style;
 lv_style_t accent_dot_style;
 lv_style_t card_style;
+bool panel_swaps = false;       // SetPanelSwapsRedBlue()
 core::OrnamentShapes ornament;  // the current theme's, rebuilt by Apply()
 std::array<lv_obj_t*, kMaxScreens> ornament_layers{};
 size_t ornament_layer_count = 0;
@@ -211,7 +213,15 @@ void Apply(const core::ThemeDescriptor& theme) {
 
 const core::ThemeDescriptor& Current() { return *current; }
 
-lv_color_t Color(core::Rgb rgb) { return lv_color_hex(rgb); }
+void SetPanelSwapsRedBlue(bool swaps) { panel_swaps = swaps; }
+
+lv_color_t Color(core::Rgb rgb) {
+  return lv_color_hex(panel_swaps ? core::SwapRedBlueRgb(rgb) : rgb);
+}
+
+uint16_t Pixel(core::Rgb rgb) {
+  return core::ToRgb565(panel_swaps ? core::SwapRedBlueRgb(rgb) : rgb);
+}
 
 const lv_font_t* Font(core::FontRole role) {
   // Only the sizes in core::kBuiltInFontPx are compiled in; the legibility test keeps every

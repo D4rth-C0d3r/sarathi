@@ -3,6 +3,8 @@
 #include "rgb565.h"
 
 using sarathi::core::SwapRedBlue;
+using sarathi::core::SwapRedBlueRgb;
+using sarathi::core::ToRgb565;
 
 // Unity calls these by name, so they need external linkage and Unity's spelling.
 void setUp() {}     // NOLINT(misc-use-internal-linkage,readability-identifier-naming)
@@ -28,6 +30,20 @@ void TestIsItsOwnInverse() {
   }
 }
 
+void TestToRgb565() {
+  TEST_ASSERT_EQUAL_HEX16(0xF800, ToRgb565(0xFF0000));
+  TEST_ASSERT_EQUAL_HEX16(0x07E0, ToRgb565(0x00FF00));
+  TEST_ASSERT_EQUAL_HEX16(0x001F, ToRgb565(0x0000FF));
+  TEST_ASSERT_EQUAL_HEX16(0x8410, ToRgb565(0x808080));
+}
+
+// Swapping before conversion gives what the flush used to produce by swapping after it.
+void TestPreSwapMatchesFlushSwap() {
+  for (uint32_t rgb = 0; rgb <= 0xFFFFFF; rgb += 0x010305) {
+    TEST_ASSERT_EQUAL_HEX16(SwapRedBlue(ToRgb565(rgb)), ToRgb565(SwapRedBlueRgb(rgb)));
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -37,5 +53,7 @@ int main() {
   RUN_TEST(TestGreenUnchanged);
   RUN_TEST(TestWhiteAndBlackUnchanged);
   RUN_TEST(TestIsItsOwnInverse);
+  RUN_TEST(TestToRgb565);
+  RUN_TEST(TestPreSwapMatchesFlushSwap);
   return UNITY_END();
 }

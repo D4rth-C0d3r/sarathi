@@ -13,7 +13,6 @@
 #include "backlight.h"
 #include "board_pins.h"
 #include "expander.h"
-#include "rgb565.h"
 
 namespace sarathi::board {
 namespace {
@@ -89,12 +88,8 @@ bool Display::Begin(Backlight& backlight, int backlight_percent) {
 }
 
 void Display::DrawBitmap(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* pixels) {
-  if constexpr (p::kSwapRedBlue) {
-    const size_t count = static_cast<size_t>(w) * static_cast<size_t>(h);
-    for (size_t i = 0; i < count; ++i) {
-      pixels[i] = core::SwapRedBlue(pixels[i]);  // NOLINT(*-pointer-arithmetic)
-    }
-  }
+  // No red/blue swap here: the UI renders in the panel's order already (kSwapRedBlue is handed
+  // to ui::theme::SetPanelSwapsRedBlue), which saves a pass over every pixel (ADR-0009).
   gfx_display.draw16bitRGBBitmap(x, y, pixels, w, h);
 }
 

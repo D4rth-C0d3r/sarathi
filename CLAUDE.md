@@ -201,8 +201,10 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   - Elecrow timing: PCLK **12 MHz**; hsync and vsync front/pulse/back porch **10/4/20**;
     DMA bounce buffer **480×20** px.
   - Wrong timing causes a black screen, scrolling, line shift or flicker.
-- **Colour order:** Elecrow's flush callback swaps the R and B fields of RGB565 and uses
-  `MADCTL 0x36 = 0x08`. If colours look wrong, check this before touching UI assets.
+- **Colour order:** the panel shows RGB565 with the R and B fields swapped (Elecrow's flush
+  swaps them; `MADCTL 0x36 = 0x08`). We pre-swap instead: `ui::theme::Color()`/`Pixel()` convert
+  every colour once and the flush only copies (ADR-0009). Never set a colour around them. If
+  colours look wrong, check this before touching UI assets.
 - **Touch:** CST8xx at I2C **0x15**, sharing the bus with the PCF8574 (SDA 38 / SCL 39).
   Elecrow subtracts **20 from Y** to match the visible area, and ignores moves under 4 px.
 - **PCF8574 @ 0x21:**

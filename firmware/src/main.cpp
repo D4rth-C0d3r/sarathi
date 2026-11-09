@@ -42,6 +42,7 @@
 #include "ota_worker.h"
 #include "radio_policy.h"
 #include "settings_saver.h"
+#include "theme_binding.h"
 #include "touch.h"
 #include "touch_filter.h"
 #include "version.h"
@@ -427,6 +428,7 @@ void setup() {
   if (!BeginSource()) {
     ESP_LOGE(kTag, "data source failed to start");
   }
+  ui::theme::SetPanelSwapsRedBlue(pins::kSwapRedBlue);  // before the first theme is bound
   ui::app_shell::Init(app, input_test, pins::kKnobDebounceMs, pins::kKnobDoubleClickMs, ota_update,
                       wifi_setup, Random);
   if (boot_state.rolled_back && nvs.LoadMarker(kRollbackMarker) != boot_state.invalid_address) {

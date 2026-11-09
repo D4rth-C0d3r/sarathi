@@ -95,6 +95,10 @@ is modest for direct sunlight, which is why those rules ask for high contrast.
 - **R/B swap:** the demo swaps the R and B fields of every RGB565 pixel before drawing
   (it notes that ESP-IDF 5's RGB path needs this). The lessons don't. We follow the demo
   (`kSwapRedBlue = true`), and this is verified on hardware.
+  - **Since Phase 4 step G1.4 the swap isn't a flush pass:** `ui::theme` converts every colour
+    once with red and blue already exchanged (`SetPanelSwapsRedBlue`, from `kSwapRedBlue`),
+    so LVGL renders in the panel's order and the flush only copies (ADR-0009, about 21 ms saved
+    per full frame). The UI has no images; any added later must be converted the same way.
 
 Wrong timing shows up as a black screen, scrolling, line shift or flicker.
 
@@ -149,7 +153,7 @@ is invisible) and maps with `percent × 255 / 100`, as the demo does. Starts at 
 ## LVGL
 
 Two full-screen RGB565 draw buffers (2 × 460,800 B) in PSRAM, allocated once in
-`lvgl_port::Init()`, partial render mode. The flush callback swaps R/B in place and copies
+`lvgl_port::Init()`, partial render mode. The flush callback copies
 the area into the panel framebuffer with `draw16bitRGBBitmap()`. Labels use
 `lv_label_set_text_static()` with fixed buffers, because `lv_conf.h` routes LVGL's
 allocations to the C heap.
@@ -286,8 +290,8 @@ auto-zoom, Classic theme) driven by the demo ride, from the `perf` serial log
 | Flush (copy to panel framebuffer), worst | 43 ms | 43 ms per frame |
 
 - A full-screen redraw costs about 100 ms: roughly 45-60 ms of rendering and 42 ms of flush.
-  The flush is the R/B swap plus `draw16bitRGBBitmap()` copying 460 KB into the panel
-  framebuffer, both in PSRAM.
+  The flush was the R/B swap plus `draw16bitRGBBitmap()` copying 460 KB into the panel
+  framebuffer, both in PSRAM. Since step G1.4 colours are pre-swapped and the flush only copies.
 - So the map can redraw at most about 10 times a second, with the UI task fully busy. The
   normal build uses about 12 % of it on Nav.
 
