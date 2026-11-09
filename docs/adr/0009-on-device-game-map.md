@@ -26,7 +26,7 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
 - **Processing:** roads simplified (Douglas–Peucker) and quantized to device resolution.
 - **Encoding:** binary is a class byte, a point count and zigzag-varint coordinate deltas
   (ADR-0007).
-- Script: `tools/measure_chunks.py`, to be added with the protocol code.
+- Script: `tools/make_chunks.py` (step G1.1; fixtures in `docs/fixtures/map/`).
 
 | Area | City detail L0 (all roads to `service`, 2 m) | Highway detail L1 (`motorway`–`secondary`, 8 m) |
 |---|---|---|
