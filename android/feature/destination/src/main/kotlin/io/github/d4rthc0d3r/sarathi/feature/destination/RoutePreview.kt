@@ -32,7 +32,7 @@ internal fun RoutePreview(route: RouteUi) {
         }
 
         result == null -> {
-            Unit
+            // Nothing routed yet.
         }
 
         else -> {

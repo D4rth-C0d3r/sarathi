@@ -204,6 +204,13 @@ interface RoutingProvider {
 - **Checked on the phone** from the same start to Calangute: Valhalla 33.6 km, 75 min
 - **Mappls** (step F4.2): `biking` with `route_adv`, steps through a shared OSRM converter in
   `:core:maps`. Same trip: 30.6 km, 48 min. Traffic (`route_traffic`) is step F5.
+- **Google** (step F4.3): Navigation SDK 8.0.0 with Google's required desugaring
+  (`desugar_jdk_libs_nio` 2.1.5) and `play-services-maps` excluded (Places brings it; the
+  Navigation SDK bundles its own). Routes start from the phone's position (the SDK has no other
+  origin) in `TWO_WHEELER` mode; destinations stay set so guidance (F6) needs no second, billed
+  request; steps come from guidance's feed. The terms dialog is in the app's Maps settings.
+  Same trip: 31.5 km, 60 min, one destination counted. The SDK's uncapped legacy Bluetooth
+  permissions and `WRITE_EXTERNAL_STORAGE` are removed from the merged manifest.
   (motorcycle); GraphHopper 33.2 km, 41 min (car).
 
 ### Headless operation (verify each on the phone, screen off, phone in a pocket)

@@ -19,6 +19,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -40,9 +41,11 @@ import io.github.d4rthc0d3r.sarathi.maps.Keys
 import io.github.d4rthc0d3r.sarathi.maps.LastLocation
 import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
+import io.github.d4rthc0d3r.sarathi.maps.google.GoogleNavRouting
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
 import io.github.d4rthc0d3r.sarathi.ui.MainViewModel
+import io.github.d4rthc0d3r.sarathi.ui.MapsSettingsActions
 import io.github.d4rthc0d3r.sarathi.ui.MapsSettingsScreen
 import io.github.d4rthc0d3r.sarathi.ui.MapsStatus
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
@@ -62,6 +65,9 @@ class MainActivity : ComponentActivity() {
             model.refresh()
             if (result.resultCode == RESULT_OK) model.startLink() // bonds right away: compare the codes
         }
+
+    /** Changes when Google's terms dialog closes, so the settings screen reads them again. */
+    private var termsTick by mutableIntStateOf(0)
 
     /** Text or a link from another app, waiting for the destination screen (ADR-0008). */
     private var shared by mutableStateOf<String?>(null)
@@ -114,11 +120,16 @@ class MainActivity : ComponentActivity() {
         val status =
             MapsStatus(
                 googleKey = Keys.google != null,
+                googleTerms = termsTick.let { GoogleNavRouting.termsAccepted(application) },
                 graphHopperKey = Keys.graphHopper != null,
                 mapplsConfigured = Keys.mapplsConfigured,
                 meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
             )
-        MapsSettingsScreen(settings.value, status, store::update, onBack)
+        MapsSettingsScreen(
+            settings.value,
+            status,
+            MapsSettingsActions(store::update, onBack) { GoogleNavRouting.askForTerms(this) { termsTick++ } },
+        )
     }
 
     override fun onNewIntent(intent: Intent) {

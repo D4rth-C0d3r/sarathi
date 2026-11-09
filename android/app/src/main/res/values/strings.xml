@@ -69,6 +69,9 @@
     <string name="maps_keys">Keys</string>
     <string name="maps_keys_reason">Built into this app from files on the build computer; never shown, never sent anywhere but to their own service.</string>
     <string name="key_present">present</string>
+    <string name="google_terms_accepted">Google Navigation terms: accepted</string>
+    <string name="google_terms_needed">Google Navigation terms: not accepted yet. Google routes only after you accept them.</string>
+    <string name="google_terms_review">Review Google\'s terms</string>
     <string name="key_missing">missing</string>
     <string name="maps_usage">Usage</string>
     <string name="maps_usage_reason">Counted on this phone. Google is blocked at 95 % of its free monthly allowance and warns at 80 %; Mappls stops for the day at its caps or when it reports a limit.</string>

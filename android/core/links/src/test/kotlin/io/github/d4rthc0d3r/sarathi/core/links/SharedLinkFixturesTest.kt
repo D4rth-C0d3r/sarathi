@@ -114,7 +114,7 @@ class SharedLinkFixturesTest {
     }
 
     private fun JsonObject.text(key: String) =
-        (this[key] as? JsonElement)
+        this[key]
             ?.takeIf {
                 it !is JsonNull
             }?.jsonPrimitive

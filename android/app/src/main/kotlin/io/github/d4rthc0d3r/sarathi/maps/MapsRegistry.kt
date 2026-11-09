@@ -1,5 +1,6 @@
 package io.github.d4rthc0d3r.sarathi.maps
 
+import android.app.Application
 import android.content.Context
 import io.github.d4rthc0d3r.sarathi.BuildConfig
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
@@ -8,6 +9,7 @@ import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchProvider
 import io.github.d4rthc0d3r.sarathi.core.maps.SearchService
+import io.github.d4rthc0d3r.sarathi.maps.google.GoogleNavRouting
 import io.github.d4rthc0d3r.sarathi.maps.google.GooglePlacesSearch
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsRouting
 import io.github.d4rthc0d3r.sarathi.maps.mappls.MapplsSearch
@@ -40,12 +42,13 @@ class MapsRegistry private constructor(
 
     private val routingProviders: Map<RoutingBackend, RoutingProvider> =
         mapOf(
+            RoutingBackend.GOOGLE to GoogleNavRouting(context as Application, Keys.google),
             RoutingBackend.MAPPLS to MapplsRouting(context, Keys.mapplsConfigured),
             RoutingBackend.OSM_VALHALLA to ValhallaRouting(http, userAgent, { store.settings.value.valhallaUrl }),
             RoutingBackend.OSM_GRAPHHOPPER to GraphHopperRouting(http, userAgent, Keys.graphHopper),
         )
 
-    /** Google routing and offline join in the next steps of F4. */
+    /** Offline routing joins in step F4.4. */
     val routing = RoutingService(routingProviders::get, { store.settings.value }, { store.guard })
 
     private val noRedirects =

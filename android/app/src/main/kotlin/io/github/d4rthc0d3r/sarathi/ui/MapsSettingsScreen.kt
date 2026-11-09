@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,10 +33,10 @@ import io.github.d4rthc0d3r.sarathi.core.maps.SearchBackend
 fun MapsSettingsScreen(
     settings: MapsSettings,
     status: MapsStatus,
-    onChange: ((MapsSettings) -> MapsSettings) -> Unit,
-    onBack: () -> Unit,
+    actions: MapsSettingsActions,
     modifier: Modifier = Modifier,
 ) {
+    val onChange = actions.onChange
     Scaffold(modifier = modifier) { padding ->
         Column(
             Modifier
@@ -44,7 +45,7 @@ fun MapsSettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+            TextButton(onClick = actions.onBack) { Text(stringResource(R.string.back)) }
             Text(stringResource(R.string.maps_title), style = MaterialTheme.typography.headlineSmall)
             Section(R.string.maps_backend, R.string.maps_backend_reason) {
                 Choices(
@@ -54,11 +55,7 @@ fun MapsSettingsScreen(
                 ) { b -> onChange { it.copy(backend = b) } }
             }
             Advanced(settings, onChange)
-            Section(R.string.maps_keys, R.string.maps_keys_reason) {
-                KeyRow("Google", status.googleKey)
-                KeyRow("Mappls", status.mapplsConfigured)
-                KeyRow("GraphHopper", status.graphHopperKey)
-            }
+            KeysSection(status, actions.onGoogleTerms)
             Section(R.string.maps_usage, R.string.maps_usage_reason) {
                 status.meters.forEach { Text(meterLine(it)) }
                 Stepper(
@@ -119,6 +116,38 @@ private fun Advanced(
 private const val CAP_MAX = 10_000
 private const val CAP_STEP = 10
 private val CAP_RANGE = 0..CAP_MAX
+
+/** What the maps settings screen can do. */
+data class MapsSettingsActions(
+    val onChange: ((MapsSettings) -> MapsSettings) -> Unit = {},
+    val onBack: () -> Unit = {},
+    /** Opens Google's Navigation SDK terms dialog. */
+    val onGoogleTerms: () -> Unit = {},
+)
+
+@Composable
+private fun KeysSection(
+    status: MapsStatus,
+    onGoogleTerms: () -> Unit,
+) {
+    Section(R.string.maps_keys, R.string.maps_keys_reason) {
+        KeyRow("Google", status.googleKey)
+        if (status.googleKey) {
+            Text(
+                stringResource(
+                    if (status.googleTerms) R.string.google_terms_accepted else R.string.google_terms_needed,
+                ),
+            )
+            if (!status.googleTerms) {
+                OutlinedButton(
+                    onClick = onGoogleTerms,
+                ) { Text(stringResource(R.string.google_terms_review)) }
+            }
+        }
+        KeyRow("Mappls", status.mapplsConfigured)
+        KeyRow("GraphHopper", status.graphHopperKey)
+    }
+}
 
 @Composable
 private fun Section(
@@ -191,5 +220,5 @@ private fun meterLine(m: MeterStatus): String {
 @Preview
 @Composable
 private fun MapsSettingsPreview() {
-    MapsSettingsScreen(MapsSettings(), MapsStatus(googleKey = true), {}, {})
+    MapsSettingsScreen(MapsSettings(), MapsStatus(googleKey = true), MapsSettingsActions())
 }

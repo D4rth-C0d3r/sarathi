@@ -10,6 +10,8 @@ coroutines = "1.11.0"
 serialization = "1.12.0"
 okhttp = "5.5.1"
 places = "6.0.2"
+navigation = "8.0.0"
+desugar = "2.1.5"
 mapplsRestApis = "6.0.3"
 mapplsServices = "1.0.1"
 ktlintPlugin = "14.2.0"
@@ -37,6 +39,8 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+google-navigation = { group = "com.google.android.libraries.navigation", name = "navigation", version.ref = "navigation" }
+desugar-jdk-libs-nio = { group = "com.android.tools", name = "desugar_jdk_libs_nio", version.ref = "desugar" }
 google-places = { group = "com.google.android.libraries.places", name = "places", version.ref = "places" }
 mappls-rest-apis = { group = "com.mappls.sdk", name = "rest-apis", version.ref = "mapplsRestApis" }
 mappls-services-plugin = { group = "com.mappls.services", name = "mappls-services", version.ref = "mapplsServices" }

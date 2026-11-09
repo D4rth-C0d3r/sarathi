@@ -60,6 +60,8 @@ android {
     }
 
     compileOptions {
+        // The Navigation SDK needs desugaring in the app too (Google's setup guide).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
         targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
     }
@@ -84,6 +86,7 @@ dependencies {
     implementation(project(":maps:osm"))
     implementation(project(":feature:destination"))
     implementation(libs.okhttp)
+    coreLibraryDesugaring(libs.desugar.jdk.libs.nio)
     implementation(project(":feature:media"))
     implementation(project(":feature:calls"))
 
@@ -97,6 +100,11 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// The Navigation SDK bundles the Maps SDK; Places's own copy has to go (Google's setup guide).
+configurations.configureEach {
+    exclude(group = "com.google.android.gms", module = "play-services-maps")
 }
 
 if (mapplsConfigured) {
