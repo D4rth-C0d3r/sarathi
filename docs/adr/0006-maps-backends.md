@@ -119,7 +119,9 @@ interface RoutingProvider {
     of a step's end and 5 m past it (fixes better than 32 m), off the route beyond 50 m (fixes
     better than 25 m), stops reached within 100 m. `RideGuidance` (pure, in `:core:maps`)
     reroutes after 3 s off the route, at most every 10 s, same backend first, and shows
-    "rerouting" meanwhile. Checked on the phone with the route simulator: a Mappls ride to
+    "rerouting" meanwhile. Reroutes in a row back off (10 s, 20 s, 40 s ... up to 5 minutes)
+    until the rider has been back on the route for 30 s, so GPS drift or a car park can't
+    spend a backend's quota (added in step F8.1, after a desk test rerouted on every fix). Checked on the phone with the route simulator: a Mappls ride to
     Calangute advanced through its 34 steps to "arrived"; a forced 400 m detour rerouted on
     Mappls (4 times, as the simulator's detour runs off any road) and arrived.
   - **Google, as built (step F6.3):** `GoogleGuidance` starts guidance on the route the

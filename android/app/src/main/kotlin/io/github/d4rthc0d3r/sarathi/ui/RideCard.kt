@@ -26,6 +26,12 @@ fun RideCard(
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.ride_to, ride.destination), style = MaterialTheme.typography.titleMedium)
+            ride.simulation?.let {
+                Text(
+                    stringResource(R.string.ride_simulated, it),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             val g = ride.guidance
             if (g == null) {
                 Text(stringResource(R.string.ride_waiting), style = MaterialTheme.typography.bodySmall)

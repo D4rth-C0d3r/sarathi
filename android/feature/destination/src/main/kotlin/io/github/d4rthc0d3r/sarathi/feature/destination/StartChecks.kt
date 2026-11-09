@@ -8,4 +8,6 @@ data class StartChecks(
     val batteryExempt: Boolean = false,
     /** The cost guard's line for the backend that routed, e.g. Google's destinations this month. */
     val costLine: String? = null,
+    /** Debug builds only: offer a simulated ride for desk tests (step F8). */
+    val canSimulate: Boolean = false,
 )

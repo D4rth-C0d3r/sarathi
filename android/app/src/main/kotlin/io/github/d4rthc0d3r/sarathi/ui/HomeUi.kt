@@ -16,4 +16,6 @@ data class HomeUi(
 data class RideStatus(
     val destination: String,
     val guidance: GuidanceState?,
+    /** A desk-test ride's speed-up (step F8); null for a real ride. */
+    val simulation: Int? = null,
 )

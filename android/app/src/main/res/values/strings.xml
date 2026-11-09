@@ -61,6 +61,7 @@
     <string name="ride_next">Next: %1$s in %2$d m</string>
     <string name="ride_left">%1$.1f km · %2$d min left</string>
     <string name="ride_end">End the ride</string>
+    <string name="ride_simulated">Simulated ride, ×%1$d: positions aren\'t the phone\'s</string>
     <string name="ride_started">Ride started: the phone can go in your pocket, locked.</string>
     <string name="maps_title">Maps</string>
     <string name="maps_backend">Maps backend</string>

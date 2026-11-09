@@ -118,4 +118,40 @@ class RideGuidanceTest {
             ride.stop()
             assertNull(ride.state.value)
         }
+
+    @Test
+    fun reroutesThatDontHelpBackOffAndARecoveryResetsThem() =
+        runTest {
+            val ride =
+                RideGuidance(routing, { r, req ->
+                    FakeEngine(r, req.stops).also {
+                        it.offRoute = true
+                        engines +=
+                            it
+                    }
+                }, backgroundScope)
+            ride.start(
+                Route(RoutingBackend.OSM_VALHALLA, listOf(start, end), emptyList(), 1.0, 1, TravelMode.TWO_WHEELER, ""),
+                RouteRequest(start, listOf(end)),
+            )
+            runCurrent()
+            // Off the route for 2 minutes: reroutes at 3 s, then 10, 20 and 40 s later.
+            (0..120_000L step 1_000).forEach {
+                ride.update(fix(it))
+                runCurrent()
+            }
+            assertEquals(4, valhalla.requests.size)
+            // Back on the route for 30 s, then off again: quick again.
+            engines.last().offRoute = false
+            (121_000..151_000L step 1_000).forEach {
+                ride.update(fix(it))
+                runCurrent()
+            }
+            engines.last().offRoute = true
+            (152_000..156_000L step 1_000).forEach {
+                ride.update(fix(it))
+                runCurrent()
+            }
+            assertEquals(5, valhalla.requests.size)
+        }
 }

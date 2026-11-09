@@ -21,5 +21,7 @@ data class DestinationActions(
     val onStopSimulation: () -> Unit = {},
     /** Starts the ride on the routed result (step F7). */
     val onStartRide: () -> Unit = {},
+    /** Starts a simulated ride at this many times real speed (step F8, debug builds). */
+    val onSimulateRide: (speedup: Int) -> Unit = {},
     val onBack: () -> Unit = {},
 )

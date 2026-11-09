@@ -29,13 +29,14 @@ object RideStarter {
         context: Context,
         routeModel: RouteViewModel,
         destination: String,
+        simulation: Int? = null,
     ): Boolean {
         val result = routeModel.ui.value.result
         val route = result?.value
         val request = routeModel.lastRequest
         val ok = result != null && route != null && request != null
         if (ok) {
-            ActiveRide.start(RidePlan(route, request, result.skipped, destination))
+            ActiveRide.start(RidePlan(route, request, result.skipped, destination, simulation))
             RideLinkService.start(context)
             Toast.makeText(context, R.string.ride_started, Toast.LENGTH_LONG).show()
         }
@@ -55,6 +56,7 @@ object RideStarter {
             backgroundLocation = SetupStep.BACKGROUND_LOCATION in setup.done,
             batteryExempt = SetupStep.BATTERY in setup.done,
             costLine = cost?.let { context.getString(MeterNames.of(it.meter), it.used, it.cap) },
+            canSimulate = BuildConfig.DEBUG,
         )
     }
 

@@ -15,6 +15,8 @@ data class RidePlan(
     val request: RouteRequest,
     val skipped: List<Skipped<RoutingBackend>> = emptyList(),
     val destination: String,
+    /** A desk-test ride (step F8): simulated positions this many times real speed; null for real. */
+    val simulation: Int? = null,
 )
 
 /**

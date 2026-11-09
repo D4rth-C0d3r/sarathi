@@ -15,7 +15,8 @@ moving lock's settings (ADR-0011). Step F adds the maps backends (ADR-0006, ADR-
 interfaces, settings and cost guard; F2 search; F3 shared links; F4 routing (F4.1 Valhalla
 and GraphHopper, with a desk-test route preview; F4.2 Mappls; F4.3 Google; F4.4
 offline); F5 traffic; F6 guidance
-(`:feature:navigation`); F7 confirmation and the ride on the dash (`link/RideNavigation`). Don't add features or permissions unasked.
+(`:feature:navigation`); F7 confirmation and the ride on the dash (`link/RideNavigation`); F8 simulated rides for
+desk tests (debug builds only). Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
 

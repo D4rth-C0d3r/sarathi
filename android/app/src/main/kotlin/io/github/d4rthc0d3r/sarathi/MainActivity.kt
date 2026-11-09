@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
                         setup.value,
                         link.value,
                         lock.value,
-                        plan.value?.let { RideStatus(it.destination, guidance.value) },
+                        plan.value?.let { RideStatus(it.destination, guidance.value, it.simulation) },
                     ),
                     actions =
                         HomeActions(
@@ -191,6 +191,14 @@ class MainActivity : ComponentActivity() {
         val setup = this@MainActivity.model.setup.collectAsStateWithLifecycle()
         val link = this@MainActivity.model.link.collectAsStateWithLifecycle()
         LaunchedEffect(ui.value.chosen, ui.value.trip) { routeModel.clear() }
+        val startRide = { speedup: Int? ->
+            val destination =
+                ui.value.chosen?.name ?: ui.value.trip
+                    ?.destination
+                    ?.name
+                    .orEmpty()
+            if (RideStarter.start(this, routeModel, destination, speedup)) onBack()
+        }
         DestinationScreen(
             ui.value,
             DestinationActions(
@@ -207,14 +215,8 @@ class MainActivity : ComponentActivity() {
                 onRoute = routeModel::route,
                 onSimulate = routeModel::simulate,
                 onStopSimulation = routeModel::stopSimulation,
-                onStartRide = {
-                    val destination =
-                        ui.value.chosen?.name ?: ui.value.trip
-                            ?.destination
-                            ?.name
-                            .orEmpty()
-                    if (RideStarter.start(this, routeModel, destination)) onBack()
-                },
+                onStartRide = { startRide(null) },
+                onSimulateRide = { startRide(it) },
                 onBack = onBack,
             ),
             route = route.value,

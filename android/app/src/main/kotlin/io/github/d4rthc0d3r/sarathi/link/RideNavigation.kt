@@ -47,9 +47,11 @@ class RideNavigation(
     private val context: Context,
     private val dash: DashChannel,
     private val scope: CoroutineScope,
-    private val frame: StateFlow<RideFrame?>,
-    private val fixes: Flow<MapsFix>,
+    private val pose: PoseSender,
 ) {
+    private val frame: StateFlow<RideFrame?> = pose.frame
+    private val fixes: Flow<MapsFix> = pose.fixes
+
     private val outbox = Channel<Any>(OUTBOX)
     private val jobs = mutableListOf<Job>()
     private var ride: Ride? = null
@@ -130,6 +132,7 @@ class RideNavigation(
                         .collect { sendRide(it) }
                 }
             followTraffic()
+            plan.simulation?.let { rideJobs += RideSimulation.start(context, pose, scope, guidance.route, it) }
         }
 
         /** Ends the ride; [reason] null when it ended itself (arrival) or the service stops. */
@@ -139,6 +142,7 @@ class RideNavigation(
             trafficJob?.cancel()
             rideJobs.forEach { it.cancel() }
             guidance.stop()
+            pose.simulate(false)
             ActiveRide.publish(null)
         }
 

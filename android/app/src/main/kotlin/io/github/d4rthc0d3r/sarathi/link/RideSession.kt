@@ -72,7 +72,7 @@ class RideSession(
         // Guidance needs position: the ride follows ActiveRide only once there is any.
         val p = pose
         if (navigation == null && p != null) {
-            navigation = RideNavigation(context, dash, scope, p.frame, p.fixes).also { it.start() }
+            navigation = RideNavigation(context, dash, scope, p).also { it.start() }
         }
     }
 

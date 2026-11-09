@@ -79,6 +79,32 @@ class PoseSender(
         job?.cancel()
     }
 
+    private var lastPoseSentMs = 0L
+
+    /** While a ride is simulated (step F8), the phone's own fixes are left out. */
+    private var simulated = false
+
+    fun simulate(on: Boolean) {
+        simulated = on
+    }
+
+    /** A simulated fix, sent to the dash and guidance like a real one (step F8). */
+    fun inject(fix: MapsFix) {
+        if (simulated) {
+            handle(
+                Fix(
+                    fix.at.lat,
+                    fix.at.lng,
+                    fix.timeMs,
+                    fix.speedMps?.toFloat(),
+                    fix.bearingDeg?.toFloat(),
+                    fix.accuracyM.toFloat(),
+                ),
+                fix,
+            )
+        }
+    }
+
     override fun onLocationChanged(location: Location) {
         LinkRepository.update {
             it.copy(
@@ -86,16 +112,26 @@ class PoseSender(
                 lastFixAtMs = SystemClock.elapsedRealtime(),
             )
         }
-        val pose = builder.pose(location.toFix())
+        if (!simulated) handle(location.toFix(), location.toMapsFix())
+    }
+
+    private fun handle(
+        fix: Fix,
+        mapsFix: MapsFix,
+    ) {
+        val pose = builder.pose(fix)
         if (builder.frameChanged) _frame.value = builder.frame
-        _fixes.tryEmit(location.toMapsFix())
+        _fixes.tryEmit(mapsFix)
         val kmh = pose.speedCms * CMS_TO_KMH
         if (kotlin.math.abs(kmh - loggedKmh) >= 1) {
             loggedKmh = kmh
             Log.d(TAG, "pose speed %.1f km/h (accuracy %d m)".format(kmh, pose.accM))
         }
         if (builder.frameChanged) frameSent = false
-        if (!dash.ready.value) return
+        // The protocol's 2 Hz while navigating at most; a fast simulation makes more fixes.
+        val now = SystemClock.elapsedRealtime()
+        if (!dash.ready.value || (frameSent && now - lastPoseSentMs < MIN_POSE_MS)) return
+        lastPoseSentMs = now
         val withFrame = !frameSent
         frameSent = true
         scope.launch {
@@ -130,6 +166,7 @@ class PoseSender(
 
     private companion object {
         const val FIX_BUFFER = 8
+        const val MIN_POSE_MS = 500L
         const val UNKNOWN_ACCURACY_M = 50.0
         const val TAG = "RideLink"
         const val INTERVAL_MS = 1_000L

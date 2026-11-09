@@ -1,10 +1,14 @@
 package io.github.d4rthc0d3r.sarathi.maps.google
 
+import android.app.Application
 import android.content.Context
+import android.os.SystemClock
 import com.google.android.libraries.mapsplatform.turnbyturn.model.NavInfo
 import com.google.android.libraries.mapsplatform.turnbyturn.model.NavState
 import com.google.android.libraries.navigation.AudioGuidanceSettings
+import com.google.android.libraries.navigation.NavigationApi
 import com.google.android.libraries.navigation.Navigator
+import com.google.android.libraries.navigation.RoadSnappedLocationProvider
 import com.google.android.libraries.navigation.SimulationOptions
 import io.github.d4rthc0d3r.sarathi.core.maps.Fix
 import io.github.d4rthc0d3r.sarathi.core.maps.GuidanceEngine
@@ -17,10 +21,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 /**
@@ -121,7 +128,30 @@ class GoogleGuidance(
         )
     }
 
-    private companion object {
-        const val MAX_EXIT = 15 // the protocol's limit
+    companion object {
+        private const val MAX_EXIT = 15 // the protocol's limit
+
+        /**
+         * Where the Navigation SDK puts the rider, snapped to the road: during a simulated ride
+         * this follows Google's simulator, so the dash moves with Google's guidance (step F8).
+         */
+        fun roadSnappedFixes(context: Context): Flow<Fix> =
+            callbackFlow {
+                val provider = NavigationApi.getRoadSnappedLocationProvider(context.applicationContext as Application)
+                val listener =
+                    RoadSnappedLocationProvider.LocationListener { l ->
+                        trySend(
+                            Fix(
+                                at = LatLng(l.latitude, l.longitude),
+                                timeMs = SystemClock.elapsedRealtime(),
+                                speedMps = if (l.hasSpeed()) l.speed.toDouble() else null,
+                                bearingDeg = if (l.hasBearing()) l.bearing.toDouble() else null,
+                                accuracyM = if (l.hasAccuracy()) l.accuracy.toDouble() else 5.0,
+                            ),
+                        )
+                    }
+                provider?.addLocationListener(listener)
+                awaitClose { provider?.removeLocationListener(listener) }
+            }.flowOn(Dispatchers.Main)
     }
 }
