@@ -59,6 +59,8 @@ class TileShapes(
     val tileY: Int,
     val lines: List<TileShape>,
     val polys: List<TileShape>,
+    /** Where the data came from; travels with every chunk (ADR-0009). */
+    val provenance: Provenance,
 )
 
 /**
@@ -76,8 +78,7 @@ object ChunkMaker {
     private const val HALF_TURN = 180.0
     private const val LINE = 2
     private const val POLYGON = 3
-    private const val WATER = 0
-    private const val PARK = 1
+    private const val PARK = MapSchema.PARK
     private const val MIN_RING = 3
 
     fun shapes(
@@ -85,19 +86,22 @@ object ChunkMaker {
         level: MapLevel,
         tileX: Int,
         tileY: Int,
+        schema: MapSchema = MapSchema.OpenMapTiles,
     ): TileShapes {
         val tol = level.quantumM / metresPerUnit(level.zoom, tileY)
-        return TileShapes(level, tileX, tileY, roads(tile, level, tol), areas(tile, level, tileY, tol))
+        val lines = roads(tile, level, tol, schema)
+        return TileShapes(level, tileX, tileY, lines, areas(tile, level, tileY, tol, schema), schema.provenance)
     }
 
     private fun roads(
         tile: Map<String, List<TileFeature>>,
         level: MapLevel,
         tol: Double,
+        schema: MapSchema,
     ): List<TileShape> {
         val byClass = sortedMapOf<Int, MutableList<List<TilePoint>>>()
-        for (f in tile["transportation"].orEmpty()) {
-            val c = ROAD_CLASSES.indexOf(f.tags["class"] as? String)
+        for (f in tile[schema.roadLayer].orEmpty()) {
+            val c = schema.roadClass(f.tags) ?: -1
             if (f.type == LINE && c >= 0 && c <= level.maxClass) {
                 for (ring in f.rings) byClass.getOrPut(c) { mutableListOf() }.addAll(TileGeometry.clipLine(ring))
             }
@@ -118,14 +122,14 @@ object ChunkMaker {
         level: MapLevel,
         tileY: Int,
         tol: Double,
+        schema: MapSchema,
     ): List<TileShape> {
         val unit = metresPerUnit(level.zoom, tileY)
         val unit2 = unit * unit
         val polys = mutableListOf<TileShape>()
-        for ((layer, kind) in listOf("water" to WATER, "park" to PARK)) {
-            if (kind == PARK && !level.parks) continue
-            val rings = tile[layer].orEmpty().filter { it.type == POLYGON }.flatMap { it.rings }
-            for (ring in rings.filter { TileGeometry.area2(it) > 0 }) {
+        val features = schema.areas(tile).filter { (kind, f) -> (kind != PARK || level.parks) && f.type == POLYGON }
+        for ((kind, f) in features) {
+            for (ring in f.rings.filter { TileGeometry.area2(it) > 0 }) {
                 val clipped = TileGeometry.clipPolygon(ring)
                 val big = clipped.size >= MIN_RING && TileGeometry.area2(clipped) / 2 * unit2 >= level.minWaterM2
                 val s = if (big) TileGeometry.simplify(clipped + clipped[0], tol).dropLast(1) else emptyList()
@@ -141,7 +145,6 @@ object ChunkMaker {
         frame: RideFrame,
         epoch: Int,
         dataVersion: Long,
-        provenance: Provenance,
     ): Chunk {
         val level = shapes.level
         val z = level.zoom
@@ -186,7 +189,7 @@ object ChunkMaker {
         }
         return Chunk(
             key = ChunkKey(level.code, shapes.tileX.toLong(), shapes.tileY.toLong(), dataVersion),
-            provenance = provenance,
+            provenance = shapes.provenance,
             epoch = epoch,
             originXM = ox,
             originYM = oy,

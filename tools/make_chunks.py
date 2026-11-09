@@ -14,6 +14,8 @@ produce the same bytes from the same tiles. Order of work, as on the phone:
 
 Commands:
   filter IN OUT                      keep only the layers chunks use (fixtures stay small)
+  extract REGION.pmtiles OUT Z/X/Y...   offline tiles from a PMTiles region, filtered
+  --schema protomaps (chunks)        Protomaps basemap tiles (offline); default OpenMapTiles
   chunks --frame LAT,LON --epoch N --out DIR TILE...
                                      one chunk per tile, TILE as path to z-x-y.pbf
   measure TILE...                    sizes per level, like ADR-0009's table
@@ -24,6 +26,7 @@ Standard library only; run from the project .venv.
 from __future__ import annotations
 
 import argparse
+import gzip
 import math
 import struct
 import sys
@@ -37,6 +40,68 @@ from protocol_vectors import MAX_MESSAGE, encode_binary  # noqa: E402
 ROAD_CLASSES = ["motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service"]
 LAYERS = {"transportation", "water", "park"}
 WATER, PARK = 0, 1
+
+
+class Schema:
+    """How a source's tiles map to chunk roads and areas (classes 0-6; water and parks)."""
+
+    def __init__(self, name: str, provenance: int, layers: set[str], road_layer: str) -> None:
+        self.name, self.provenance, self.layers, self.road_layer = name, provenance, layers, road_layer
+
+    def road_class(self, tags: dict) -> int | None:
+        raise NotImplementedError
+
+    def areas(self, tile: dict):
+        """(kind, feature) for the polygons to keep, in a fixed order: water, then parks."""
+        raise NotImplementedError
+
+
+class OpenMapTiles(Schema):
+    """OpenFreeMap (online): transportation by class; water; park."""
+
+    def __init__(self) -> None:
+        super().__init__("openmaptiles", 1, LAYERS, "transportation")
+
+    def road_class(self, tags: dict) -> int | None:
+        cls = tags.get("class")
+        return ROAD_CLASSES.index(cls) if cls in ROAD_CLASSES else None
+
+    def areas(self, tile: dict):
+        for f in tile.get("water", []):
+            yield WATER, f
+        for f in tile.get("park", []):
+            yield PARK, f
+
+
+# Protomaps basemap v4 (the offline region): roads by kind_detail (the OSM highway tag).
+PROTOMAPS_ROADS = {
+    "motorway": 0, "motorway_link": 0, "trunk": 1, "trunk_link": 1, "primary": 2,
+    "primary_link": 2, "secondary": 3, "secondary_link": 3, "tertiary": 4, "tertiary_link": 4,
+    "residential": 5, "unclassified": 5, "living_street": 5, "road": 5, "service": 6,
+}
+PROTOMAPS_PARKS = {"park", "national_park", "nature_reserve", "protected_area"}
+PROTOMAPS_NOT_WATER = {"swimming_pool"}
+
+
+class Protomaps(Schema):
+    """Protomaps basemap v4 (offline, PMTiles): roads, water, landuse parks."""
+
+    def __init__(self) -> None:
+        super().__init__("protomaps", 2, {"roads", "water", "landuse"}, "roads")
+
+    def road_class(self, tags: dict) -> int | None:
+        return PROTOMAPS_ROADS.get(tags.get("kind_detail"))
+
+    def areas(self, tile: dict):
+        for f in tile.get("water", []):
+            if f["tags"].get("kind") not in PROTOMAPS_NOT_WATER:
+                yield WATER, f
+        for f in tile.get("landuse", []):
+            if f["tags"].get("kind") in PROTOMAPS_PARKS:
+                yield PARK, f
+
+
+SCHEMAS = {"openmaptiles": OpenMapTiles(), "protomaps": Protomaps()}
 
 
 class Level:
@@ -120,7 +185,7 @@ def _value(data: bytes):
     return None
 
 
-def read_tile(data: bytes) -> dict[str, list[dict]]:
+def read_tile(data: bytes, layers: set[str] = LAYERS) -> dict[str, list[dict]]:
     """Features of the layers chunks use: {layer: [{"type", "tags", "rings"}]}, rings in tile
     units scaled to 4096 whatever the layer's extent."""
     out: dict[str, list[dict]] = {}
@@ -139,7 +204,7 @@ def read_tile(data: bytes) -> dict[str, list[dict]]:
                 values.append(_value(v))
             elif n == 5:
                 extent = v
-        if name not in LAYERS:
+        if name not in layers:
             continue
         scale = 4096 / extent
         decoded = []
@@ -178,16 +243,100 @@ def _geometry(cmds: list[int], scale: float) -> list[list[tuple[float, float]]]:
     return rings
 
 
-def filter_tile(data: bytes) -> bytes:
+def filter_tile(data: bytes, layers: set[str] = LAYERS) -> bytes:
     """The same tile with only the layers chunks use, copied byte for byte."""
     out = bytearray()
     for number, _, layer, raw in fields(data):
         if number != 3:
             continue
         name = next(v.decode() for n, _, v, _ in fields(layer) if n == 1)
-        if name in LAYERS:
+        if name in layers:
             out += raw
     return bytes(out)
+
+
+# ---- PMTiles v3 (the offline region, ADR-0009) ----
+
+
+class PMTiles:
+    """Reads tiles from a PMTiles v3 archive: Hilbert tile IDs, gzipped directories."""
+
+    def __init__(self, data: bytes) -> None:
+        if data[:7] != b"PMTiles" or data[7] != 3:
+            raise ValueError("not a PMTiles v3 archive")
+        (self.root_off, self.root_len, _, _, self.leaf_off, _, self.tile_off, _, _, _, _) = \
+            struct.unpack_from("<11Q", data, 8)
+        _, self.icomp, self.tcomp, self.ttype, self.minz, self.maxz = struct.unpack_from("<6B", data, 96)
+        self.data = data
+
+    def _decompress(self, blob: bytes, comp: int) -> bytes:
+        if comp == 2:
+            return gzip.decompress(blob)
+        if comp == 1:
+            return blob
+        raise ValueError(f"compression {comp}")
+
+    def _directory(self, off: int, length: int) -> list[tuple[int, int, int, int]]:
+        d = self._decompress(self.data[off:off + length], self.icomp)
+        i = 0
+        n, i = _varint(d, i)
+        ids, runs, lens, offs = [], [], [], []
+        last = 0
+        for _ in range(n):
+            v, i = _varint(d, i)
+            last += v
+            ids.append(last)
+        for _ in range(n):
+            v, i = _varint(d, i)
+            runs.append(v)
+        for _ in range(n):
+            v, i = _varint(d, i)
+            lens.append(v)
+        for k in range(n):
+            v, i = _varint(d, i)
+            offs.append(offs[k - 1] + lens[k - 1] if v == 0 and k > 0 else v - 1)
+        return list(zip(ids, runs, lens, offs))
+
+    def tile(self, z: int, x: int, y: int) -> bytes | None:
+        tid = tile_id(z, x, y)
+        off, length = self.root_off, self.root_len
+        for _ in range(4):  # root and up to three levels of leaves
+            entries = self._directory(off, length)
+            found = None
+            for e in entries:
+                if e[0] > tid:
+                    break
+                found = e
+            if found is None:
+                return None
+            eid, run, elen, eoff = found
+            if run == 0:  # a leaf directory
+                off, length = self.leaf_off + eoff, elen
+                continue
+            if tid >= eid + run:
+                return None
+            return self._decompress(self.data[self.tile_off + eoff:self.tile_off + eoff + elen], self.tcomp)
+        return None
+
+
+def tile_id(z: int, x: int, y: int) -> int:
+    """PMTiles' Hilbert tile ID."""
+    acc = sum(4 ** k for k in range(z))  # tiles in all lower zooms
+    n = 1 << z
+    d = 0
+    s = n >> 1
+    tx, ty = x, y
+    while s > 0:
+        rx = 1 if tx & s else 0
+        ry = 1 if ty & s else 0
+        d += s * s * ((3 * rx) ^ ry)
+        if ry == 0:
+            if rx == 1:
+                tx = s - 1 - tx
+                ty = s - 1 - ty
+            tx, ty = ty, tx
+        s >>= 1
+    return acc + d
 
 
 # ---- Geometry in tile units (0..4096, y down) ----
@@ -383,16 +532,13 @@ def metres_per_unit(z: int, ty: int) -> float:
 
 # ---- Tile -> chunk ----
 
-def tile_shapes(tile: dict, level: Level, ty: int) -> tuple[list, list]:
+def tile_shapes(tile: dict, level: Level, ty: int, schema: Schema) -> tuple[list, list]:
     """Step 3: what the phone caches. Lines [(class, points)], polygons [(kind, ring)], tile units."""
     tol = level.quantum_m / metres_per_unit(level.zoom, ty)
     by_class: dict[int, list] = {}
-    for f in tile.get("transportation", []):
-        cls = f["tags"].get("class")
-        if f["type"] != 2 or cls not in ROAD_CLASSES:
-            continue
-        c = ROAD_CLASSES.index(cls)
-        if c > level.max_class:
+    for f in tile.get(schema.road_layer, []):
+        c = schema.road_class(f["tags"])
+        if f["type"] != 2 or c is None or c > level.max_class:
             continue
         for ring in f["rings"]:
             by_class.setdefault(c, []).extend(clip_line(ring))
@@ -405,28 +551,28 @@ def tile_shapes(tile: dict, level: Level, ty: int) -> tuple[list, list]:
     polys = []
     if level.polys:
         unit2 = metres_per_unit(level.zoom, ty) ** 2
-        for layer, kind in (("water", WATER), ("park", PARK)):
+        for kind, f in schema.areas(tile):
             if kind == PARK and level.level == 1:
                 continue
-            for f in tile.get(layer, []):
-                if f["type"] != 3:
+            if f["type"] != 3:
+                continue
+            for ring in f["rings"]:
+                if area2(ring) <= 0:
+                    continue  # holes and degenerate rings: one outer ring per polygon
+                clipped = clip_polygon(ring)
+                if len(clipped) < 3 or area2(clipped) / 2 * unit2 < level.min_water_m2:
                     continue
-                for ring in f["rings"]:
-                    if area2(ring) <= 0:
-                        continue  # holes and degenerate rings: one outer ring per polygon
-                    clipped = clip_polygon(ring)
-                    if len(clipped) < 3 or area2(clipped) / 2 * unit2 < level.min_water_m2:
-                        continue
-                    s = simplify(clipped + [clipped[0]], tol)[:-1]
-                    if len(s) >= 3:
-                        polys.append((kind, s))
+                s = simplify(clipped + [clipped[0]], tol)[:-1]
+                if len(s) >= 3:
+                    polys.append((kind, s))
     return lines, polys
 
 
-def make_chunk(path: Path, frame: RideFrame, epoch: int, data_version: int) -> dict:
+def make_chunk(path: Path, frame: RideFrame, epoch: int, data_version: int,
+               schema: Schema) -> dict:
     z, tx, ty = (int(p) for p in path.stem.split("-"))
     level = LEVELS[z]
-    lines, polys = tile_shapes(read_tile(path.read_bytes()), level, ty)
+    lines, polys = tile_shapes(read_tile(path.read_bytes(), schema.layers), level, ty, schema)
     q = level.quantum_m
     sw = frame.project(*tile_to_lat_lon(z, tx, ty, 0, EXTENT))
     ne = frame.project(*tile_to_lat_lon(z, tx, ty, EXTENT, 0))
@@ -457,7 +603,7 @@ def make_chunk(path: Path, frame: RideFrame, epoch: int, data_version: int) -> d
         if len(qr) >= 3 and abs(area2([tuple(p) for p in qr])) / 2 >= MIN_POLY_QUANTA2:
             out_polys.append([kind, qr[:MAX_LINE_POINTS]])
     return {"level": level.level, "tile_x": tx, "tile_y": ty, "data_version": data_version,
-            "provenance": 1, "epoch": epoch, "origin_x_m": ox, "origin_y_m": oy,
+            "provenance": schema.provenance, "epoch": epoch, "origin_x_m": ox, "origin_y_m": oy,
             "quantum_dm": level.quantum_dm, "extent": extent, "lines": out_lines,
             "polys": out_polys}
 
@@ -475,7 +621,12 @@ def main() -> int:
     f = sub.add_parser("filter")
     f.add_argument("src", type=Path)
     f.add_argument("dst", type=Path)
+    e = sub.add_parser("extract", help="tiles from a PMTiles region, filtered (fixtures)")
+    e.add_argument("region", type=Path)
+    e.add_argument("out", type=Path)
+    e.add_argument("tiles", nargs="+", help="Z/X/Y")
     c = sub.add_parser("chunks")
+    c.add_argument("--schema", choices=sorted(SCHEMAS), default="openmaptiles")
     c.add_argument("--frame", required=True, help="LAT,LON near the ride's start")
     c.add_argument("--epoch", type=int, default=1)
     c.add_argument("--data-version", type=int, required=True)
@@ -485,12 +636,23 @@ def main() -> int:
     if args.cmd == "filter":
         args.dst.write_bytes(filter_tile(args.src.read_bytes()))
         return 0
+    if args.cmd == "extract":
+        region = PMTiles(args.region.read_bytes())
+        args.out.mkdir(parents=True, exist_ok=True)
+        for zxy in args.tiles:
+            z, x, y = (int(v) for v in zxy.split("/"))
+            data = region.tile(z, x, y)
+            if data is None:
+                print(f"{zxy}: not in the region")
+                continue
+            (args.out / f"{z}-{x}-{y}.pbf").write_bytes(filter_tile(data, SCHEMAS["protomaps"].layers))
+        return 0
     lat, lon = (float(v) for v in args.frame.split(","))
     frame = RideFrame(lat, lon)
     args.out.mkdir(parents=True, exist_ok=True)
     over = False
     for path in sorted(args.tiles):
-        m = make_chunk(path, frame, args.epoch, args.data_version)
+        m = make_chunk(path, frame, args.epoch, args.data_version, SCHEMAS[args.schema])
         data = encode_binary("chunk", m)
         (args.out / f"{path.stem}.bin").write_bytes(data)
         line = summary(m, data)

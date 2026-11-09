@@ -450,6 +450,22 @@ The output is gitignored and packaged into the app only when it exists; without 
 router reports "no data" and the others still work. Rebuild after updating valhalla-mobile: the
 script's Valhalla image must match the library's Valhalla version.
 
+### Offline map region (optional)
+
+The dash's map (ADR-0009) comes from OpenFreeMap online, and from an offline region where there
+is no signal. The region is an extract of Protomaps' daily planet build. With Docker installed:
+
+```bash
+tools/build_offline_map.sh            # Goa (default); writes android/app/offline/map/
+```
+
+- **What it downloads:** only the region's tiles, through HTTP range requests. Goa is about
+  8.5 MB, zoom 0-14.
+- **Image:** `protomaps/go-pmtiles` is pinned in the script.
+- **Packaging:** the output is gitignored and packaged into the app only when it exists.
+- **Rebuilding:** Protomaps keeps about a week of daily builds, and the script picks the newest.
+  The build date becomes the chunks' data version.
+
 ### Maps keys (optional)
 
 The maps backends' keys are build-time secrets kept outside the repository (ADR-0006). The

@@ -18,6 +18,16 @@ copied byte for byte (`tools/make_chunks.py filter`).
 | Bengaluru centre | z14 x 11722–11724, y 7595–7597 | A dense city, 3×3 L0 tiles (about 7 km square) |
 | Mumbai–Pune expressway | z12 x 2881–2883, y 1830; z14 x 11529–11533, y 7320–7323 | The ghat section: L1 tiles along it, a 5×4 block of L0 tiles around the ghat (the road crosses three tile rows) |
 
+## Offline tiles: `protomaps-20261109/`, `panaji-20261109.pmtiles`
+
+From Protomaps' daily build `20261109` (basemap v4.15.2; data © OpenStreetMap contributors,
+ODbL; schema BSD), through `tools/build_offline_map.sh`'s Goa region:
+- **`protomaps-20261109/`:** central Panaji, a 3×3 block of z14 tiles (x 11550–11552,
+  y 7477–7479) and the z12 tile 2887/1869, decompressed and filtered to `roads`, `water` and
+  `landuse` (`tools/make_chunks.py extract`).
+- **`panaji-20261109.pmtiles`:** a 104 KB PMTiles archive of zoom 12-14 around one Panaji
+  block, cut from the region with `go-pmtiles extract`, for the phone's PMTiles reader.
+
 ## Chunks: `chunks/`
 
 Made with `tools/make_chunks.py chunks` (data version `20261101`, provenance
@@ -31,7 +41,13 @@ python tools/make_chunks.py chunks --frame 18.75,73.40 --data-version 20261101 \
     docs/fixtures/map/openfreemap-20261101/14-1153*.pbf
 ```
 
+```bash
+python tools/make_chunks.py chunks --schema protomaps --frame 15.49,73.83 --data-version 20261109 \
+    --out docs/fixtures/map/chunks/panaji-offline docs/fixtures/map/protomaps-20261109/*.pbf
+```
+
 | Set | Chunks | Size |
 |---|---|---|
 | Bengaluru | 9 × L0: 935–1,367 lines, 2,890–4,627 points, 9.6–14.5 KB each | 101 KB |
 | Expressway | 3 × L1 (1.2–1.6 KB), 20 × L0 (0–3.3 KB) | 30 KB |
+| Panaji, offline (provenance `osm_protomaps_offline`) | 1 × L1 (3.1 KB), 9 × L0 (0.2–4.6 KB) | 31 KB |
