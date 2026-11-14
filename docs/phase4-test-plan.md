@@ -211,3 +211,96 @@ the phone's chunk sync. Use **Replay ×2** (108 km/h) on a recorded ride, or **S
   traffic. The ring gauge drawn by the rasteriser takes the stress-build Nav frame from 91 ms
   to 56 ms; the owner confirmed its look on the dash (Nav and Music, every theme).
 - **Waits for a real ride:** traffic from Google guidance (F9).
+
+## Step H: real rides
+
+Rides with the dash on the `crowpanel21-phone` build and the phone with the debug app. These
+checks decide whether the phone build matches Phase 3 (the parity table below), after which the
+Chronos build is removed.
+
+**Rules for every ride:**
+
+- **The phone stays locked in a pocket, screen off,** from **Start the ride** to the end. Search,
+  shared links, backend choice and the confirmation screen all happen before the ride.
+- **The dash is glance-only while moving.** Knob actions (Accept, a music control, Settings)
+  happen stopped, or come from outside (someone calls you).
+- **No laptop on the bike,** so the dash's serial log isn't there. The evidence is what you
+  saw, the phone's logcat, and two Settings rows the dash keeps since power-on:
+  - "Chip 61 C, max 74" ("Hot …" while the backlight is capped for heat)
+  - "Drops 1, stale 3": phone link drops, and the times the route data went stale
+
+  Read them at the end of each ride, before switching the dash off.
+- **Ride logs never go in the repo.** They hold places and times. Results here quote counts and
+  times only.
+
+**Before each ride:**
+
+1. Raise the phone's log buffer so a whole ride fits: Developer options → Logger buffer
+   sizes → 16M (or `adb logcat -G 16M`; check with `adb logcat -g`). It lasts until the phone
+   restarts.
+2. Note the usage meters in Maps settings, and the backend.
+3. For offline checks, the offline region is installed (Maps settings).
+4. On the confirmation screen, note the start time and the ETA.
+
+**After each ride:**
+
+1. Write down the arrival time and the dash's two health rows.
+2. Pull the log over wireless debugging:
+
+   ```bash
+   adb logcat -d -v time > ride-YYYYMMDD-N.log   # keep it outside the repo
+   ```
+
+   Useful tags: `Ride`, `Map`, `GoogleNav`, `RideLink`, `pose`. `Start proc
+   io.github.d4rthc0d3r.sarathi` lines mean Android restarted the app mid-ride.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| H1 | Each backend | One ride each with Google, Mappls, OSM (Valhalla), GraphHopper and OSM offline ("Route with"), each over 5 km with at least five turns | Turn by turn to arrival; the next turn and its distance right at every turn; the map keeps up; a missed turn reroutes on the same backend |
+| H2 | Search and shared links | Before rides: pick the destination once by search on each backend, and once from a link shared from Google Maps and from Mappls | The ride ends where the place really is (not a nearby namesake) |
+| H3 | Traffic colouring | A Mappls or Google route through a busy stretch at rush hour | The stretches you crawl in are slow or jam on the route line; free-flowing ones aren't. Traffic older than 5 min turns thin and dim (unknown), never left as it was |
+| H4 | ETA accuracy | Every ride: the ETA at start against the arrival time | Arrival within 10 % of the first ETA (3 min on rides under 30 min), or the dash's ETA moved with the delays. Record each backend's error |
+| H5 | Data drops | At a stop mid-route, mobile data off (quick settings), then ride on 10 min; data back on at the next stop | Guidance carries on; the map comes from the phone's cache or the offline region; traffic goes unknown after 5 min; a missed turn reroutes offline ("Now: OSM offline"); with data back, the next reroute uses the chosen backend again |
+| H6 | Offline stretch | A whole ride inside the offline region with mobile data off from the start, routed "OSM offline" | Route, guidance, map and reroutes all work; no "Map loading" while inside the region |
+| H7 | Call while navigating | Someone calls you while you ride; Accept on the dash only once stopped (or let it ring out) | The call screen takes over, then Nav returns; navigation was current the whole time (no "Navigation stale" when back) |
+| H8 | Music while navigating | Music playing during a ride; at a stop, pause and skip on the dash | Title and time follow while riding; the controls work stopped; navigation unaffected |
+| H9 | App killed | Desk, **Simulate ×20**, phone locked: (a) swipe the app from recents; (b) `adb shell am crash io.github.d4rthc0d3r.sarathi` (a process death); (c) `adb shell am force-stop io.github.d4rthc0d3r.sarathi`. On rides: look for `Start proc` lines | (a) the ride carries on. (b) the dash shows "No phone" or "No navigation" within seconds, never a frozen route; the link comes back by itself; the ride must be started again (not saved yet; decide after the rides). (c) "No phone" within seconds; the link stays off until the app is opened |
+| H10 | Tunnel or no GPS | Through a tunnel, a long underpass or a covered stretch | The map moves on for up to 5 s, then "Position stale Ns", never frozen silently; recovers within seconds of daylight, with no reroute from the jump |
+| H11 | Heat | The dash in the sun an hour (riding, or parked with the screen on), then a ride | Readable in the sun; no flicker, line shift or reset. Note "Chip … max …". If "Hot" showed, the screen dimmed to at most 50 % and came back after cooling; the readings tune the 80 °C limit (`docs/hardware.md`, Heat) |
+| H12 | Google within the free tier | After the rides: Maps settings' meters against Cloud Console (APIs & Services → each API's metrics) and Billing (this month's cost) | The meters match the console within a few calls; billing shows no charge; the quota caps are still set (ADR-0006) |
+
+Checks carried over from earlier steps, done on the same rides:
+
+- **D9:** the link stays up the whole pocket ride; the health row shows "Drops 0" (or each
+  drop explained); `pose` fixes about once a second in logcat.
+- **E7, E8:** Settings locks within about 2 s of riding off, and unlocks about 5 s after
+  stopping (thresholds 5/3 km/h). With the lock switch off, they stay unlocked. A double-click
+  at a stop shows it. Never try it while moving.
+- **F9:** with Google guidance, `GoogleNav` "traffic:" lines in logcat and traffic on the dash.
+
+### Parity with Phase 3
+
+Each of `docs/phase3-test-plan.md`'s cases and what covers it on the phone build. "Recheck"
+rows are a short desk session with the app before the owner confirms parity; the Chronos
+build goes only after that.
+
+| P3 | Case | On the phone build | Status |
+|---|---|---|---|
+| 1 | Pair a new phone | D2 (code on both, knob confirms) | Pass |
+| 2 | Refuse pairing | C3 with the fake phone; recheck with the app: Cancel on the dash | Recheck |
+| 3 | Paired phone reconnects | D6 (dash restart), D10 (Bluetooth off and on) | Pass |
+| 4 | Forget phones | C13 with the fake phone; recheck with the app: Forget phones, then the app pairs again | Recheck |
+| 5 | Navigation | F7, G4 on the desk (now with the map); H1 on rides | H1 |
+| 6 | Navigation after a reconnect | G3 (resends only what's missing), D10; H9 | H9 |
+| 7 | Settings lock | E7, E8 with GPS speed; without speed it still locks while navigating | E7/E8 |
+| 8 | Incoming call | E3, E5 (with Accept and Reject instead of Dismiss) | Pass |
+| 9 | Dismiss | E4 (Reject) | Pass |
+| 10 | Music | E2 (now with time and progress) | Pass |
+| 11 | Phone gone | C11, D7 | Pass |
+| 12 | Update check with BLE | C12 with the fake phone; recheck with the app: the link comes back by itself after the check | Recheck |
+| 13 | Power-up without a monitor | Recheck on the phone build: replug USB, no monitor | Recheck |
+| 14 | Knob on the music screen | Recheck on the phone build | Recheck |
+| 15 | Double-click | Recheck on every screen of the phone build | Recheck |
+| 16 | Clock | Recheck: the dash's clock against the phone's after connecting | Recheck |
+| 17 | OTA with the BLE self-check | After the release switches to the phone build: a `v0.5.0-rc.N` pre-release installed over the air; the image confirms after BLE is up; the bonded phone reconnects without pairing | After parity |
+| 18 | On the bike | H1-H12, D9, E7/E8, F9 | Rides |

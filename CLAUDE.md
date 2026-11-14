@@ -90,7 +90,10 @@ Classic Bluetooth audio on the device.
   chunks on the phone, G3 chunk sync (protocol 1.2), G4 the map on Nav (zoom by speed and
   turns), G5 traffic on the route line, G6 map styles per theme with legibility checks and the
   ring gauge drawn by the rasteriser. Tested on the phone and the dash. On-device checks:
-  `docs/phase4-test-plan.md`.
+  `docs/phase4-test-plan.md`. Step H (in progress): real rides with the phone in a pocket
+  (H1-H12) and parity with Phase 3; the dash caps the backlight on a hot chip and shows its
+  health on Settings (`core/ride_health.h`). The Chronos build is removed once the owner
+  confirms parity.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -241,7 +244,8 @@ Pins are in `board_pins.h` only. Full details go in `docs/hardware.md`.
   slots. Keep image assets small; prefer vector shapes and fonts over full-screen bitmaps.
   Theme budget (ADR-0003): no image asset over 16 KB, ≤ 256 KB of images across all themes,
   subset fonts.
-- **Power:** 5V/1A in, operating range −20 to 65°C. Dim the backlight on high chip temperature.
+- **Power:** 5V/1A in, operating range −20 to 65°C. Dim the backlight on high chip temperature
+  (80 °C caps it at 50 %, lifted below 72 °C: `core/ride_health.h`, `docs/hardware.md`).
 
 ## Engineering rules
 
