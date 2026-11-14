@@ -287,7 +287,7 @@ build goes only after that.
 | P3 | Case | On the phone build | Status |
 |---|---|---|---|
 | 1 | Pair a new phone | D2 (code on both, knob confirms) | Pass |
-| 2 | Refuse pairing | C3 with the fake phone; recheck with the app: Cancel on the dash | Recheck |
+| 2 | Refuse pairing | C3 with the fake phone; with the app: Cancel on the dash | Pass |
 | 3 | Paired phone reconnects | D6 (dash restart), D10 (Bluetooth off and on) | Pass |
 | 4 | Forget phones | C13 with the fake phone; with the app: Forget phones, then the app pairs again | Pass |
 | 5 | Navigation | F7, G4 on the desk (now with the map); H1 on rides | H1 |
@@ -319,7 +319,10 @@ build goes only after that.
 - **Parity rechecks:** P4 and P12–P16 pass with the app (the owner at the dash, the serial log
   and logcat). The update check paused BLE, which came back about 10 s later; the phone was
   Ready within a second, by itself. The phone sent the time on connect
-  (`TimeSync(local=…, utcOffsetMin=330)`). **P2 (Cancel with the app) is still to do.**
+  (`TimeSync(local=…, utcOffsetMin=330)`).
+- **P2 passes:** after Forget phones, Cancel on the dash failed the phone's pairing
+  (`SMP_NUMERIC_COMPAR_FAIL`, no bond) and the app showed "pairing refused"; it asked again 2 s
+  later, and Pair bonded it and reached Ready. The phone's Bluetooth didn't stick this time.
 - **Found and fixed:** the temperature sensor started with the RGB panel running left the
   picture shifted up about 20 rows on every boot (`7dc4fc1`). The firmware before step H, and the
   fixed order, boot straight, including from a cold replug.
