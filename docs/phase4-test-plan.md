@@ -1,5 +1,17 @@
 # Phase 4 test plan
 
+## Phase 4 status
+
+**Done (2026-11-14)**, apart from what the owner put on hold:
+
+| Pending | Why | When |
+|---|---|---|
+| Real-ride checks H1–H12, D9, E7/E8, F9 | The dash can't be mounted on the bike yet | When it can |
+| Phase 3 parity (P5–P7, P17, P18), then removing the Chronos build and superseding ADR-0005 | Needs the rides; the OTA case needs the phone build released | Before any public release |
+| Guided edit on a server (I4.2–I4.4) | The test server has no roads near Goa; the owner chose not to draw test roads | A real gap found on a ride |
+| Daily limit (I3.4), sign-out (I3.5) | Not tried yet | Any desk session |
+| Step J (Google road extraction) | Dropped by the owner | Possibly a future experimental feature |
+
 On-device checks for each Phase 4 step, run on the CrowPanel with the noted build. Native and
 JVM tests cover the logic; these cover what only the hardware shows.
 

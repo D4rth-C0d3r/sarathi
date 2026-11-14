@@ -57,7 +57,8 @@ Classic Bluetooth audio on the device.
   phone battery from the Chronos app, with pairing confirmed on the dash. All of
   `docs/phase3-test-plan.md` passes on the device, including the OTA from 0.3.0 to
   `v0.4.0-rc.2`, except navigation on a real ride, which is still to be tried.
-- **Phase 4 (own Android app + protocol) is in progress:** ADR-0006 (maps backends),
+- **Phase 4 (own Android app + protocol) is done** (2026-11-14), with the items the owner put on
+  hold listed under "Pending from Phase 4" below. ADR-0006 (maps backends),
   ADR-0007 (protocol v1), ADR-0008 (destination input) and ADR-0009 (on-device game-style
   map) are accepted. Spikes done: the rotating map renders at about 18.6 fps without
   flicker (own rasteriser, pre-swapped colours; ADR-0009), and the offline router is
@@ -98,6 +99,18 @@ Classic Bluetooth audio on the device.
   GPS track on the phone (satellite fixes only); I2 finds gaps against OSM-provenance chunks and
   live OSM; I3 OSM login, traces and notes; I4 the guided edit. Every edit is confirmed by the
   rider, nothing happens during a ride, and Google or Mappls data can't reach it.
+- **Pending from Phase 4 (on hold by the owner; `docs/phase4-test-plan.md`, "Phase 4 status"):**
+  - the real-ride checks (H1–H12, D9, E7/E8, F9), waiting until the dash can be mounted
+  - Phase 3 parity, then the Chronos build's removal and ADR-0005 superseded (must happen before any
+    public release)
+  - the guided edit on a server (I4.2–I4.4), the daily limit (I3.4) and sign-out (I3.5)
+  - the 4J Google road extraction: dropped; possibly a future experimental feature
+- **Phase 5 (reliability, ride features and public release):** ADRs 0013–0019 accepted
+  (2026-11-14); no code yet.
+  - **Licence:** Apache-2.0 stays (ADR-0013).
+  - **Open:** Elecrow's unlicensed example code, which must be settled before any public release.
+  - **Releases:** the published app is the "foss" variant only (ADR-0014).
+  - **Versions:** firmware `vX.Y.Z` and app `app-vX.Y.Z` (ADR-0019).
 
 Roadmap:
 0. Bring-up (done, v0.1.0)
@@ -108,9 +121,16 @@ Roadmap:
 3. ChronosESP32 quick win (done; nav is **arrows-only**: notifications carry no route geometry)
 4. Own Android app + protocol, including a routing source that provides route geometry
    (Google Maps' notification has none) and the vector route window
-5. BLE OTA
+5. Reliability, ride features and public release (ADR-0013 to ADR-0019):
+   - licensing and the `NOTICE` file
+   - "foss" and "full" build variants
+   - firmware updates over BLE
+   - watchdog, crash safe mode and diagnostics
+   - power standby, sun-time brightness and heat levels
+   - trip log and speed limits
+   - signed releases with a web flasher
 6. Bike integration
-7. Extras: more themes, GPS, trip stats
+7. Extras: more themes, GPS
 
 ## Repo map
 
