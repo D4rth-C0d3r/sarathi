@@ -22,6 +22,9 @@ enum class GapStatus {
 
     /** The rider added an OSM note ([StoredGap.ref]: the note's id). */
     NOTE_SENT,
+
+    /** The rider added the road ([StoredGap.ref]: the changeset's id). */
+    EDITED,
 }
 
 /** A gap of one ride's track, and its status. */

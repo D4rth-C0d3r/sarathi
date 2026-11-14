@@ -44,7 +44,7 @@ object Overpass {
     }
 
     /** A parser that never reads a DOCTYPE or external entities: the answer comes from the network. */
-    private fun parser() =
+    internal fun parser() =
         SAXParserFactory
             .newInstance()
             .apply {

@@ -192,4 +192,26 @@
     <string name="note_draft">I rode a road here that the map does not have: about %1$d m, on %2$s.</string>
     <string name="note_public">Public on OpenStreetMap and signed with your account. Write it as you would to a person.</string>
     <string name="note_send">Send</string>
+    <string name="gaps_edit">Add the road</string>
+    <string name="gaps_sent_edit">Road added in changeset %1$s, about %2$d m</string>
+    <string name="edit_title">Add this road to OpenStreetMap?</string>
+    <string name="edit_loading">Getting OpenStreetMap as it is there now…</string>
+    <string name="edit_failed">Could not get OpenStreetMap for this place. Try again later, or add a note.</string>
+    <string name="edit_refused">This cannot be added from here: %1$s Add a note instead, so a local mapper can look.</string>
+    <string name="edit_no_join">both ends must meet a road OpenStreetMap has, and one of them does not.</string>
+    <string name="edit_too_long">it is longer than 5 km.</string>
+    <string name="edit_joins">Starts %1$s, ends %2$s; about %3$d m. The dots mark where it joins.</string>
+    <string name="edit_join_existing">at a point the road already has</string>
+    <string name="edit_join_new">with a new point on the road</string>
+    <string name="edit_type">What kind of road is it?</string>
+    <string name="road_residential">Residential street</string>
+    <string name="road_unclassified">Minor road</string>
+    <string name="road_service">Service road</string>
+    <string name="road_track">Track</string>
+    <string name="road_path">Path</string>
+    <string name="edit_comment">Changeset comment</string>
+    <string name="edit_comment_draft">Add a road surveyed by GPS on a ride</string>
+    <string name="edit_marks">It is marked fixme, to be checked against imagery, and the changeset asks for review: one GPS trace can be several metres off.</string>
+    <string name="edit_send">Add the road</string>
+    <string name="edit_conflict">Not sent: OpenStreetMap changed there meanwhile. Open it again to see it as it is now.</string>
 </resources>

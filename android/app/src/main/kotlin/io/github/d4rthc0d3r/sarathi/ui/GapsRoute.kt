@@ -17,6 +17,7 @@ import io.github.d4rthc0d3r.sarathi.contribute.GapActions
 import io.github.d4rthc0d3r.sarathi.contribute.GapCheck
 import io.github.d4rthc0d3r.sarathi.contribute.GapStore
 import io.github.d4rthc0d3r.sarathi.contribute.OsmAccount
+import io.github.d4rthc0d3r.sarathi.contribute.OsmApi
 import io.github.d4rthc0d3r.sarathi.contribute.Sent
 import io.github.d4rthc0d3r.sarathi.core.mapdata.GeoPoint
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.GapStatus
@@ -58,7 +59,7 @@ fun GapsRoute(onBack: () -> Unit) {
             signedIn = signedIn.value,
             canSignIn = OsmAccount.configured,
             testServer = !BuildConfig.OSM_LIVE,
-            sent = stored.filter { it.status == GapStatus.TRACE_SENT || it.status == GapStatus.NOTE_SENT },
+            sent = stored.filter { it.status in setOf(GapStatus.TRACE_SENT, GapStatus.NOTE_SENT, GapStatus.EDITED) },
             message = message,
         ),
         state.actions(onBack),
@@ -87,6 +88,8 @@ private class GapsState(
                 send { GapActions.sendTrace(context, g, description, visibility) }
             },
             onSendNote = { g, text -> send { GapActions.sendNote(context, g, text) } },
+            prepareEdit = { g -> GapActions.prepareEdit(context, g) },
+            onSendEdit = { g, plan, road, comment -> send { GapActions.sendEdit(context, g, plan, road, comment) } },
         )
 
     private fun check() {
@@ -126,10 +129,10 @@ private class GapsState(
             }
 
             is Sent.Failed -> {
-                if (sent.why == GapActions.LIMIT_REACHED) {
-                    context.getString(R.string.gaps_limit)
-                } else {
-                    context.getString(R.string.gaps_sent_failed, sent.why)
+                when (sent.why) {
+                    GapActions.LIMIT_REACHED -> context.getString(R.string.gaps_limit)
+                    OsmApi.CHANGED_MEANWHILE -> context.getString(R.string.edit_conflict)
+                    else -> context.getString(R.string.gaps_sent_failed, sent.why)
                 }
             }
         }

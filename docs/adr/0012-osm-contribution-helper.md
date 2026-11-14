@@ -165,9 +165,12 @@ Once the ride has ended:
     track, path.
   - `fixme=position from one GPS trace; check against imagery` is added, following Good
     practice.
-  - Both ends must join existing roads within 25 m; otherwise only a note is offered. They join
-    an existing node, or a new node on the existing way, from a fresh `map` download of the small
-    area.
+  - Both ends must join existing roads; otherwise only a note is offered. They join an existing
+    node (within 3 m of the nearest point on the road), or a new node on the existing way, from a
+    fresh `map` download of the small area.
+  - **Clarified 2026-11-14:** the road must be within 40 m of the gap's end, not 25 m. A gap's ends
+    are already more than 25 m from any road (that is what makes them a gap), and the rider left
+    the road about 25 m before the first one. Planned, abandoned and area roads are never joined.
   - At most 5 km long.
   - The rider sees the new road on the map with its connections before confirming.
   - The changeset carries `review_requested=yes`.

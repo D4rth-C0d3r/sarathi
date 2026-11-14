@@ -354,6 +354,10 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
 | I3.3 | Note | Add a note: edit the draft, Send | "Sent."; the note on the server at the place, with your words, signed by your account |
 | I3.4 | Limits | A sixth trace or note in a day | "Not sent: today's limit of five is reached." |
 | I3.5 | Sign out | Sign out | The buttons go; OSM's Authorizations page no longer lists the app |
+| I4.1 | Refused | Add the road on a place whose end isn't near a road on the server | "This cannot be added from here: both ends must meet a road…"; nothing sent |
+| I4.2 | Review | Add the road on a place with roads at both ends | The map: OSM's roads now, the new road, dots where it joins; road type and comment; Add is off until a type is picked |
+| I4.3 | Added | Pick a type, Add the road | "Sent."; on the server one changeset (comment, `created_by`, `source=survey;gps`, `review_requested=yes`) with the new way (`highway`, `fixme`) joined at both ends; a road joined mid-segment keeps its tags |
+| I4.4 | Conflict | Edit a joined road on the server between review and Add | "Not sent: OpenStreetMap changed there meanwhile"; the changeset closed with nothing in it |
 
 ### Results, 2026-11-14 (Nothing Phone (1), Android 15)
 

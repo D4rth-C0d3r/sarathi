@@ -28,6 +28,8 @@ then Overpass through `OverpassClient`) and shows them in Missing roads (`ui/Gap
 I3 adds the rider's OSM login (`contribute/OsmAccount`: OAuth 2 with PKCE, `sarathi://osm-oauth`,
 the token sealed by `TokenVault` in the Android Keystore), GPS trace upload and notes (`OsmApi`,
 `GapActions`), each confirmed in a dialog. OSM's test server unless built with `-Psarathi.osmLive=true`.
+I4 is the guided edit (`core:osmcontrib` `GuidedEdit`, `OsmChange`; `ui/EditDialog`): the road from the trace,
+joined at both ends to roads OSM has now, reviewed on a map, in its own changeset.
 Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)

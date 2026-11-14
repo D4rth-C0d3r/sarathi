@@ -2,12 +2,19 @@ package io.github.d4rthc0d3r.sarathi.contribute
 
 import android.content.Context
 import android.util.Log
+import io.github.d4rthc0d3r.sarathi.BuildConfig
 import io.github.d4rthc0d3r.sarathi.core.mapdata.GeoPoint
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.Contribution
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.DailyLimits
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.EditPlan
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.GapStatus
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.Gpx
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.GuidedEdit
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.NoEdit
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.OsmChange
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.OsmData
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.RawGpsFix
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.RoadType
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.StoredGap
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.TraceCut
 import io.github.d4rthc0d3r.sarathi.feature.destination.FilePlacesStore
@@ -15,6 +22,7 @@ import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.cos
 
 /**
  * What the rider can do with a gap (ADR-0012 §4), each after confirming it: upload the GPS trace
@@ -23,6 +31,8 @@ import java.io.File
 object GapActions {
     private const val TAG = "Contribute"
     private const val LIMITS = "osm-limits.txt"
+    private const val EDIT_MARGIN_M = 100.0
+    private const val M_PER_DEG = 111_320.0
     const val LIMIT_REACHED = "today's limit"
 
     /** The fixes that would be uploaded for [gap]: the stretch around it, less the privacy cut. */
@@ -68,6 +78,65 @@ object GapActions {
     ): Sent =
         send(context, gap, Contribution.NOTE, GapStatus.NOTE_SENT) { api ->
             api.addNote(gap.gap.middle, text)
+        }
+
+    /** What a guided edit of [gap] would be, from OSM as it is now (ADR-0012 §4). */
+    sealed interface EditPreview {
+        data class Ready(
+            val plan: EditPlan,
+            /** The roads OSM has there now, for the review map. */
+            val roads: List<List<GeoPoint>>,
+        ) : EditPreview
+
+        data class Refused(
+            val why: NoEdit,
+        ) : EditPreview
+
+        data class Failed(
+            val sent: Sent,
+        ) : EditPreview
+    }
+
+    suspend fun prepareEdit(
+        context: Context,
+        gap: StoredGap,
+    ): EditPreview {
+        val token = OsmAccount.token(context) ?: return EditPreview.Failed(Sent.SignedOut)
+        val data = download(context, token, gap.gap.points)
+        return when (val r = data?.let { GuidedEdit.plan(gap.gap, it) }) {
+            null -> EditPreview.Failed(Sent.Failed("couldn't download the area"))
+            is GuidedEdit.Result.Ok -> EditPreview.Ready(r.plan, data.ways.filter { it.joinable }.map(data::line))
+            is GuidedEdit.Result.Refused -> EditPreview.Refused(r.why)
+        }
+    }
+
+    // OSM as it is now, in a box around the gap with a margin for the roads it joins.
+    private suspend fun download(
+        context: Context,
+        token: String,
+        points: List<GeoPoint>,
+    ): OsmData? {
+        val marginLat = EDIT_MARGIN_M / M_PER_DEG
+        val marginLon = marginLat / cos(Math.toRadians(points.first().lat))
+        return OsmApi(MapsRegistry.get(context).http, token).map(
+            points.minOf { it.lat } - marginLat,
+            points.minOf { it.lng } - marginLon,
+            points.maxOf { it.lat } + marginLat,
+            points.maxOf { it.lng } + marginLon,
+        )
+    }
+
+    suspend fun sendEdit(
+        context: Context,
+        gap: StoredGap,
+        plan: EditPlan,
+        road: RoadType,
+        comment: String,
+    ): Sent =
+        send(context, gap, Contribution.EDIT, GapStatus.EDITED) { api ->
+            api.edit(
+                OsmChange.changeset(comment, "sarathi ${BuildConfig.VERSION_NAME}"),
+            ) { cs -> OsmChange.build(plan, road, cs) }
         }
 
     private suspend fun send(

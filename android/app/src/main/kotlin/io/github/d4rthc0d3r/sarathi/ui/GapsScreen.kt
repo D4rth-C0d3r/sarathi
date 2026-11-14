@@ -32,10 +32,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.d4rthc0d3r.sarathi.R
+import io.github.d4rthc0d3r.sarathi.contribute.GapActions
+import io.github.d4rthc0d3r.sarathi.contribute.Sent
 import io.github.d4rthc0d3r.sarathi.contribute.TraceVisibility
 import io.github.d4rthc0d3r.sarathi.core.mapdata.GeoPoint
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.EditPlan
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.Gap
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.GapStatus
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.RoadType
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.StoredGap
 import java.text.DateFormat
 import java.util.Date
@@ -74,6 +78,9 @@ data class GapsActions(
     val tracePoints: suspend (StoredGap) -> List<GeoPoint> = { emptyList() },
     val onSendTrace: (StoredGap, String, TraceVisibility) -> Unit = { _, _, _ -> },
     val onSendNote: (StoredGap, String) -> Unit = { _, _ -> },
+    /** A guided edit's preview, from OSM as it is now. */
+    val prepareEdit: suspend (StoredGap) -> GapActions.EditPreview = { GapActions.EditPreview.Failed(Sent.Failed("")) },
+    val onSendEdit: (StoredGap, EditPlan, RoadType, String) -> Unit = { _, _, _, _ -> },
     /** OSM roads near a gap, for its map. */
     val roads: suspend (Gap) -> List<List<GeoPoint>> = { emptyList() },
 )
@@ -113,15 +120,13 @@ fun GapsScreen(
             if (ui.open.isEmpty() && ui.checking == null) Text(stringResource(R.string.gaps_none))
             var traceFor by remember { mutableStateOf<StoredGap?>(null) }
             var noteFor by remember { mutableStateOf<StoredGap?>(null) }
-            ui.open.forEach {
-                GapCard(it, ui.signedIn, actions, onTrace = { g -> traceFor = g }, onNote = { g ->
-                    noteFor =
-                        g
-                })
-            }
-            if (ui.sent.isNotEmpty()) Sent(ui.sent)
+            var editFor by remember { mutableStateOf<StoredGap?>(null) }
+            val asks = Asks(onTrace = { traceFor = it }, onNote = { noteFor = it }, onEdit = { editFor = it })
+            ui.open.forEach { GapCard(it, ui.signedIn, actions, asks) }
+            if (ui.sent.isNotEmpty()) SentList(ui.sent)
             traceFor?.let { g -> TraceDialog(g, actions, onClose = { traceFor = null }) }
             noteFor?.let { g -> NoteDialog(g, actions, onClose = { noteFor = null }) }
+            editFor?.let { g -> EditDialog(g, actions, onClose = { editFor = null }) }
         }
     }
 }
@@ -151,21 +156,32 @@ private fun Account(
 }
 
 @Composable
-private fun Sent(sent: List<StoredGap>) {
+private fun SentList(sent: List<StoredGap>) {
     Text(stringResource(R.string.gaps_sent), style = MaterialTheme.typography.titleMedium)
     sent.forEach { g ->
-        val what = if (g.status == GapStatus.TRACE_SENT) R.string.gaps_sent_trace else R.string.gaps_sent_note
+        val what =
+            when (g.status) {
+                GapStatus.TRACE_SENT -> R.string.gaps_sent_trace
+                GapStatus.EDITED -> R.string.gaps_sent_edit
+                else -> R.string.gaps_sent_note
+            }
         Text(stringResource(what, g.ref.orEmpty(), g.gap.lengthM.toInt()))
     }
 }
+
+/** What a gap's buttons ask for: one of the three confirmation dialogs. */
+private class Asks(
+    val onTrace: (StoredGap) -> Unit,
+    val onNote: (StoredGap) -> Unit,
+    val onEdit: (StoredGap) -> Unit,
+)
 
 @Composable
 private fun GapCard(
     stored: StoredGap,
     signedIn: Boolean,
     actions: GapsActions,
-    onTrace: (StoredGap) -> Unit,
-    onNote: (StoredGap) -> Unit,
+    asks: Asks,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -180,9 +196,10 @@ private fun GapCard(
             Text(stringResource(R.string.gaps_card, stored.gap.lengthM.toInt(), ridden))
             if (signedIn) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onTrace(stored) }) { Text(stringResource(R.string.gaps_trace)) }
-                    Button(onClick = { onNote(stored) }) { Text(stringResource(R.string.gaps_note)) }
+                    Button(onClick = { asks.onTrace(stored) }) { Text(stringResource(R.string.gaps_trace)) }
+                    Button(onClick = { asks.onNote(stored) }) { Text(stringResource(R.string.gaps_note)) }
                 }
+                Button(onClick = { asks.onEdit(stored) }) { Text(stringResource(R.string.gaps_edit)) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { actions.onSkip(stored) }) { Text(stringResource(R.string.gaps_skip)) }
@@ -197,10 +214,12 @@ private fun GapCard(
 internal fun GapMap(
     gap: Gap,
     roadsFor: suspend (Gap) -> List<List<GeoPoint>>,
+    marks: List<GeoPoint> = emptyList(),
 ) {
     val roads by produceState(emptyList<List<GeoPoint>>(), gap) { value = roadsFor(gap) }
     val roadColor = MaterialTheme.colorScheme.outline
     val gapColor = MaterialTheme.colorScheme.error
+    val markColor = MaterialTheme.colorScheme.primary
     Canvas(
         Modifier
             .fillMaxWidth()
@@ -219,6 +238,7 @@ internal fun GapMap(
             road.zipWithNext().forEach { (a, b) -> drawLine(roadColor, at(a), at(b), ROAD_PX, StrokeCap.Round) }
         }
         gap.points.zipWithNext().forEach { (a, b) -> drawLine(gapColor, at(a), at(b), GAP_PX, StrokeCap.Round) }
+        marks.forEach { drawCircle(markColor, MARK_PX, at(it)) }
     }
 }
 
@@ -234,6 +254,7 @@ private const val MARGIN_M = 150.0
 private const val MAP_HEIGHT_DP = 220
 private const val ROAD_PX = 4f
 private const val GAP_PX = 10f
+private const val MARK_PX = 14f
 
 @Preview
 @Composable
