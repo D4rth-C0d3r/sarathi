@@ -175,7 +175,39 @@ F1–F8 pass. F9 waits for a real ride.
 - **Usage for all of step F:** 4 of Google's 1,000 destinations this month; Mappls at 30 of 100
   routing calls on 2026-11-09.
 - **Deferred:**
-  - downloading map data for the route corridor, and drawing traffic on the dash (both wait for
-    the on-device map, ADR-0009)
+  - downloading map data for the route corridor, and drawing traffic on the dash (both done in
+    step G)
   - the Navigation SDK's licence and attribution page (licensing)
   - auto-start (D8)
+
+## Step G: the on-device map (ADR-0009)
+
+The dash on the `crowpanel21-phone` build unless noted, the phone with the debug app. The
+dash's `perf` line (`docs/building.md`) gives frame and map draw times; logcat tag `Map` gives
+the phone's chunk sync. Use **Replay ×2** (108 km/h) on a recorded ride, or **Simulate ×20**.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| G1 | Renderer bench | `crowpanel21-mapbench` build, five phases | ≥ 15 fps in every phase; no flicker, line shift or freezes on video |
+| G2 | Map chunks on the phone | Maps settings → map desk check, online and with the offline region | Chunks made from OpenFreeMap and from the region; the tile cache fills |
+| G3 | Chunk sync | Replay ×2 with the dash's cache empty; then toggle the dash's power mid-ride | About 80 KB in the first 10 s, about 100 B/s after; nothing refused; after a reset the phone starts over, after a reconnect it resends nothing held |
+| G4 | Map on Nav | Replay ×2, then stop | The map follows the rider heading-up, smoothly; zooms out with speed and in before turns; "Map loading" only when slow, then "(c) OpenStreetMap" for 10 s |
+| G5 | Traffic on the route | A Mappls route with traffic; Replay ×2 | Slow dashed, jam wider with ticks, unknown thin and dim, free solid; the route stands out from the roads in every theme; the ETA follows traffic |
+| G6 | Styles per theme | Sim `--mapshots`; on the dash, each theme on Nav and Music | Each theme's own map style; the ring gauge looks as before (track, progress, round ends) and sits over the Nav card |
+
+### Results, 2026-11-09 to 2026-11-14 (Nothing Phone (1), Android 15)
+
+- **G1:** passes; numbers in ADR-0009 "Renderer bench". Two freezes the owner filmed were the
+  bench's own log line and an unsmoothed heading, both fixed.
+- **G2:** passes on the phone, online and offline (an 8.5 MB Goa region).
+- **G3:** 67 KB in the first 10 s, then about 85 B/s at 108 km/h, nothing refused (ADR-0009
+  "Chunk sync"). A reconnect resent nothing; a reset dash made the phone start over (fixed
+  `dcf6923`).
+- **G4:** the owner saw the map proper and smooth. Internal heap 44 KB free with BLE connected.
+  Found and fixed: the built-in fonts have no ©, so the attribution reads "(c) OpenStreetMap".
+- **G5:** passes after the owner's feedback that free-flowing route lines were hard to see in
+  Classic and HUD: the route now has a casing and the roads are dimmer.
+- **G6:** the owner approved the simulator screenshots of all three themes, with and without
+  traffic. The ring gauge drawn by the rasteriser takes the stress-build Nav frame from 91 ms
+  to 56 ms; its look on the dash is still to be confirmed by the owner.
+- **Waits for a real ride:** traffic from Google guidance (F9).

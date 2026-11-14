@@ -86,7 +86,10 @@ Classic Bluetooth audio on the device.
     ride log
 
   F1–F8 were tested on the phone and the dash. Google traffic during guidance waits for a real
-  ride. The dash doesn't draw map chunks or traffic yet (ADR-0009). On-device checks:
+  ride. Step G: the on-device map (ADR-0009): G1 the renderer bench and strip buffers, G2 map
+  chunks on the phone, G3 chunk sync (protocol 1.2), G4 the map on Nav (zoom by speed and
+  turns), G5 traffic on the route line, G6 map styles per theme with legibility checks and the
+  ring gauge drawn by the rasteriser. Tested on the phone and the dash. On-device checks:
   `docs/phase4-test-plan.md`.
 
 Roadmap:

@@ -296,6 +296,9 @@ auto-zoom, Classic theme) driven by the demo ride, from the `perf` serial log
   framebuffer, both in PSRAM. Since step G1.4 colours are pre-swapped and the flush only copies.
 - So the map can redraw at most about 10 times a second, with the UI task fully busy. The
   normal build uses about 12 % of it on Nav.
+- **Since step G (ADR-0009):** strip buffers, pre-swapped colours, the map's own rasteriser and
+  the ring gauge drawn by it. The same stress build on the demo ride measured 56 ms a frame
+  (16 frames a second) on 2026-11-14, against 91 ms just before the ring change.
 
 Memory, steady over the runs (no growth, no fragmentation):
 

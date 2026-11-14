@@ -144,7 +144,8 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
   | JAM | solid with cross-ticks every 20 px | route width + 4 px | red or magenta |
   | UNKNOWN | solid, thinner | route width − 2 px | theme route colour, dimmed |
 
-- **Readable in sunlight and for colour-blind riders:** new native checks in
+- **Readable in sunlight and for colour-blind riders** (as built in G6, see the end of this ADR):
+  new native checks in
   `test_theme_legibility`:
   - contrast of each traffic colour against the map background (≥ 4.5:1) and against
     adjacent road colours
@@ -353,3 +354,44 @@ route highlighted and coloured by traffic, all rendered on the device. Hard rule
 - **Guidance wasn't delayed:** `nav` kept coming every second through the start-up burst, with
   no "Position stale" or "Navigation stale".
 - **Stress test:** at ×20 (1,080 km/h), 96 KB arrived in the first minute, with nothing refused.
+
+## Map screen, traffic and styles (Phase 4 steps G4–G6, 2026-11-09 to 2026-11-14)
+
+- **The whole app draws in strips (G4):** one 40-row LVGL buffer in internal RAM, as the bench
+  decided. Internal heap stays at about 44 KB free with BLE connected.
+- **Following the rider (G4, `core::MapFollow`):**
+  - zoom by speed, 2 m/px at 20 km/h to 10 m/px at 100 km/h, with 5 km/h of hysteresis
+  - 2 m/px within 300 m of a turn
+  - dead reckoning between poses for up to 5 s
+  - redraws only when the change shows (1.5°, 1 px or 2 % zoom), at most 15 times a second
+- **Traffic on the route (G5):** the route window is split by the traffic stretches along it
+  (`core::SplitRouteByTraffic`). Traffic older than 5 minutes draws as unknown.
+  - **Owner's feedback:** free-flowing route lines were hard to tell from the roads in Classic
+    and HUD. The route now has a casing in the ground colour, 2 px each side, under the whole
+    line (dashes included), and Classic's roads are dimmer.
+- **Styles as theme data (G6.1):** `ThemeMapStyle` in each descriptor holds the ground, area
+  fills, road colours and widths, Racing's glow and the casing width. The traffic colours are
+  in each palette. `core::RouteLookFor` gives each level's colour, width and pattern, as in the
+  table above.
+
+  | Theme | Ground, roads | Route | Slow / jam |
+  |---|---|---|---|
+  | Classic | black; grey roads; water and parks filled | blue | amber / red |
+  | Fighter-jet HUD | black; thin dark-green roads, no fills | bright green | yellow / pink |
+  | Racing | near-black; purple roads with a wider dim glow | yellow | orange / magenta |
+
+- **Legibility checks as built** (`test_theme_legibility`):
+  - free, slow and jam colours ≥ 4.5:1 against the map ground; unknown ≥ 3:1
+  - against the roads (≥ 3:1) only for a theme without a casing, since the casing separates
+    them otherwise
+  - free, slow and jam at least ΔE 15 apart (CIE76) with normal vision and under simulated
+    protanopia, deuteranopia and tritanopia (Machado et al. 2009, severity 1)
+  - no two levels share both pattern and width
+  - Racing's dim route colour was raised to reach 3:1.
+- **Simulator screenshots:** `program --mapshots DIR` draws the Nav screen over the Bengaluru
+  fixtures in every theme, with and without made-up traffic. The owner approved the three
+  styles from them.
+- **Ring gauge (G6.2):** LVGL's arc was repainted in every strip of every map frame. The ring
+  now draws with the rasteriser from its own object, so it still sits over the Nav card.
+  - **Measured:** demo ride, stress build (the map redrawn every frame), Classic. A frame took
+    91 ms on average before and 56 ms after: 10.2 to 16 frames a second. Memory is unchanged.

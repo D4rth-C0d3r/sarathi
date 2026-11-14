@@ -281,6 +281,11 @@ registered theme as `DIR/<theme>_<n>_<screen>.bmp`, then exits:
 Use it to review a new or changed theme against the ADR-0003 checklist. It also starts from
 defaults and runs headless.
 
+**Map screenshots.** `.pio/build/sim/program --mapshots DIR` draws Nav over the Bengaluru map
+fixtures (`docs/fixtures/map`) in every theme, as `DIR/map_<theme>_plain.bmp` and
+`map_<theme>_traffic.bmp` (made-up slow, jam and unknown stretches ahead). Use it to review a
+theme's map style (ADR-0009).
+
 **Wi-Fi setup and updates in the simulator** use a stand-in for the radio, the update server
 and the phone:
 

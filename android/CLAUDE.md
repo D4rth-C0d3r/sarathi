@@ -18,7 +18,9 @@ offline); F5 traffic; F6 guidance
 (`:feature:navigation`); F7 confirmation and the ride on the dash (`link/RideNavigation`); F8 simulated rides for
 desk tests (debug builds only). Step G (ADR-0009) is the on-device map: G2 makes map chunks on
 the phone (`:core:mapdata`: OpenFreeMap online, the offline region from
-`tools/build_offline_map.sh`, a 200 MB tile cache; desk check in Maps settings, debug builds).
+`tools/build_offline_map.sh`, a 200 MB tile cache; desk check in Maps settings, debug builds);
+G3 sends them along the route (`link/ChunkSender`, protocol 1.2); G5 sends traffic and scales
+the remaining time by it.
 Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
