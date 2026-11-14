@@ -264,7 +264,7 @@ Chronos build is removed.
 | H6 | Offline stretch | A whole ride inside the offline region with mobile data off from the start, routed "OSM offline" | Route, guidance, map and reroutes all work; no "Map loading" while inside the region |
 | H7 | Call while navigating | Someone calls you while you ride; Accept on the dash only once stopped (or let it ring out) | The call screen takes over, then Nav returns; navigation was current the whole time (no "Navigation stale" when back) |
 | H8 | Music while navigating | Music playing during a ride; at a stop, pause and skip on the dash | Title and time follow while riding; the controls work stopped; navigation unaffected |
-| H9 | App killed | Desk, **Simulate ×20**, phone locked: (a) swipe the app from recents; (b) `adb shell am crash io.github.d4rthc0d3r.sarathi` (a process death); (c) `adb shell am force-stop io.github.d4rthc0d3r.sarathi`. On rides: look for `Start proc` lines | (a) the ride carries on. (b) the dash shows "No phone" or "No navigation" within seconds, never a frozen route; the link comes back by itself; the ride must be started again (not saved yet; decide after the rides). (c) "No phone" within seconds; the link stays off until the app is opened |
+| H9 | App killed | Desk, **Simulate ×20**, phone locked: (a) swipe the app from recents; (b) `adb shell am crash io.github.d4rthc0d3r.sarathi` (a process death); (c) `adb shell am force-stop io.github.d4rthc0d3r.sarathi`. On rides: look for `Start proc` lines | (a) the ride carries on. (b) the dash shows "No phone" or "No navigation" within seconds, never a frozen route; the link comes back by itself; the ride must be started again (not saved yet; decide after the rides). (c) "No phone" within seconds, never a frozen route |
 | H10 | Tunnel or no GPS | Through a tunnel, a long underpass or a covered stretch | The map moves on for up to 5 s, then "Position stale Ns", never frozen silently; recovers within seconds of daylight, with no reroute from the jump |
 | H11 | Heat | The dash in the sun an hour (riding, or parked with the screen on), then a ride | Readable in the sun; no flicker, line shift or reset. Note "Chip … max …". If "Hot" showed, the screen dimmed to at most 50 % and came back after cooling; the readings tune the 80 °C limit (`docs/hardware.md`, Heat) |
 | H12 | Google within the free tier | After the rides: Maps settings' meters against Cloud Console (APIs & Services → each API's metrics) and Billing (this month's cost) | The meters match the console within a few calls; billing shows no charge; the quota caps are still set (ADR-0006) |
@@ -304,3 +304,15 @@ build goes only after that.
 | 16 | Clock | Recheck: the dash's clock against the phone's after connecting | Recheck |
 | 17 | OTA with the BLE self-check | After the release switches to the phone build: a `v0.5.0-rc.N` pre-release installed over the air; the image confirms after BLE is up; the bonded phone reconnects without pairing | After parity |
 | 18 | On the bike | H1-H12, D9, E7/E8, F9 | Rides |
+
+### Results, 2026-11-14 (desk; Nothing Phone (1), Android 15)
+
+- **H9 passes** on **Replay ×20** (Mappls, Calangute), phone locked, read from the dash's serial
+  log and logcat:
+  - **(a) Removed from Recents** (`am stack remove`, as a swipe): same process, the ride
+    carried on.
+  - **(b) Process death** (`am crash`): "No phone" at once; Android restarted the app within
+    4 s, the link was Ready 3 s later and the dash showed "No navigation". The ride must be
+    started again.
+  - **(c) Force-stop:** "No phone" within 3 s. The companion device service then bound the app
+    again by itself, and the link was Ready 12 s after the stop ("No navigation").
