@@ -289,7 +289,7 @@ build goes only after that.
 | 1 | Pair a new phone | D2 (code on both, knob confirms) | Pass |
 | 2 | Refuse pairing | C3 with the fake phone; recheck with the app: Cancel on the dash | Recheck |
 | 3 | Paired phone reconnects | D6 (dash restart), D10 (Bluetooth off and on) | Pass |
-| 4 | Forget phones | C13 with the fake phone; recheck with the app: Forget phones, then the app pairs again | Recheck |
+| 4 | Forget phones | C13 with the fake phone; with the app: Forget phones, then the app pairs again | Pass |
 | 5 | Navigation | F7, G4 on the desk (now with the map); H1 on rides | H1 |
 | 6 | Navigation after a reconnect | G3 (resends only what's missing), D10; H9 | H9 |
 | 7 | Settings lock | E7, E8 with GPS speed; without speed it still locks while navigating | E7/E8 |
@@ -297,11 +297,11 @@ build goes only after that.
 | 9 | Dismiss | E4 (Reject) | Pass |
 | 10 | Music | E2 (now with time and progress) | Pass |
 | 11 | Phone gone | C11, D7 | Pass |
-| 12 | Update check with BLE | C12 with the fake phone; recheck with the app: the link comes back by itself after the check | Recheck |
-| 13 | Power-up without a monitor | Recheck on the phone build: replug USB, no monitor | Recheck |
-| 14 | Knob on the music screen | Recheck on the phone build | Recheck |
-| 15 | Double-click | Recheck on every screen of the phone build | Recheck |
-| 16 | Clock | Recheck: the dash's clock against the phone's after connecting | Recheck |
+| 12 | Update check with BLE | C12 with the fake phone; with the app: the link comes back by itself after the check | Pass |
+| 13 | Power-up without a monitor | On the phone build: replug USB, no monitor | Pass |
+| 14 | Knob on the music screen | On the phone build | Pass |
+| 15 | Double-click | On every screen of the phone build | Pass |
+| 16 | Clock | The phone sends the time on connect (the dash shows no clock; it sets day/night) | Pass |
 | 17 | OTA with the BLE self-check | After the release switches to the phone build: a `v0.5.0-rc.N` pre-release installed over the air; the image confirms after BLE is up; the bonded phone reconnects without pairing | After parity |
 | 18 | On the bike | H1-H12, D9, E7/E8, F9 | Rides |
 
@@ -316,3 +316,15 @@ build goes only after that.
     started again.
   - **(c) Force-stop:** "No phone" within 3 s. The companion device service then bound the app
     again by itself, and the link was Ready 12 s after the stop ("No navigation").
+- **Parity rechecks:** P4 and P12–P16 pass with the app (the owner at the dash, the serial log
+  and logcat). The update check paused BLE, which came back about 10 s later; the phone was
+  Ready within a second, by itself. The phone sent the time on connect
+  (`TimeSync(local=…, utcOffsetMin=330)`). **P2 (Cancel with the app) is still to do.**
+- **Found and fixed:** the temperature sensor started with the RGB panel running left the
+  picture shifted up about 20 rows on every boot (`7dc4fc1`). The firmware before step H, and the
+  fixed order, boot straight, including from a cold replug.
+- **Phone Bluetooth stuck, not ours:** after Forget phones, re-pairing and a dash replug, the
+  phone stopped seeing the dash. It was advertising (a laptop saw it), the dash was on Android's
+  accept list, and a fresh connect from the app waited. A Bluetooth toggle didn't help; a
+  phone restart did. The phone's 256 KB log had rolled over, so raise it (`adb logcat -G 16M`)
+  before desk tests too.
