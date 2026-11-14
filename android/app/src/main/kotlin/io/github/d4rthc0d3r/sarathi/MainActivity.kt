@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -29,6 +30,8 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.d4rthc0d3r.sarathi.contribute.ContributeSettings
+import io.github.d4rthc0d3r.sarathi.contribute.TrackStorage
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
@@ -67,7 +70,9 @@ import io.github.d4rthc0d3r.sarathi.ui.RideStatus
 import io.github.d4rthc0d3r.sarathi.ui.SetupState
 import io.github.d4rthc0d3r.sarathi.ui.SetupStep
 import io.github.d4rthc0d3r.sarathi.ui.theme.SarathiTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val model: MainViewModel by viewModels()
@@ -144,6 +149,10 @@ class MainActivity : ComponentActivity() {
         var mapCheck by remember { mutableStateOf("") }
         val settings = store.settings.collectAsStateWithLifecycle()
         val usage = store.usage.collectAsStateWithLifecycle()
+        val contributeOn = ContributeSettings.flow(this).collectAsStateWithLifecycle()
+        val contributeSummary by produceState(TrackStorage.Summary(), contributeOn.value) {
+            value = withContext(Dispatchers.IO) { TrackStorage.summary(this@MainActivity) }
+        }
         val status =
             MapsStatus(
                 googleKey = Keys.google != null,
@@ -153,6 +162,9 @@ class MainActivity : ComponentActivity() {
                 meters = usage.value.let { Meter.entries.map { store.guard.status(it) } },
                 drill = if (BuildConfig.DEBUG) termsTick.let { MapsRegistry.get(this).drill.active } else null,
                 mapCheck = if (BuildConfig.DEBUG) mapCheck else null,
+                contributeOn = contributeOn.value,
+                contributeRides = contributeSummary.rides,
+                contributeKm = contributeSummary.km,
             )
         MapsSettingsScreen(
             settings.value,
@@ -165,6 +177,7 @@ class MainActivity : ComponentActivity() {
                     MapsRegistry.get(this).drill.let { if (on) it.start() else it.stop() }
                     termsTick++
                 },
+                onContribute = { on -> ContributeSettings.set(this, on) },
                 onMapCheck = { offlineOnly ->
                     mapCheck = getString(R.string.map_check_running)
                     lifecycleScope.launch { mapCheck = MapCheck.run(this@MainActivity, offlineOnly) }

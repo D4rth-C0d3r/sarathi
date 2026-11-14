@@ -93,7 +93,11 @@ Classic Bluetooth audio on the device.
   `docs/phase4-test-plan.md`. Step H (in progress): real rides with the phone in a pocket
   (H1-H12) and parity with Phase 3; the dash caps the backlight on a hot chip and shows its
   health on Settings (`core/ride_health.h`). The Chronos build is removed once the owner
-  confirms parity.
+  confirms parity. Desk parity is done; the rides wait until the dash can be mounted.
+  Step I (ADR-0012): an opt-in OSM contribution helper, off by default. I1 records the ride's raw
+  GPS track on the phone (satellite fixes only); I2 finds gaps against OSM-provenance chunks and
+  live OSM; I3 OSM login, traces and notes; I4 the guided edit. Every edit is confirmed by the
+  rider, nothing happens during a ride, and Google or Mappls data can't reach it.
 
 Roadmap:
 0. Bring-up (done, v0.1.0)

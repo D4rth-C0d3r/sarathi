@@ -21,6 +21,8 @@ the phone (`:core:mapdata`: OpenFreeMap online, the offline region from
 `tools/build_offline_map.sh`, a 200 MB tile cache; desk check in Maps settings, debug builds);
 G3 sends them along the route (`link/ChunkSender`, protocol 1.2); G5 sends traffic and scales
 the remaining time by it.
+Step I (ADR-0012) is the opt-in OSM contribution helper: I1 records the ride's raw GPS track
+(`contribute/TrackRecorder`, satellite fixes only) while the dash is connected and the helper is on.
 Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)
@@ -44,6 +46,7 @@ Before finishing any Android change, run both check lines and report the result.
 | `:core:ble` | Android library | Scan, bond, GATT connection, MTU, reconnects |
 | `:core:maps` | **pure Kotlin/JVM** | Maps provider interfaces, settings, fallback chain, cost guard, search service, recents and saved places (ADR-0006, ADR-0008) |
 | `:core:links` | **pure Kotlin/JVM** | Shared links and text: parsing, offline short codes, redirect rules (ADR-0008) |
+| `:core:osmcontrib` | **pure Kotlin/JVM** | The OSM contribution helper (ADR-0012): raw GPS fixes, the track filter and file, gap finding; may depend only on `:core:protocol` and `:core:mapdata` (checked by its build script) |
 | `:core:mapdata` | **pure Kotlin/JVM** | Vector tiles to the device's map chunks (ADR-0009): tile reader, clip, merge, simplify, projection; matches `tools/make_chunks.py` byte for byte |
 | `:maps:google`, `:maps:mappls`, `:maps:osm` | Android library | One backend's providers each (Places SDK; Mappls REST SDK; Photon over OkHttp) |
 | `:feature:destination` | Android library | Search screen, recents and saved places, shared links to places and routes (ADR-0008) |

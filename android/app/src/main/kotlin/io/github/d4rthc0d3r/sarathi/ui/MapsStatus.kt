@@ -14,4 +14,8 @@ data class MapsStatus(
     val drill: Boolean? = null,
     /** Debug builds: the map data desk check's result (step G2); null hides it. */
     val mapCheck: String? = null,
+    /** The OSM contribution helper (ADR-0012): on or off, and the tracks on the phone. */
+    val contributeOn: Boolean = false,
+    val contributeRides: Int = 0,
+    val contributeKm: Double = 0.0,
 )

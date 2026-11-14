@@ -136,4 +136,16 @@
     <string name="oem_huawei">Huawei, Honor: Settings, Battery, App launch: sārathi to \"Manage manually\" with all three switches on.</string>
     <string name="oem_google">Pixel: the Battery step above is enough.</string>
     <string name="oem_other">If the link stops mid-ride, look for battery or background settings for sārathi on this phone and allow it to run unrestricted.</string>
+    <string name="cancel">Cancel</string>
+    <!-- OSM contribution helper (ADR-0012) -->
+    <string name="contribute_title">Help fix OpenStreetMap</string>
+    <string name="contribute_reason">Off by default. After a ride, shows roads you rode that OpenStreetMap doesn\'t have yet, so you can add them with your own OpenStreetMap account.</string>
+    <string name="contribute_off">Off</string>
+    <string name="contribute_on">On: %1$d ride(s), %2$.1f km recorded on this phone</string>
+    <string name="contribute_on_title">Help fix OpenStreetMap?</string>
+    <string name="contribute_on_text">While the dash is connected, sārathi records your ride\'s GPS track on this phone: satellite fixes only, while moving.\n\nAfter a ride, never during it, the app shows places where you rode a road OpenStreetMap doesn\'t have. Nothing leaves this phone unless you choose it for one place:\n• upload that part of your GPS track to OpenStreetMap: public, and linked to your account unless you pick trackable;\n• add a public note for local mappers, in your words;\n• add the road yourself, after you check it on a map.\n\nEach is made with your own OpenStreetMap account and shown to you before it\'s sent. What goes to OpenStreetMap stays public for good. Places near where you start and stop, and your saved places, are cut from uploads.\n\nTracks are deleted after 30 days, or when you turn this off.</string>
+    <string name="contribute_on_confirm">Turn on</string>
+    <string name="contribute_off_title">Turn off and delete the tracks?</string>
+    <string name="contribute_off_text">The GPS tracks recorded on this phone are deleted. Nothing already sent to OpenStreetMap changes.</string>
+    <string name="contribute_off_confirm">Turn off and delete</string>
 </resources>

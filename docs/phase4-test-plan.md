@@ -331,3 +331,16 @@ build goes only after that.
   accept list, and a fresh connect from the app waited. A Bluetooth toggle didn't help; a
   phone restart did. The phone's 256 KB log had rolled over, so raise it (`adb logcat -G 16M`)
   before desk tests too.
+
+## Step I: the OSM contribution helper (ADR-0012)
+
+The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat tag `Contribute`.
+
+| # | Check | How | Pass |
+|---|---|---|---|
+| I1.1 | Off by default | Fresh install, or before ever turning it on: Maps settings | "Help fix OpenStreetMap: Off"; no `recording the GPS track` in logcat with the dash connected |
+| I1.2 | Turning on explains | Turn the switch on | The dialog says what is recorded and what can be shared; Cancel leaves it off; Turn on sets it on |
+| I1.3 | Recording | On, dash connected: `recording the GPS track`; dash off: `track recording stopped` | Starts and stops with the dash connection |
+| I1.4 | Only while moving | Dash connected on the desk for a few minutes | No track file (`adb shell run-as io.github.d4rthc0d3r.sarathi ls files/osm-tracks`): standing still records nothing |
+| I1.5 | On a ride | A ride with it on | One file per dash connection; Maps settings shows the rides and km |
+| I1.6 | Turning off deletes | Turn it off, confirm | `deleted N track(s)`; the folder is empty; "Off" |

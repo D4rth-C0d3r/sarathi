@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import io.github.d4rthc0d3r.sarathi.contribute.ContributeSettings
+import io.github.d4rthc0d3r.sarathi.contribute.TrackRecorder
 import io.github.d4rthc0d3r.sarathi.core.ble.DashChannel
 import io.github.d4rthc0d3r.sarathi.core.protocol.JsonMessage
 import io.github.d4rthc0d3r.sarathi.core.protocol.PhoneCap
@@ -14,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -41,6 +44,7 @@ class RideSession(
     private var pose: PoseSender? = null
     private var navigation: RideNavigation? = null
     private var chunks: ChunkSender? = null
+    private var track: TrackRecorder? = null
     private val timeWatcher = TimeWatcher(context) { send(timeNow()) }
 
     fun start() {
@@ -77,11 +81,25 @@ class RideSession(
             navigation = nav
             chunks = ChunkSender(context, dash, scope, p, nav.route).also { it.start() }
         }
+        if (track == null && p != null) startTrack()
+    }
+
+    /** The raw GPS track for OSM contributions (ADR-0012): while the dash is connected and it's on. */
+    private fun startTrack() {
+        val recorder = TrackRecorder(context).also { track = it }
+        jobs +=
+            scope.launch {
+                combine(dash.ready, ContributeSettings.flow(context)) { ready, on -> ready && on }
+                    .distinctUntilChanged()
+                    .collect { if (it) recorder.start() else recorder.stop() }
+            }
     }
 
     val positionActive: Boolean get() = pose != null
 
     fun stop() {
+        track?.stop()
+        track = null
         chunks?.stop()
         chunks = null
         navigation?.stop()

@@ -92,6 +92,7 @@ dependencies {
     implementation(project(":core:protocol"))
     implementation(project(":core:ble"))
     implementation(project(":core:maps"))
+    implementation(project(":core:osmcontrib"))
     implementation(project(":maps:google"))
     implementation(project(":maps:mappls"))
     implementation(project(":maps:osm"))

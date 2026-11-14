@@ -76,6 +76,7 @@ fun MapsSettingsScreen(
                     onChange { it.copy(mapplsRoutesPerDay = v) }
                 }
             }
+            ContributeSection(status, actions.onContribute)
             DeskTestSections(status, actions)
             Section(R.string.maps_valhalla, R.string.maps_valhalla_reason) {
                 OutlinedTextField(
@@ -136,6 +137,8 @@ data class MapsSettingsActions(
     val onDrill: (Boolean) -> Unit = {},
     /** Debug builds: checks the map tiles around the phone; true leaves out the online source. */
     val onMapCheck: (Boolean) -> Unit = {},
+    /** Turns the OSM contribution helper on or off (off deletes the tracks; ADR-0012). */
+    val onContribute: (Boolean) -> Unit = {},
 )
 
 @Composable
