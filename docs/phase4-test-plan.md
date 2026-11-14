@@ -209,5 +209,5 @@ the phone's chunk sync. Use **Replay ×2** (108 km/h) on a recorded ride, or **S
   Classic and HUD: the route now has a casing and the roads are dimmer.
 - **G6:** the owner approved the simulator screenshots of all three themes, with and without
   traffic. The ring gauge drawn by the rasteriser takes the stress-build Nav frame from 91 ms
-  to 56 ms; its look on the dash is still to be confirmed by the owner.
+  to 56 ms; the owner confirmed its look on the dash (Nav and Music, every theme).
 - **Waits for a real ride:** traffic from Google guidance (F9).
