@@ -373,4 +373,7 @@ backlight at 50 % and lifts the cap below 72 °C (`core/ride_health.h`). The die
 the air around it; 80 °C is the board's 65 °C ambient limit plus an assumed 15 °C of
 self-heating, to be tuned with the real readings from an hour in the sun (step H, H11).
 Arduino's `temperatureRead()` isn't used: it sets the sensor up for 10-50 °C and fails above.
+The sensor is started **before the display**: started with the RGB panel running, it left the
+picture shifted up about 20 rows (the top rows wrapped to the bottom) until the next power-up,
+the same symptom as the flash writes below. Readings every 10 s don't disturb it.
 Never hot-plug the FPC cable while powered.

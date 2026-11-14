@@ -464,14 +464,16 @@ void setup() {
 
   boot_state = ota::ReadBootState();
   LoadSettings();  // before the display, so the saved brightness and theme apply from the start
+  // Before the display: starting the sensor with the RGB panel running left the picture shifted
+  // up about 20 rows, for good (seen on the device, 2026-11-14).
+  if (!chip_temp.Begin()) {
+    ESP_LOGE(kTag, "chip temperature sensor failed; no heat cap");
+  }
   if (!display.Begin(backlight, app.State().settings.brightness_percent)) {
     ESP_LOGE(kTag, "display init failed; UI disabled");
     return;
   }
   touch_ready = touch.Begin();
-  if (!chip_temp.Begin()) {
-    ESP_LOGE(kTag, "chip temperature sensor failed; no heat cap");
-  }
   if (!knob.Begin()) {
     ESP_LOGE(kTag, "knob init failed");
   }
