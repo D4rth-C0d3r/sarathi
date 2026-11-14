@@ -1,7 +1,7 @@
 # ADR-0013: Licensing
 
-- **Status:** Accepted (2026-11-14): Apache-2.0 stays. The Elecrow question (§3) waits for the
-  owner.
+- **Status:** Accepted (2026-11-14): Apache-2.0 stays; Elecrow-derived code is rewritten before
+  the first public release.
 - **Date:** 2026-11-14
 - **Related:**
   - ADR-0006 (maps backends)
@@ -139,13 +139,16 @@ The two permissions:
      additional permissions under Apache-2.0.
    - **No CLA needed:** contributions come in under Apache-2.0 (inbound = outbound).
    - **Recorded:** the GPL options were considered, and the comparison is kept above.
-2. **Elecrow code** (§3 below): **open, waiting for the owner.** The options are:
-   - **(a) Rewrite** the adapted files from facts and datasheets.
-   - **(b) Ask Elecrow** for a licence.
-   - **(c) Accept the risk.**
-
-   Recommended: (b), then (a) if there's no answer. Either way, it's settled before the first
-   public release (ADR-0019 checklist).
+2. **Elecrow code** (§3 below), decided 2026-11-14:
+   - **No request to Elecrow:** the owner doesn't want to ask Elecrow for a licence.
+   - **Rewrite before the first public release:**
+     - **What's rewritten:** the five adapted files, `display.cpp`/`.h`, `touch.cpp`, `knob.cpp` and
+       `expander.cpp`, are rewritten from facts and datasheets. The facts are pins, timings, the
+       init command bytes and the power-up order. Each fact keeps a note of its source.
+     - **`lv_conf.h`:** regenerated from LVGL's own MIT template with our values.
+     - **The check:** the Phase 0 hardware checks are rerun to show the behaviour is unchanged.
+   - **Until then:** nothing changes, since it's the owner's own project.
+   - **The rewrite is an item on ADR-0019's release checklist.**
 3. **GFX Library for Arduino:** confirm its licence upstream. If it has none, replace it with
    ESP-IDF's `esp_lcd` RGB panel driver, which the renderer work (ADR-0009) already considered.
 4. **ODbL duties:**

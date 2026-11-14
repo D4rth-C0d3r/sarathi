@@ -36,7 +36,7 @@
 1. **Phase 3 parity:** confirmed by the rides, then the **Chronos build removed** and ADR-0005
    marked superseded. Release CI then builds `crowpanel21-phone` (pending from Phase 4).
 2. **ADR-0013 applied:**
-   - the Elecrow question settled (licence from Elecrow, or the code rewritten)
+   - the Elecrow-derived code rewritten from facts (the five `sarathi_board` files and `lv_conf.h`)
    - the GFX library's licence confirmed
    - the `NOTICE` file added
 3. **ADR-0014 built:** the foss flavour, runtime keys, and the CI key check.

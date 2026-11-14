@@ -108,7 +108,8 @@ Classic Bluetooth audio on the device.
 - **Phase 5 (reliability, ride features and public release):** ADRs 0013–0019 accepted
   (2026-11-14); no code yet.
   - **Licence:** Apache-2.0 stays (ADR-0013).
-  - **Open:** Elecrow's unlicensed example code, which must be settled before any public release.
+  - **Elecrow:** the code adapted from Elecrow's unlicensed examples is rewritten from facts before
+    the first public release; Elecrow isn't asked for a licence.
   - **Releases:** the published app is the "foss" variant only (ADR-0014).
   - **Versions:** firmware `vX.Y.Z` and app `app-vX.Y.Z` (ADR-0019).
 
