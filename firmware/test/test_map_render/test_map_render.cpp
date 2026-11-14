@@ -30,6 +30,7 @@ using sarathi::core::MapCamera;
 using sarathi::core::MapRenderer;
 using sarathi::core::MapRenderStats;
 using sarathi::core::MapStyle;
+using sarathi::core::Ring;
 using sarathi::core::ScreenPoint;
 using sarathi::core::StoreResult;
 
@@ -329,6 +330,54 @@ void test_ghat_strips_match_along_the_motorway() {
   TEST_ASSERT_EQUAL(0, bad_frames);
 }
 
+// The ring: track all round, the indicator clockwise from the top with round ends, nothing
+// written off the ring, and strips match one full frame.
+void test_ring_gauge() {
+  constexpr int32_t kSize = 480;
+  constexpr uint16_t kBlank = 0x1111;
+  constexpr uint16_t kTrack = 0x2222;
+  constexpr uint16_t kInd = 0x3333;
+  const auto draw = [&](float fraction, int32_t strip_rows) {
+    std::vector<uint16_t> px(static_cast<size_t>(kSize) * kSize, kBlank);
+    Ring ring;
+    ring.track = kTrack;
+    ring.indicator = kInd;
+    ring.fraction = fraction;
+    for (int32_t y = 0; y < kSize; y += strip_rows) {
+      Canvas c{px.data(), kSize, 0, 0,
+               ClipRect{0, y, kSize - 1, std::min(kSize, y + strip_rows) - 1}};
+      DrawRing(c, ring);
+    }
+    return px;
+  };
+  const auto at = [&](const std::vector<uint16_t>& px, int32_t x, int32_t y) {
+    return px.at(static_cast<size_t>(y) * kSize + static_cast<size_t>(x));
+  };
+  const auto quarter = draw(0.25F, kSize);
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(quarter, 240, 10));     // top: the start
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(quarter, 400, 70));     // 1:30 o'clock
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(quarter, 470, 241));    // the round end at 3 o'clock
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(quarter, 236, 10));     // the round start, just left of top
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(quarter, 470, 262));  // past the end
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(quarter, 240, 470));  // bottom
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(quarter, 10, 240));   // left
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(quarter, 225, 10));   // before the start
+  TEST_ASSERT_EQUAL_HEX16(kBlank, at(quarter, 240, 240));  // the middle is untouched
+  TEST_ASSERT_EQUAL_HEX16(kBlank, at(quarter, 240, 20));   // inside the ring
+  TEST_ASSERT_EQUAL_HEX16(kBlank, at(quarter, 240, 2));    // outside it
+  TEST_ASSERT_EQUAL_HEX16(kBlank, at(quarter, 0, 0));
+  // Three quarters: the left half up to 9 o'clock.
+  const auto most = draw(0.75F, kSize);
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(most, 240, 470));
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(most, 80, 400));
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(most, 80, 80));
+  // Empty and full.
+  TEST_ASSERT_EQUAL_HEX16(kTrack, at(draw(0.0F, kSize), 240, 10));
+  TEST_ASSERT_EQUAL_HEX16(kInd, at(draw(1.0F, kSize), 10, 240));
+  // Strips of 40 rows draw exactly the same.
+  TEST_ASSERT_TRUE(draw(0.6F, 40) == draw(0.6F, kSize));
+}
+
 }  // namespace
 
 int main() {
@@ -338,6 +387,7 @@ int main() {
   RUN_TEST(test_clipping_never_writes_outside);
   RUN_TEST(test_buffer_offset);
   RUN_TEST(test_polygon_fill);
+  RUN_TEST(test_ring_gauge);
   RUN_TEST(test_heading_up_projection);
   RUN_TEST(test_city_in_strips_matches_one_frame);
   RUN_TEST(test_highway_level_and_far_chunks);

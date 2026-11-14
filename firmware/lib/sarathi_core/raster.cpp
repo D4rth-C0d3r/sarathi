@@ -1,6 +1,7 @@
 #include "raster.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -292,6 +293,74 @@ void FillPolygon(Canvas& canvas, const ScreenPoint* ring, size_t n, uint16_t col
     }
   }
   // NOLINTEND(*-pointer-arithmetic)
+}
+
+void DrawRing(Canvas& canvas, const Ring& ring) {
+  const float r_out = ring.r_out;
+  const float r_in = std::max(0.0F, r_out - ring.width);
+  const float fraction = std::clamp(ring.fraction, 0.0F, 1.0F);
+  constexpr float kTwoPi = 6.28318531F;
+  const float angle = fraction * kTwoPi;
+  // The indicator's end, as a direction in screen coordinates (y down): clockwise from the top.
+  const float tx = std::sin(angle);
+  const float ty = -std::cos(angle);
+  const bool partial = fraction > 0.0F && fraction < 1.0F;
+  // Round ends: discs on the ring's middle at both ends of the indicator.
+  const float r_mid = (r_out + r_in) / 2;
+  const float cap_r2 = (ring.width / 2) * (ring.width / 2);
+  const float end_x = tx * r_mid;
+  const float end_y = ty * r_mid;
+  const auto in_indicator = [&](float px, float py) {
+    if (!partial) {
+      return fraction >= 1.0F;
+    }
+    // Clockwise from the top up to the end: the cross product tells which side of it we're on.
+    const bool before_end = px * ty - py * tx > 0;
+    const bool right_half = px >= 0;
+    if (angle <= kTwoPi / 2 ? (right_half && before_end) : (right_half || before_end)) {
+      return true;
+    }
+    const float sx = px;
+    const float sy = py + r_mid;  // the start cap, at the top
+    const float ex = px - end_x;
+    const float ey = py - end_y;
+    return sx * sx + sy * sy <= cap_r2 || ex * ex + ey * ey <= cap_r2;
+  };
+
+  const int32_t y1 = std::max(canvas.clip.y1, static_cast<int32_t>(std::floor(ring.cy - r_out)));
+  const int32_t y2 = std::min(canvas.clip.y2, static_cast<int32_t>(std::ceil(ring.cy + r_out)));
+  for (int32_t y = y1; y <= y2; ++y) {
+    const float py = static_cast<float>(y) + 0.5F - ring.cy;
+    const float outer2 = r_out * r_out - py * py;
+    if (outer2 <= 0) {
+      continue;
+    }
+    const float xo = std::sqrt(outer2);
+    const float inner2 = r_in * r_in - py * py;
+    const float xi = inner2 > 0 ? std::sqrt(inner2) : -1.0F;
+    // One span through the middle, or two either side of the hole: pixels whose centre is in.
+    std::array<std::array<float, 2>, 2> spans{};
+    size_t n = 0;
+    if (xi < 0) {
+      spans.at(n++) = {-xo, xo};
+    } else {
+      spans.at(n++) = {-xo, -xi};
+      spans.at(n++) = {xi, xo};
+    }
+    // NOLINTNEXTLINE(*-pointer-arithmetic)
+    uint16_t* row = canvas.px + (y - canvas.buf_y) * canvas.stride - canvas.buf_x;
+    for (size_t k = 0; k < n; ++k) {
+      const auto& sp = spans.at(k);
+      const int32_t x1 =
+          std::max(canvas.clip.x1, static_cast<int32_t>(std::ceil(ring.cx + sp[0] - 0.5F)));
+      const int32_t x2 =
+          std::min(canvas.clip.x2, static_cast<int32_t>(std::floor(ring.cx + sp[1] - 0.5F)));
+      for (int32_t x = x1; x <= x2; ++x) {
+        const float px = static_cast<float>(x) + 0.5F - ring.cx;
+        row[x] = in_indicator(px, py) ? ring.indicator : ring.track;  // NOLINT
+      }
+    }
+  }
 }
 
 }  // namespace sarathi::core

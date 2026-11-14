@@ -40,11 +40,9 @@ lv_style_t* ButtonTextStyle(core::FontRole role);  // label font
 // Use with LV_STATE_FOCUSED (not FOCUS_KEY): screens focus their first control from code when
 // shown, and the ring must show then too.
 lv_style_t* FocusStyle();
-lv_style_t* EditStyle();            // use with LV_STATE_EDITED
-lv_style_t* ListRowStyle();         // list menu rows
-lv_style_t* GaugeTrackStyle();      // ring gauge, LV_PART_MAIN
-lv_style_t* GaugeIndicatorStyle();  // ring gauge, LV_PART_INDICATOR
-lv_style_t* AccentDotStyle();       // small accent markers
+lv_style_t* EditStyle();       // use with LV_STATE_EDITED
+lv_style_t* ListRowStyle();    // list menu rows
+lv_style_t* AccentDotStyle();  // small accent markers
 // Background-coloured card at core::kCardOpacityPercent, for text drawn over the map. On a
 // label it becomes a padded bubble sized to the text.
 lv_style_t* CardStyle();

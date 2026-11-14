@@ -50,6 +50,21 @@ float DrawCrossTicks(Canvas& canvas, ScreenPoint a, ScreenPoint b, int32_t lengt
 // A filled square `width` pixels across, centred on `p`: covers the joints of thick polylines.
 void DrawDot(Canvas& canvas, ScreenPoint p, int32_t width, uint16_t color);
 
+// A ring like the UI's RingGauge (step G6.2: drawn with the map, it costs far less than LVGL's
+// arc in every strip). Centred on (cx, cy) in pixel-centre coordinates (pixel x covers x to
+// x + 1), `r_out` outer radius, `width` thick: the track all round, and the indicator clockwise
+// from the top over `fraction` (0 to 1) with round ends. Only the ring's own pixels are visited.
+struct Ring {
+  float cx = 240;
+  float cy = 240;
+  float r_out = 235;
+  float width = 10;
+  uint16_t track = 0;
+  uint16_t indicator = 0;
+  float fraction = 0;
+};
+void DrawRing(Canvas& canvas, const Ring& ring);
+
 // Even-odd scanline fill of a closed ring (the last point joins the first). Rings with more
 // than kMaxFillCrossings crossings on one scanline fill only the first ones.
 constexpr size_t kMaxFillCrossings = 64;

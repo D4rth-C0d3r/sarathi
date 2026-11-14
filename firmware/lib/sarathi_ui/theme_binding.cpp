@@ -25,8 +25,6 @@ std::array<lv_style_t, core::kFontRoleCount> button_text_styles;
 lv_style_t focus_style;
 lv_style_t edit_style;
 lv_style_t list_row_style;
-lv_style_t gauge_track_style;
-lv_style_t gauge_indicator_style;
 lv_style_t accent_dot_style;
 lv_style_t card_style;
 bool panel_swaps = false;       // SetPanelSwapsRedBlue()
@@ -56,8 +54,6 @@ void InitStyles() {
   lv_style_init(&focus_style);
   lv_style_init(&edit_style);
   lv_style_init(&list_row_style);
-  lv_style_init(&gauge_track_style);
-  lv_style_init(&gauge_indicator_style);
   lv_style_init(&accent_dot_style);
   lv_style_init(&card_style);
 }
@@ -114,16 +110,6 @@ void WriteStyles(const core::ThemeDescriptor& t) {
   lv_style_set_text_font(&list_row_style, Font(core::FontRole::kStoppedOnly));
   lv_style_set_text_color(&list_row_style, Color(p.text_primary));
   lv_style_set_shadow_width(&list_row_style, 0);
-
-  lv_style_set_arc_color(&gauge_track_style, Color(p.surface));
-  lv_style_set_arc_width(&gauge_track_style, c.ring_width_px);
-  lv_style_set_arc_rounded(&gauge_track_style, true);
-  lv_style_set_bg_opa(&gauge_track_style, LV_OPA_TRANSP);
-  lv_style_set_border_width(&gauge_track_style, 0);
-  lv_style_set_pad_all(&gauge_track_style, 0);
-  lv_style_set_arc_color(&gauge_indicator_style, Color(p.accent));
-  lv_style_set_arc_width(&gauge_indicator_style, c.ring_width_px);
-  lv_style_set_arc_rounded(&gauge_indicator_style, true);
 
   lv_style_set_bg_color(&card_style, Color(p.background));
   lv_style_set_bg_opa(&card_style,
@@ -248,8 +234,6 @@ lv_style_t* ButtonTextStyle(core::FontRole role) {
 lv_style_t* FocusStyle() { return &focus_style; }
 lv_style_t* EditStyle() { return &edit_style; }
 lv_style_t* ListRowStyle() { return &list_row_style; }
-lv_style_t* GaugeTrackStyle() { return &gauge_track_style; }
-lv_style_t* GaugeIndicatorStyle() { return &gauge_indicator_style; }
 lv_style_t* AccentDotStyle() { return &accent_dot_style; }
 lv_style_t* CardStyle() { return &card_style; }
 
