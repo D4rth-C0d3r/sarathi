@@ -53,11 +53,24 @@ object GapStore {
         context: Context,
         gap: StoredGap,
         status: GapStatus,
+        ref: String? = null,
     ) {
         val file = fileOf(context, gap.track)
         if (!file.exists()) return
         val gaps = file.useLines { GapFile.read(gap.track, it) }
-        save(context, gap.track, gaps.map { if (it.id == gap.id) it.copy(status = status) else it })
+        save(
+            context,
+            gap.track,
+            gaps.map {
+                if (it.id ==
+                    gap.id
+                ) {
+                    it.copy(status = status, ref = ref ?: it.ref)
+                } else {
+                    it
+                }
+            },
+        )
         if (status == GapStatus.DISMISSED) {
             val areas = dismissed(context).apply { dismiss(gap.gap) }
             File(dir(context), DISMISSED).writeText(areas.lines().joinToString("") { it + "\n" })

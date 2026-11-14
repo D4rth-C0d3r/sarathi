@@ -349,6 +349,11 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
 | I2.3 | Overpass busy | (happens on its own) | `overpass busy: trying again in 15 s`; if still busy, "could not be checked yet" and tried again next time, never shown unchecked |
 | I2.4 | Skip and dismiss | Skip one place, dismiss another, check again after the next ride | Skipped is hidden; dismissed is never offered again (`files/osm-gaps/dismissed.txt`) |
 | I2.5 | A real gap | A ride through a road OSM doesn't have | It shows up; roads OSM has (tracks and paths too) and car parks don't |
+| I3.1 | Sign in | Missing roads → Sign in to OpenStreetMap; log in and authorize in the browser | Back in the app, "Signed in"; logcat `osm login: signed in`; the token only encrypted in `shared_prefs/osm_account.xml` |
+| I3.2 | Trace upload | Upload GPS trace on a place: check the map, the visibility and the description, then Upload | "Sent. Thank you for mapping."; the trace on the server, without the parts near the start, the end and saved places |
+| I3.3 | Note | Add a note: edit the draft, Send | "Sent."; the note on the server at the place, with your words, signed by your account |
+| I3.4 | Limits | A sixth trace or note in a day | "Not sent: today's limit of five is reached." |
+| I3.5 | Sign out | Sign out | The buttons go; OSM's Authorizations page no longer lists the app |
 
 ### Results, 2026-11-14 (Nothing Phone (1), Android 15)
 
@@ -370,3 +375,13 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
   - Found and fixed: the map wasn't clipped and drew over the card.
   - Dismiss for good stored the place (a 561 m circle).
 - **I2.1 and I2.5** wait for a ride.
+- **I3 on the test server** (`master.apis.dev.openstreetmap.org`), with two test tracks over the sea
+  off Miramar placed over adb:
+  - **Found and fixed (setup):** the first login failed with HTTP 400 right after login. The OAuth
+    app had been registered on the live osm.org, so the test server didn't know its client ID.
+    It's now registered on the test server; the live registration is kept for later
+    (`~/sarathi-secrets/osm/client-id`).
+  - **I3.1–I3.3 pass:** signed in through the browser and back through `sarathi://osm-oauth`.
+    The owner uploaded the trace of one place and added a note at the other, and saw "Sent.
+    Thank you for mapping." for each.
+  - I3.4 and I3.5 are still to do.

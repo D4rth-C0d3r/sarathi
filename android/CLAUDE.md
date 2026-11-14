@@ -25,6 +25,9 @@ Step I (ADR-0012) is the opt-in OSM contribution helper: I1 records the ride's r
 (`contribute/TrackRecorder`, satellite fixes only) while the dash is connected and the helper is on.
 I2 finds gaps when the rider asks, never during a ride (`contribute/GapCheck`: OSM-provenance tiles,
 then Overpass through `OverpassClient`) and shows them in Missing roads (`ui/GapsScreen`).
+I3 adds the rider's OSM login (`contribute/OsmAccount`: OAuth 2 with PKCE, `sarathi://osm-oauth`,
+the token sealed by `TokenVault` in the Android Keystore), GPS trace upload and notes (`OsmApi`,
+`GapActions`), each confirmed in a dialog. OSM's test server unless built with `-Psarathi.osmLive=true`.
 Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)

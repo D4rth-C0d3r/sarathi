@@ -140,6 +140,21 @@
                 <action android:name="android.companion.CompanionDeviceService" />
             </intent-filter>
         </service>
+        <!-- The OSM login comes back here (ADR-0012): sarathi://osm-oauth?code=...&state=... -->
+        <activity
+            android:name=".contribute.OsmLoginActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="osm-oauth"
+                    android:scheme="sarathi" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

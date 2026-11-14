@@ -56,6 +56,17 @@ android {
         buildConfigField("String", "GOOGLE_API_KEY", "\"${secret("google/api-key")}\"")
         buildConfigField("String", "GRAPHHOPPER_API_KEY", "\"${secret("graphhopper/api-key")}\"")
         buildConfigField("boolean", "MAPPLS_CONFIGURED", mapplsConfigured.toString())
+        // OSM contributions (ADR-0012): OSM's test server unless built with -Psarathi.osmLive=true.
+        // The client ID is the owner's OAuth app on that server, kept outside the repository.
+        val osmLive = providers.gradleProperty("sarathi.osmLive").orNull == "true"
+        val osmServer = if (osmLive) "https://www.openstreetmap.org" else "https://master.apis.dev.openstreetmap.org"
+        buildConfigField("String", "OSM_SERVER", "\"$osmServer\"")
+        buildConfigField("boolean", "OSM_LIVE", osmLive.toString())
+        buildConfigField(
+            "String",
+            "OSM_CLIENT_ID",
+            "\"${secret(if (osmLive) "osm/client-id" else "osm/dev-client-id")}\"",
+        )
         // The Navigation SDK reads its key only from the manifest (no runtime setter).
         manifestPlaceholders["googleApiKey"] = secret("google/api-key")
     }
