@@ -39,4 +39,5 @@ repos:
     rev: v2.4.3
     hooks:
       - id: codespell
-        args: [--ignore-words-list=sarathi, '--ignore-regex=@OptIn\b']  # Kotlin's @OptIn annotation
+        # Kotlin's @OptIn annotation; nd is OSM XML's node reference (ADR-0012).
+        args: ['--ignore-words-list=sarathi,nd', '--ignore-regex=@OptIn\b']

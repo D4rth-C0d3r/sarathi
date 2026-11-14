@@ -19,6 +19,8 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core:protocol"))
+    implementation(project(":core:mapdata"))
     testImplementation(libs.junit)
 }
 
