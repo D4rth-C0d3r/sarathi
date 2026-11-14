@@ -22,6 +22,7 @@
 #include "app_model.h"
 #include "input_test_model.h"
 #include "ota_update.h"
+#include "ride_health.h"
 #include "wifi_setup.h"
 
 namespace sarathi::ui::app_shell {
@@ -50,8 +51,15 @@ bool OnTouch(bool touching, int16_t x, int16_t y);
 void Update(uint32_t now_ms);
 
 // The backlight to apply now: the input test's own level while it is open, 0 after the screen
-// timeout, otherwise the brightness setting with auto day/night (core::display_policy).
+// timeout, otherwise the brightness setting with auto day/night (core::display_policy), capped
+// while the chip is hot (core::RideHealth).
 [[nodiscard]] int BacklightPercent();
+
+// A chip temperature reading from the board (every few seconds); `valid` false if it failed.
+void OnChipTemp(bool valid, float celsius);
+
+// The dash's health since power-on: temperature, heat cap, link drops, stale route data.
+[[nodiscard]] const core::RideHealth& Health();
 
 // Name of the screen shown now ("nav", "music", ...), for logs.
 [[nodiscard]] const char* CurrentScreenName();

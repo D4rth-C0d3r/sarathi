@@ -39,6 +39,9 @@ size_t wifi_row = 0;
 size_t forget_row = 0;
 size_t link_row = 0;    // "Phone: connected": only with BLE pairing, like the next row
 size_t phones_row = 0;  // Forget phones: only with BLE pairing (Chronos build)
+// Health since power-on, for ride checks without a laptop (core/ride_health.h).
+size_t temp_row = 0;
+size_t drops_row = 0;
 std::array<char, 40> version_text{};
 std::array<size_t, ListMenu::kMaxRows> theme_indices{};
 Page page = Page::kMain;
@@ -157,6 +160,23 @@ void SetLocked(bool locked) {
   shown_locked = locked;
 }
 
+// "Chip 61 C, max 74" ("Hot ..." while the backlight is capped); "Drops 1, stale 3": phone
+// link drops and stale route data since power-on. The built-in fonts have no degree sign.
+void RefreshHealthTexts(const core::RideHealth& health) {
+  std::array<char, 40> text{};
+  if (health.TempValid()) {
+    std::snprintf(text.data(), text.size(), "%s %d C, max %d", health.Hot() ? "Hot" : "Chip",
+                  health.TempC(), health.MaxTempC());
+  } else {
+    std::snprintf(text.data(), text.size(), "%s", "Chip: no reading");
+  }
+  main_menu.SetText(temp_row, text.data());
+  std::snprintf(text.data(), text.size(), "Drops %u, stale %u",
+                static_cast<unsigned>(health.PhoneLost()),
+                static_cast<unsigned>(health.StaleCount()));
+  main_menu.SetText(drops_row, text.data());
+}
+
 }  // namespace
 
 lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& actions) {
@@ -185,6 +205,8 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& action
   std::snprintf(version_text.data(), version_text.size(), "Version %.*s",
                 static_cast<int>(core::kFirmwareVersion.size()), core::kFirmwareVersion.data());
   main_menu.AddAction(version_text.data(), Nothing, nullptr);
+  temp_row = main_menu.AddAction("Chip", Nothing, nullptr);
+  drops_row = main_menu.AddAction("Drops", Nothing, nullptr);
   main_menu.AddAction("Input test", OpenInputTest, nullptr);
 
   theme_menu.Create(screen, kMenuY, kMenuWidth, kMenuMaxHeight);
@@ -204,7 +226,8 @@ lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& action
   return screen;
 }
 
-void Update(const core::AppState& state, bool locked, const core::WifiSetup& wifi) {
+void Update(const core::AppState& state, bool locked, const core::WifiSetup& wifi,
+            const core::RideHealth& health) {
   if (locked != shown_locked) {
     SetLocked(locked);
   }
@@ -227,6 +250,7 @@ void Update(const core::AppState& state, bool locked, const core::WifiSetup& wif
     std::snprintf(text.data(), text.size(), "%s", "No phones paired");
   }
   main_menu.SetText(phones_row, text.data());
+  RefreshHealthTexts(health);
   main_menu.Refresh();
 }
 

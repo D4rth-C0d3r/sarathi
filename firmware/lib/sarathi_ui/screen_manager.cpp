@@ -82,7 +82,8 @@ void Init(lv_indev_t* encoder, core::AppModel& model, core::OtaUpdate& ota_updat
   Show(ScreenId::kNav);
 }
 
-void Update(const core::AppModel& model, const core::InputTestState& input_test, uint32_t now_ms) {
+void Update(const core::AppModel& model, const core::InputTestState& input_test,
+            const core::RideHealth& health, uint32_t now_ms) {
   const core::AppState& state = model.State();
 
   // An incoming or active call takes over the screen; afterwards, go back.
@@ -119,7 +120,7 @@ void Update(const core::AppModel& model, const core::InputTestState& input_test,
       music_screen::Update(state);
       break;
     case ScreenId::kSettings:
-      settings_screen::Update(state, model.SettingsLocked(), *wifi);
+      settings_screen::Update(state, model.SettingsLocked(), *wifi, health);
       break;
     case ScreenId::kCall:
       call_screen::Update(state, now_ms);

@@ -27,6 +27,7 @@
 #include "board_pins.h"
 #include "boot_confirm.h"
 #include "boot_health.h"
+#include "chip_temp.h"
 #if defined(SARATHI_BACKEND_CHRONOS)
 #include "chronos_source.h"
 #elif defined(SARATHI_BACKEND_PHONE)
@@ -77,6 +78,7 @@ constexpr uint32_t kLoopDelayMs = 5;
 constexpr uint32_t kKiB = 1024;
 constexpr uint32_t kMiB = 1024 * 1024;
 constexpr uint32_t kNoticeMs = 8000;
+constexpr uint32_t kChipTempPeriodMs = 10000;       // the heat cap (core/ride_health.h)
 constexpr uint32_t kDarkSettleMs = 100;             // let the backlight go dark, or a log line out
 constexpr const char* kRollbackMarker = "rb_seen";  // slot address of the last notice shown
 
@@ -85,6 +87,8 @@ board::Backlight backlight;
 board::Display display;
 board::Touch touch;
 board::Knob knob;
+board::ChipTemp chip_temp;
+uint32_t last_chip_temp_ms = 0;
 core::TouchFilter touch_filter(pins::kScreenWidth, pins::kScreenHeight, pins::kTouchYOffset,
                                pins::kTouchJitterPx);
 core::AppModel app;
@@ -260,6 +264,7 @@ void LogPerf() {
   const core::FrameStats::Summary flushes = flush_stats.TakeSummary();
   constexpr float kMs = 1000.0F;
   const ui::nav_screen::MapPerf map = ui::nav_screen::TakeMapPerf();
+  const core::RideHealth& health = ui::app_shell::Health();
   const float n_frames = frames.count > 0 ? static_cast<float>(frames.count) : 1.0F;
   const auto per_frame = [&](uint32_t us) {
     return static_cast<double>(static_cast<float>(us) / n_frames / kMs);
@@ -272,12 +277,13 @@ void LogPerf() {
   // Formatted first and written only if the USB port has room: ESP_LOGx waits up to the 1 ms
   // timeout per write when a host is attached but not reading, which froze the UI for about
   // 0.3 s every 5 s (seen in the map bench, step G1).
-  static std::array<char, 480> line{};  // NOLINT(*-avoid-non-const-global-variables)
+  static std::array<char, 560> line{};  // NOLINT(*-avoid-non-const-global-variables)
   const int len = std::snprintf(
       line.data(), line.size(),
       "[main] perf %s %s | frames %u/%us | frame avg %.1f ms max %.1f ms | flush avg %.1f ms max "
       "%.1f ms (%u) | heap int %u KB free (min %u, largest %u) | psram %u KB free (min "
-      "%u) | stack free ui %u B, knob %u B | map draw %.1f ms (prepare %.1f lines %.1f) x %u",
+      "%u) | stack free ui %u B, knob %u B | map draw %.1f ms (prepare %.1f lines %.1f) x %u | "
+      "chip %d C max %d%s | drops %u stale %u",
       kBuild, ui::app_shell::CurrentScreenName(), static_cast<unsigned>(frames.count),
       static_cast<unsigned>(kPerfPeriodMs / 1000),
       static_cast<double>(static_cast<float>(frames.avg_us) / kMs),
@@ -292,7 +298,9 @@ void LogPerf() {
       static_cast<unsigned>(heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM) / kKiB),
       static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
       static_cast<unsigned>(knob.StackFreeBytes()), per_frame(map.total_us),
-      per_frame(map.prepare_us), per_frame(map.lines_us), static_cast<unsigned>(map.frames));
+      per_frame(map.prepare_us), per_frame(map.lines_us), static_cast<unsigned>(map.frames),
+      health.TempValid() ? health.TempC() : -1, health.MaxTempC(), health.Hot() ? " hot" : "",
+      static_cast<unsigned>(health.PhoneLost()), static_cast<unsigned>(health.StaleCount()));
   if (len > 0 && static_cast<size_t>(len) < line.size() - 1) {
     line.at(static_cast<size_t>(len)) = '\n';
     if (Serial.availableForWrite() > len) {
@@ -363,8 +371,27 @@ void RunOta(uint32_t now) {
   wifi_setup.Tick(now);
 }
 
+// The chip's temperature to the shell, which caps the backlight while it's hot. Logged only when
+// the cap changes (and in the perf line).
+void ReadChipTemp(uint32_t now) {
+  if (now - last_chip_temp_ms < kChipTempPeriodMs && last_chip_temp_ms != 0) {
+    return;
+  }
+  last_chip_temp_ms = now;
+  float celsius = 0.0F;
+  const bool valid = chip_temp.Read(&celsius);
+  const bool was_hot = ui::app_shell::Health().Hot();
+  ui::app_shell::OnChipTemp(valid, celsius);
+  const core::RideHealth& health = ui::app_shell::Health();
+  if (health.Hot() != was_hot) {
+    ESP_LOGW(kTag, "chip %d C: backlight %s", health.TempC(),
+             health.Hot() ? "capped (hot)" : "cap lifted");
+  }
+}
+
 void RunUi(uint32_t now) {
   source.Poll(now, app);
+  ReadChipTemp(now);
 
   int8_t step = 0;
   while (knob.TakeStep(step)) {
@@ -442,6 +469,9 @@ void setup() {
     return;
   }
   touch_ready = touch.Begin();
+  if (!chip_temp.Begin()) {
+    ESP_LOGE(kTag, "chip temperature sensor failed; no heat cap");
+  }
   if (!knob.Begin()) {
     ESP_LOGE(kTag, "knob init failed");
   }

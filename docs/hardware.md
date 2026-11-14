@@ -366,4 +366,11 @@ timeout and a 2 KB buffer, so lines that can't go out are dropped.
 ## Power and environment
 
 5 V / 1 A input, operating range −20 to 65 °C. Flash through the **USB IN** port (native USB).
+
+**Heat:** the firmware reads the ESP32-S3's internal temperature sensor (the die, through
+ESP-IDF's driver in its 20-100 °C range, error under 2 °C) every 10 s. At 80 °C it caps the
+backlight at 50 % and lifts the cap below 72 °C (`core/ride_health.h`). The die runs above
+the air around it; 80 °C is the board's 65 °C ambient limit plus an assumed 15 °C of
+self-heating, to be tuned with the real readings from an hour in the sun (step H, H11).
+Arduino's `temperatureRead()` isn't used: it sets the sensor up for 10-50 °C and fails above.
 Never hot-plug the FPC cable while powered.

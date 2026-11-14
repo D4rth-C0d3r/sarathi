@@ -17,6 +17,7 @@ core::AppModel* app = nullptr;
 core::InputTestModel* test = nullptr;
 core::ButtonDebouncer button(0, 0, kLongPressMs);  // timings set in Init()
 core::ScreenPower power;
+core::RideHealth health;
 bool last_button_raw = false;
 bool swallow_button = false;  // the press that woke the screen, until it is released
 bool last_touching = false;
@@ -142,6 +143,7 @@ void Update(uint32_t now_ms) {
     static_cast<void>(power.OnInput(now_ms));  // no screen timeout during setup or an update
   }
   power.Update(app->State(), now_ms);
+  health.Update(app->State(), now_ms);
   const bool now_installing =
       ota->Phase() == core::OtaPhase::kInstalling || ota->Phase() == core::OtaPhase::kRebooting;
   if (now_installing && !installing) {
@@ -157,7 +159,7 @@ void Update(uint32_t now_ms) {
   if (&wanted != &theme::Current()) {
     theme::Apply(wanted);
   }
-  screen_manager::Update(*app, test->State(), now_ms);
+  screen_manager::Update(*app, test->State(), health, now_ms);
 }
 
 const char* CurrentScreenName() {
@@ -195,7 +197,11 @@ int BacklightPercent() {
   if (installing && lv_tick_get() - installing_since_ms >= core::kInstallDarkMs - kDarkMarginMs) {
     return 0;
   }
-  return core::DayNightBrightness(app->State().settings, app->State().clock);
+  return health.CapBacklight(core::DayNightBrightness(app->State().settings, app->State().clock));
 }
+
+void OnChipTemp(bool valid, float celsius) { health.OnChipTemp(valid, celsius); }
+
+const core::RideHealth& Health() { return health; }
 
 }  // namespace sarathi::ui::app_shell

@@ -16,6 +16,7 @@
 #include "app_model.h"
 #include "input_test_model.h"
 #include "ota_update.h"
+#include "ride_health.h"
 #include "wifi_setup.h"
 
 namespace sarathi::ui::screen_manager {
@@ -37,7 +38,8 @@ void Init(lv_indev_t* encoder, core::AppModel& model, core::OtaUpdate& ota,
           core::WifiSetup& wifi_setup, uint32_t (*random)());
 
 // Shows the call screen when needed and refreshes the shown screen.
-void Update(const core::AppModel& model, const core::InputTestState& input_test, uint32_t now_ms);
+void Update(const core::AppModel& model, const core::InputTestState& input_test,
+            const core::RideHealth& health, uint32_t now_ms);
 
 // Double-click: the next screen in the carousel. Ignored on the call, pairing, input test,
 // Wi-Fi setup and update screens.

@@ -7,6 +7,7 @@
 #include <lvgl.h>
 
 #include "app_model.h"
+#include "ride_health.h"
 #include "wifi_setup.h"
 
 namespace sarathi::ui::settings_screen {
@@ -20,6 +21,7 @@ struct Actions {
 };
 
 lv_obj_t* Create(lv_group_t* group, core::AppModel& model, const Actions& actions);
-void Update(const core::AppState& state, bool locked, const core::WifiSetup& wifi);
+void Update(const core::AppState& state, bool locked, const core::WifiSetup& wifi,
+            const core::RideHealth& health);
 
 }  // namespace sarathi::ui::settings_screen

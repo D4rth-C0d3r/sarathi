@@ -310,7 +310,8 @@ Every build also logs a `perf` line every 5 s on the serial monitor:
 
 ```
 [main] perf normal | frames 15/5s | frame avg … ms max … ms | flush avg … ms max … ms (n) |
-       heap int … KB free (min …, largest …) | psram … KB free (min …) | stack free ui … B, knob … B
+       heap int … KB free (min …, largest …) | psram … KB free (min …) | stack free ui … B, knob … B |
+       map draw … ms (prepare … lines …) x … | chip … C max …[ hot] | drops … stale …
 ```
 
 - **frame:** one LVGL refresh that actually drew something (layout, render and flush to the
@@ -318,6 +319,10 @@ Every build also logs a `perf` line every 5 s on the serial monitor:
 - **flush:** the copy into the panel framebuffer alone (`n` = flushes in the period).
 - **min:** the lowest free memory seen since boot. **largest:** the biggest free block.
 - **stack free:** the least stack each task has had spare (its high-water mark).
+- **chip:** the ESP32-S3's die temperature now and its maximum since power-on (`-1`: no
+  reading); `hot` while the backlight is capped for heat. **drops / stale:** phone link drops
+  and stale route data since power-on. Settings shows the same two rows ("Chip …", "Drops …"),
+  for ride checks without a laptop (`docs/phase4-test-plan.md`, step H).
 
 To measure the worst case for a smoothly rotating map, build the stress variant, which
 re-projects and redraws the route on every refresh:
