@@ -389,3 +389,7 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
     The owner uploaded the trace of one place and added a note at the other, and saw "Sent.
     Thank you for mapping." for each.
   - I3.4 and I3.5 are still to do.
+- **I4 not tried on a server yet (owner's choice, 2026-11-14).** The test server has no roads
+  near the test places, so only the refusal could be shown there. The owner chose not to draw
+  test roads, and to wait for a real missing road found on a ride. Before the guided edit is
+  used on the live server, I4.2–I4.4 must pass on the test server.
