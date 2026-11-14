@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The OSM contribution helper's switch (ADR-0012): off by default. Turning it off deletes the
- * recorded tracks.
+ * recorded tracks, their gaps and the dismissed places.
  */
 object ContributeSettings {
     private const val PREFS = "osm_contribute"
@@ -25,6 +25,9 @@ object ContributeSettings {
     ) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(ENABLED, enabled) }
         (flow(context) as MutableStateFlow).value = enabled
-        if (!enabled) TrackStorage.deleteAll(context)
+        if (!enabled) {
+            TrackStorage.deleteAll(context)
+            GapStore.deleteAll(context)
+        }
     }
 }

@@ -58,7 +58,11 @@ class TrackRecorder(
     override fun onLocationChanged(location: Location) {
         val fix = location.takeUnless { it.mock() }?.toRawFix()?.takeIf(filter::accept) ?: return
         try {
-            val w = writer ?: TrackStorage.newTrack(context, fix.timeUtcMs).also { writer = it }
+            val w =
+                writer ?: TrackStorage.newTrack(context, fix.timeUtcMs).also {
+                    writer = it
+                    activeName = TrackFile.name(fix.timeUtcMs)
+                }
             w.write(TrackFile.line(fix))
             w.newLine()
             if (++unflushed >= FLUSH_EVERY) {
@@ -74,6 +78,7 @@ class TrackRecorder(
     private fun close() {
         runCatching { writer?.close() }
         writer = null
+        activeName = null
         unflushed = 0
     }
 
@@ -95,9 +100,14 @@ class TrackRecorder(
             isFromMockProvider
         }
 
-    private companion object {
-        const val TAG = "Contribute"
-        const val INTERVAL_MS = 1_000L
-        const val FLUSH_EVERY = 10
+    companion object {
+        /** The track file being written now: gap checks leave it alone until the ride ends. */
+        @Volatile
+        var activeName: String? = null
+            private set
+
+        private const val TAG = "Contribute"
+        private const val INTERVAL_MS = 1_000L
+        private const val FLUSH_EVERY = 10
     }
 }

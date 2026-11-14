@@ -1,6 +1,5 @@
 package io.github.d4rthc0d3r.sarathi.core.osmcontrib
 
-import io.github.d4rthc0d3r.sarathi.core.mapdata.ChunkMaker
 import io.github.d4rthc0d3r.sarathi.core.mapdata.Corridor
 import io.github.d4rthc0d3r.sarathi.core.mapdata.GeoPoint
 import io.github.d4rthc0d3r.sarathi.core.mapdata.MapLevel
@@ -63,18 +62,11 @@ class RoadIndex private constructor(
          * only OSM provenance. A place counts as covered only inside such a tile.
          */
         fun fromTiles(tiles: List<TileShapes>): RoadIndex {
-            val usable = tiles.filter { it.level == MapLevel.L0 && isOsm(it.provenance) }
-            val lines =
-                usable.flatMap { t ->
-                    t.lines.map { line ->
-                        line.points.map { pt ->
-                            val (lat, lon) = ChunkMaker.tileToLatLon(t.level.zoom, t.tileX, t.tileY, pt.x, pt.y)
-                            GeoPoint(lat, lon)
-                        }
-                    }
-                }
-            val held = usable.map { it.tileX to it.tileY }.toSet()
-            return RoadIndex(index(lines), emptyList()) { p -> Corridor.tileAt(MapLevel.L0.zoom, p) in held }
+            val held = OsmTiles.usable(tiles).map { it.tileX to it.tileY }.toSet()
+            return RoadIndex(index(OsmTiles.roads(tiles)), emptyList()) { p ->
+                Corridor.tileAt(MapLevel.L0.zoom, p) in
+                    held
+            }
         }
 
         /** Current OSM ways from Overpass around a gap: roads, and car park or fuel areas. */

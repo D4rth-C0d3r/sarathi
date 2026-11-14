@@ -344,6 +344,11 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
 | I1.4 | Only while moving | Dash connected on the desk for a few minutes | No track file (`adb shell run-as io.github.d4rthc0d3r.sarathi ls files/osm-tracks`): standing still records nothing |
 | I1.5 | On a ride | A ride with it on | One file per dash connection; Maps settings shows the rides and km |
 | I1.6 | Turning off deletes | Turn it off, confirm | `deleted N track(s)`; the folder is empty; "Off" |
+| I2.1 | Never during a ride | Start a ride (or Simulate), open Maps settings → Missing roads | "Available after the ride."; no check button |
+| I2.2 | Check after a ride | Missing roads → Check my rides | Logcat: `<track>: N fixes, M tiles, K candidate(s)`; each candidate confirmed with Overpass; the places on small maps, north up, with OSM attribution |
+| I2.3 | Overpass busy | (happens on its own) | `overpass busy: trying again in 15 s`; if still busy, "could not be checked yet" and tried again next time, never shown unchecked |
+| I2.4 | Skip and dismiss | Skip one place, dismiss another, check again after the next ride | Skipped is hidden; dismissed is never offered again (`files/osm-gaps/dismissed.txt`) |
+| I2.5 | A real gap | A ride through a road OSM doesn't have | It shows up; roads OSM has (tracks and paths too) and car parks don't |
 
 ### Results, 2026-11-14 (Nothing Phone (1), Android 15)
 
@@ -356,3 +361,12 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
 - **I1.4 passes on the desk:** with the dash connected and the phone still, no track folder was
   created.
 - **I1.5 waits for a ride. I1.6 (off deletes) is to do once a ride has recorded something.**
+- **I2.2–I2.4 pass on the desk** with a test track placed over adb: 1 km from Miramar beach
+  (Panaji) west over the sea, deleted afterwards.
+  - 111 fixes, 12 tiles, 1 candidate.
+  - Overpass answered 502 ("at capacity") at first. The client now backs off on 429 and 502–504
+    (15 s, then 30 s); the place stayed unchecked until it answered.
+  - Confirmed: "About 1010 m" on a small map with the coast roads.
+  - Found and fixed: the map wasn't clipped and drew over the card.
+  - Dismiss for good stored the place (a 561 m circle).
+- **I2.1 and I2.5** wait for a ride.

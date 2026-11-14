@@ -31,11 +31,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.d4rthc0d3r.sarathi.contribute.ContributeSettings
+import io.github.d4rthc0d3r.sarathi.contribute.GapCheck
+import io.github.d4rthc0d3r.sarathi.contribute.GapStore
 import io.github.d4rthc0d3r.sarathi.contribute.TrackStorage
 import io.github.d4rthc0d3r.sarathi.core.ble.LinkState
 import io.github.d4rthc0d3r.sarathi.core.maps.Meter
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingBackend
 import io.github.d4rthc0d3r.sarathi.core.maps.RoutingService
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.GapStatus
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.StoredGap
 import io.github.d4rthc0d3r.sarathi.feature.calls.CallsFeature
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationActions
 import io.github.d4rthc0d3r.sarathi.feature.destination.DestinationScreen
@@ -58,6 +62,9 @@ import io.github.d4rthc0d3r.sarathi.maps.MapsRegistry
 import io.github.d4rthc0d3r.sarathi.maps.MapsStore
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleGuidance
 import io.github.d4rthc0d3r.sarathi.maps.google.GoogleNavRouting
+import io.github.d4rthc0d3r.sarathi.ui.GapsActions
+import io.github.d4rthc0d3r.sarathi.ui.GapsScreen
+import io.github.d4rthc0d3r.sarathi.ui.GapsUi
 import io.github.d4rthc0d3r.sarathi.ui.HomeActions
 import io.github.d4rthc0d3r.sarathi.ui.HomeScreen
 import io.github.d4rthc0d3r.sarathi.ui.HomeUi
@@ -105,9 +112,11 @@ class MainActivity : ComponentActivity() {
                 if (shared != null) screen = Screen.DESTINATION
                 if (screen != Screen.HOME) {
                     val home = { screen = Screen.HOME }
-                    BackHandler(onBack = home)
+                    val back = if (screen == Screen.GAPS) ({ screen = Screen.MAPS }) else home
+                    BackHandler(onBack = back)
                     when (screen) {
-                        Screen.MAPS -> MapsSettings(onBack = home)
+                        Screen.MAPS -> MapsSettings(onBack = home, onGaps = { screen = Screen.GAPS })
+                        Screen.GAPS -> Gaps(onBack = back)
                         else -> Destination(onBack = home)
                     }
                     return@SarathiTheme
@@ -144,7 +153,10 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun MapsSettings(onBack: () -> Unit) {
+    private fun MapsSettings(
+        onBack: () -> Unit,
+        onGaps: () -> Unit,
+    ) {
         val store = MapsStore.get(this)
         var mapCheck by remember { mutableStateOf("") }
         val settings = store.settings.collectAsStateWithLifecycle()
@@ -178,10 +190,54 @@ class MainActivity : ComponentActivity() {
                     termsTick++
                 },
                 onContribute = { on -> ContributeSettings.set(this, on) },
+                onOpenGaps = onGaps,
                 onMapCheck = { offlineOnly ->
                     mapCheck = getString(R.string.map_check_running)
                     lifecycleScope.launch { mapCheck = MapCheck.run(this@MainActivity, offlineOnly) }
                 },
+            ),
+        )
+    }
+
+    /** Missing roads on recent rides (ADR-0012): checked when the rider asks, never during a ride. */
+    @Composable
+    private fun Gaps(onBack: () -> Unit) {
+        val plan = ActiveRide.plan.collectAsStateWithLifecycle()
+        var tick by remember { mutableIntStateOf(0) }
+        var checking by remember { mutableStateOf<String?>(null) }
+        val stored by produceState(emptyList<StoredGap>(), tick) {
+            value = withContext(Dispatchers.IO) { GapStore.all(this@MainActivity) }
+        }
+
+        fun setStatus(
+            gap: StoredGap,
+            status: GapStatus,
+        ) {
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) { GapStore.update(this@MainActivity, gap, status) }
+                tick++
+            }
+        }
+        GapsScreen(
+            GapsUi(
+                open = stored.filter { it.status == GapStatus.OPEN },
+                unchecked = stored.count { it.status == GapStatus.UNCHECKED },
+                riding = plan.value != null,
+                checking = checking,
+            ),
+            GapsActions(
+                onBack = onBack,
+                onCheck = {
+                    checking = getString(R.string.gaps_checking_ride)
+                    lifecycleScope.launch {
+                        GapCheck.run(this@MainActivity) { checking = it }
+                        checking = null
+                        tick++
+                    }
+                },
+                onSkip = { setStatus(it, GapStatus.SKIPPED) },
+                onDismiss = { setStatus(it, GapStatus.DISMISSED) },
+                roads = { GapCheck.roadsNear(this@MainActivity, it) },
             ),
         )
     }
@@ -266,7 +322,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private enum class Screen { HOME, MAPS, DESTINATION }
+    private enum class Screen { HOME, MAPS, DESTINATION, GAPS }
 
     override fun onResume() {
         super.onResume()

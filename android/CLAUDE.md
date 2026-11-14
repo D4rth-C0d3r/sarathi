@@ -23,6 +23,8 @@ G3 sends them along the route (`link/ChunkSender`, protocol 1.2); G5 sends traff
 the remaining time by it.
 Step I (ADR-0012) is the opt-in OSM contribution helper: I1 records the ride's raw GPS track
 (`contribute/TrackRecorder`, satellite fixes only) while the dash is connected and the helper is on.
+I2 finds gaps when the rider asks, never during a ride (`contribute/GapCheck`: OSM-provenance tiles,
+then Overpass through `OverpassClient`) and shows them in Missing roads (`ui/GapsScreen`).
 Don't add features or permissions unasked.
 
 ## Commands (run from `android/`)

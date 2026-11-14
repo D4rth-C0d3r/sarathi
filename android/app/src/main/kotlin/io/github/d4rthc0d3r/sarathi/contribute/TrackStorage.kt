@@ -2,6 +2,7 @@ package io.github.d4rthc0d3r.sarathi.contribute
 
 import android.content.Context
 import android.util.Log
+import io.github.d4rthc0d3r.sarathi.core.osmcontrib.RawGpsFix
 import io.github.d4rthc0d3r.sarathi.core.osmcontrib.TrackFile
 import java.io.BufferedWriter
 import java.io.File
@@ -37,11 +38,20 @@ object TrackStorage {
         }
     }
 
-    /** Deletes tracks older than TrackFile.KEEP_DAYS. */
+    /** Finished tracks, newest first: not the one being recorded now. */
+    fun finished(context: Context): List<File> =
+        files(context).filter { it.name != TrackRecorder.activeName }.sortedByDescending { it.name }
+
+    fun read(file: File): List<RawGpsFix> = file.useLines { TrackFile.read(it) }
+
+    /** Deletes tracks older than TrackFile.KEEP_DAYS, and their gaps. */
     fun purgeExpired(context: Context) {
         val all = files(context)
         val old = TrackFile.expired(all.map { it.name }, System.currentTimeMillis()).toSet()
-        all.filter { it.name in old }.forEach { it.delete() }
+        all.filter { it.name in old }.forEach {
+            it.delete()
+            GapStore.deleteFor(context, it.name)
+        }
         if (old.isNotEmpty()) Log.i(TAG, "deleted ${old.size} track(s) older than ${TrackFile.KEEP_DAYS} days")
     }
 

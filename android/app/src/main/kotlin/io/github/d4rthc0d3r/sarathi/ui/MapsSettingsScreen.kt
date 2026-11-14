@@ -76,7 +76,7 @@ fun MapsSettingsScreen(
                     onChange { it.copy(mapplsRoutesPerDay = v) }
                 }
             }
-            ContributeSection(status, actions.onContribute)
+            ContributeSection(status, actions.onContribute, actions.onOpenGaps)
             DeskTestSections(status, actions)
             Section(R.string.maps_valhalla, R.string.maps_valhalla_reason) {
                 OutlinedTextField(
@@ -139,6 +139,8 @@ data class MapsSettingsActions(
     val onMapCheck: (Boolean) -> Unit = {},
     /** Turns the OSM contribution helper on or off (off deletes the tracks; ADR-0012). */
     val onContribute: (Boolean) -> Unit = {},
+    /** Opens the missing roads found on recent rides (ADR-0012). */
+    val onOpenGaps: () -> Unit = {},
 )
 
 @Composable

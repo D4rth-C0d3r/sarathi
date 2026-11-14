@@ -2,6 +2,7 @@ package io.github.d4rthc0d3r.sarathi.ui
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,6 +24,7 @@ import io.github.d4rthc0d3r.sarathi.R
 internal fun ContributeSection(
     status: MapsStatus,
     onContribute: (Boolean) -> Unit,
+    onOpenGaps: () -> Unit,
 ) {
     var asking by remember { mutableStateOf<Boolean?>(null) } // the switch position being confirmed
     Section(R.string.contribute_title, R.string.contribute_reason) {
@@ -36,6 +38,9 @@ internal fun ContributeSection(
                 Modifier.weight(1f),
             )
             Switch(checked = status.contributeOn, onCheckedChange = { asking = it })
+        }
+        if (status.contributeOn) {
+            OutlinedButton(onClick = onOpenGaps) { Text(stringResource(R.string.contribute_open_gaps)) }
         }
     }
     when (asking) {

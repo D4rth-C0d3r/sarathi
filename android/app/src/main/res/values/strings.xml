@@ -148,4 +148,18 @@
     <string name="contribute_off_title">Turn off and delete the tracks?</string>
     <string name="contribute_off_text">The GPS tracks recorded on this phone are deleted. Nothing already sent to OpenStreetMap changes.</string>
     <string name="contribute_off_confirm">Turn off and delete</string>
+    <string name="map_attribution">© OpenStreetMap contributors</string>
+    <string name="contribute_open_gaps">Missing roads</string>
+    <string name="gaps_title">Missing roads</string>
+    <string name="gaps_reason">Places on your recent rides where OpenStreetMap has no road. Each is checked against OpenStreetMap as it is today before it shows here.</string>
+    <string name="gaps_after_ride">Available after the ride.</string>
+    <string name="gaps_check">Check my rides</string>
+    <string name="gaps_checking_ride">Checking a ride against the map…</string>
+    <string name="gaps_checking_osm">Checking with OpenStreetMap…</string>
+    <string name="gaps_unchecked">%1$d place(s) could not be checked with OpenStreetMap yet; they are tried again next time.</string>
+    <string name="gaps_none">Nothing to show.</string>
+    <string name="gaps_card">About %1$d m, ridden %2$s</string>
+    <string name="gaps_skip">Skip</string>
+    <string name="gaps_dismiss">Dismiss for good</string>
+    <string name="gaps_done">%1$d place(s) to look at.</string>
 </resources>

@@ -34,7 +34,7 @@ class MapsRegistry private constructor(
     context: Context,
 ) {
     private val store = MapsStore.get(context)
-    private val http = OkHttpClient()
+    val http = OkHttpClient()
 
     /** Identifies us to the free OSM services, as their terms ask. */
     val userAgent = "sarathi/${BuildConfig.VERSION_NAME} (+https://github.com/D4rth-C0d3r/sarathi)"
