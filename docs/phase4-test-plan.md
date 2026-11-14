@@ -344,3 +344,15 @@ The phone with the debug app; the dash on the `crowpanel21-phone` build. Logcat 
 | I1.4 | Only while moving | Dash connected on the desk for a few minutes | No track file (`adb shell run-as io.github.d4rthc0d3r.sarathi ls files/osm-tracks`): standing still records nothing |
 | I1.5 | On a ride | A ride with it on | One file per dash connection; Maps settings shows the rides and km |
 | I1.6 | Turning off deletes | Turn it off, confirm | `deleted N track(s)`; the folder is empty; "Off" |
+
+### Results, 2026-11-14 (Nothing Phone (1), Android 15)
+
+- **I1.1–I1.3 pass:**
+  - Off on install; the dash connected logged no recording.
+  - The dialog explains; Cancel leaves it off; the owner turned it on.
+  - `recording the GPS track` at once.
+  - The app's Stop logged `track recording stopped`; Start brought `recording the GPS track` again
+    when the link was Ready.
+- **I1.4 passes on the desk:** with the dash connected and the phone still, no track folder was
+  created.
+- **I1.5 waits for a ride. I1.6 (off deletes) is to do once a ride has recorded something.**
